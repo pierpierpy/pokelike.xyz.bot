@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .bench import STANDARD_SEEDS, run_benchmark, summarise
+from .bench import STANDARD_SEEDS, _tok, run_benchmark, summarise
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "llm-bench"
@@ -701,18 +701,26 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
     def postfix() -> None:
         done = [r for r in rows if r.get("badges") is not None]
-        spent = sum(r.get("tokens_in", 0) + r.get("tokens_out", 0) for r in rows)
-        spent += sum(v.get("tokens", 0) for v in live.values())
-        bar.set_postfix(
-            badges=round(sum(r["badges"] for r in done) / len(done), 2) if done else None,
-            tok=f"{spent / 1e6:.2f}M",
-            fell=sum(r.get("fallbacks", 0) for r in rows),
+        # Finished runs plus what the in-flight ones have spent so far, in and out
+        # kept apart: output is priced several times higher, so one total cannot be
+        # turned into a bill.
+        t_in = (sum(r.get("tokens_in", 0) for r in rows)
+                + sum(v.get("tokens_in", 0) for v in live.values()))
+        t_out = (sum(r.get("tokens_out", 0) for r in rows)
+                 + sum(v.get("tokens_out", 0) for v in live.values()))
+        bar.set_postfix({
+            "badges": round(sum(r["badges"] for r in done) / len(done), 2) if done else None,
+            "in": _tok(t_in),
+            "out": _tok(t_out),
+            "fell": sum(r.get("fallbacks", 0) for r in rows),
             # What the workers are on at this instant, so a bar stuck on the same
-            # count still shows movement -- or shows that there is none.
-            now=" ".join(
+            # count still shows movement -- or shows that there is none. Passed as a
+            # dict rather than as keywords because tqdm renders numbers through its
+            # own formatter, and a seed becomes `1e+4`.
+            "now": " ".join(
                 f"{v['seed']}@L{v.get('layer', '?')}/{v.get('badges', 0)}b/{v['step']}s"
                 for v in sorted(live.values(), key=lambda x: x["seed"])),
-        )
+        })
 
     ended = 0
     while ended < len(procs):
@@ -797,10 +805,12 @@ def _worker() -> int:
             def live(obs, steps, _seed=seed):
                 if steps % 5:
                     return
+                # Raw counts, not the bar's pretty strings: the parent has to add
+                # them up across workers before anyone formats anything.
                 print(json.dumps({
                     "live": True, "seed": _seed, "step": steps,
-                    "tokens": bot.tokens_in + bot.tokens_out,
-                    **live_fields(obs, bot),
+                    "tokens_in": bot.tokens_in, "tokens_out": bot.tokens_out,
+                    **live_fields(obs),
                 }), flush=True)
 
             full = play_run(game, bot, seed, max_steps=400, on_step=live)

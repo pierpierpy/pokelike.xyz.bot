@@ -66,7 +66,17 @@ def summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def live_fields(obs: dict[str, Any], bot: Any = None) -> dict[str, Any]:
+def _tok(n: int) -> str:
+    """Token counts short enough to sit in a progress bar without moving it.
+
+    The threshold is 999_500 rather than a million because that is where rounding
+    to thousands would print `1000k`, which is a millon spelled badly.
+    """
+    return f"{n / 1e6:.2f}M" if n >= 999_500 else f"{n / 1000:.0f}k"
+
+
+def live_fields(obs: dict[str, Any], bot: Any = None,
+                so_far: tuple[int, int] | None = None) -> dict[str, Any]:
     """What is worth seeing WHILE a run is still going, for a progress bar.
 
     Not a log line and not a record: every reading replaces the last one. The
@@ -77,6 +87,14 @@ def live_fields(obs: dict[str, Any], bot: Any = None) -> dict[str, Any]:
     one is the boss and `current`'s layer is how far in the bot has got. That
     answers the question a step count cannot: 34 steps means nothing, layer 6 of 7
     means the gym leader is next.
+
+    `so_far` is what the finished runs already spent, so the token fields read
+    `this run / the whole pass`. In and out are separate because output costs
+    several times more per token, and one total cannot be turned into a bill.
+
+    No seed here on purpose: tqdm renders numbers through its own formatter and
+    turns 10000 into `1e+4`, which is worse than useless. The bar's own counter
+    already says which run of how many this is.
     """
     run = obs.get("run") or {}
     m = obs.get("map") or {}
@@ -95,9 +113,16 @@ def live_fields(obs: dict[str, Any], bot: Any = None) -> dict[str, Any]:
         out["layer"] = f"?/{max(layers)}"
 
     if bot is not None:
-        spent = (getattr(bot, "tokens_in", 0) or 0) + (getattr(bot, "tokens_out", 0) or 0)
-        if spent:
-            out["tok"] = f"{spent / 1000:.0f}k"
+        # Read off the bot rather than asked for, so nothing else has to know what
+        # an LLM is. `on_start` resets these, so they are THIS run's.
+        ti = getattr(bot, "tokens_in", 0) or 0
+        to = getattr(bot, "tokens_out", 0) or 0
+        if ti or to:
+            if so_far:
+                out["in"] = f"{_tok(ti)}/{_tok(so_far[0] + ti)}"
+                out["out"] = f"{_tok(to)}/{_tok(so_far[1] + to)}"
+            else:
+                out["in"], out["out"] = _tok(ti), _tok(to)
         fell = getattr(bot, "fallbacks", 0) or 0
         if fell:
             out["fell"] = fell
@@ -137,7 +162,13 @@ def run_benchmark(
         # the bar rather than printed: it is the state of one run, which is
         # replaced by the next reading rather than worth a line of its own.
         def live(obs, steps, _seed=seed):
-            bar.set_postfix(seed=_seed, step=steps, **live_fields(obs, bot))
+            # What the finished runs already spent, so the bar can show this run
+            # against the pass. Summed here rather than kept in a counter: the rows
+            # are the only place tokens are recorded, and a second tally would be a
+            # second thing to keep in step with them.
+            spent = (sum(r.get("tokens_in") or 0 for r in runs),
+                     sum(r.get("tokens_out") or 0 for r in runs))
+            bar.set_postfix({"step": steps, **live_fields(obs, bot, spent)})
             if on_step:
                 on_step(obs, steps)
 
