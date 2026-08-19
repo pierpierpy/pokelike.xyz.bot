@@ -37,6 +37,8 @@ _No models measured under harness `v1` yet._
 | # | model | passes | runs | badges~ | ±sem | best | tok in/run | tok out/run | fallback | usd |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 37740 | 13965 | 0.027 | 0.15 |
+| 2 | `openai/gpt-5.6-luna` | 1 | 50 | **0.7** | 0.065 | 1 | 31488 | 3167 | 0.0 | 0.50 |
+| 3 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 34881 | 968 | 0.0 | 0.17 |
 
 <!-- END llm-bench -->
 
