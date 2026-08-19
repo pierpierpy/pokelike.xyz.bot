@@ -45,12 +45,16 @@ better", which ten runs can actually answer.
 ## What it costs
 
 Roughly 30k tokens a run, one HTTP call per decision. Credentials come from the
-environment and from nowhere else:
+environment or from the command line, never from a file in the repo:
 
 ```bash
 export FW_ENDPOINT="https://..."     # the base url, no path
 export FW_TOKEN="..."
 export MODEL_ID="..."
+
+# equivalently, per command
+uv run pokelike bot --bot llm-survivor \
+  --endpoint https://... --api-key @~/.key --model gpt-4o-mini
 ```
 
 A 401 or a model-not-found **stops the run** rather than falling back. A bad

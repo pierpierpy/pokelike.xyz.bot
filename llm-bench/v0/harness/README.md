@@ -102,7 +102,14 @@ the path and not in a variable.
 export FW_ENDPOINT="https://openrouter.ai/api"
 export FW_TOKEN="..."
 uv run pokelike llm-bench --harness v0 --model <the model id> --repeat 1
+
+# or, without exporting anything
+uv run pokelike llm-bench --harness v0 --model <the model id> --repeat 1 \
+  --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
 ```
+
+Either way is the same measurement: credentials are not part of what a model was
+asked, and nothing about them reaches a result.
 
 It will not come out identical, and that is a property of the thing being measured
 rather than a fault: providers change models behind a fixed name and sampling is

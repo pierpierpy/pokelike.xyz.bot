@@ -142,6 +142,10 @@ with it. The notes are `self.notebook`.
 export FW_ENDPOINT="https://openrouter.ai/api"
 export FW_TOKEN="..."
 uv run pokelike llm-bench --harness v1 --model <the model id> --repeat 1
+
+# or with no exports at all
+uv run pokelike llm-bench --harness v1 --model <the model id> --repeat 1 \
+  --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
 ```
 
 No `--workers`. It will not come out identical twice, for the same reasons v0 does

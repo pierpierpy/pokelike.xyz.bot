@@ -97,15 +97,22 @@ def load_class(path: Path) -> type[Bot]:
     return found[0]
 
 
-def load(name: str, seed: int = 0, root: Path | None = None) -> Bot:
-    """Builds the bot in `bots/<name>/`."""
+def load(name: str, seed: int = 0, root: Path | None = None,
+         **settings: Any) -> Bot:
+    """Builds the bot in `bots/<name>/`.
+
+    `settings` reach the constructor, which is how a model id, an endpoint and a
+    key can come from the command line instead of the environment.
+    """
+    from . import build
+
     d = folder(name, root)
     if not d.is_dir():
         raise KeyError(
             f"no bot named '{name}'. On disk: {', '.join(available(root)) or 'none'}\n"
             f"Start one with:  uv run pokelike new-bot {slugify(name)}"
         )
-    return load_class(d / "bot.py")(seed=seed)
+    return build(load_class(d / "bot.py"), seed=seed, **settings)
 
 
 def result(name: str, root: Path | None = None) -> dict[str, Any] | None:

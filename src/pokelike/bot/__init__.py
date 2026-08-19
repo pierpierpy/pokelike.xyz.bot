@@ -26,6 +26,8 @@ so someone can hand you one by handing you a directory.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .base import Bot
 from .llm import LLMBot
 from .random_bot import RandomBot
@@ -75,7 +77,7 @@ def resolve(name: str) -> str:
     )
 
 
-def create(name: str, seed: int = 0) -> Bot:
+def create(name: str, seed: int = 0, **settings: Any) -> Bot:
     """Builds a bot by name — a folder in `bots/`, the baseline — or by PATH.
 
     A path (anything with a separator in it) loads the bot where it lives, so
@@ -85,6 +87,11 @@ def create(name: str, seed: int = 0) -> Bot:
         uv run pokelike bench --bot experiments/mine --dry-run
 
     Only a bot in `bots/` can be recorded; measuring by path never records.
+
+    `settings` are passed to the bot's constructor, which is how `--endpoint`,
+    `--api-key` and `--model` reach an LLM bot without going through the
+    environment. Only what was actually given is passed, so a bot that reads
+    `$FW_ENDPOINT` keeps doing exactly that when no flag is used.
     """
     from .catalogue import available as on_disk
     from .catalogue import load, load_class
@@ -96,13 +103,39 @@ def create(name: str, seed: int = 0) -> Bot:
         bot_py = path if path.name == "bot.py" else path / "bot.py"
         if not bot_py.is_file():
             raise KeyError(f"no bot.py at {path}")
-        return load_class(bot_py)(seed=seed)
+        return build(load_class(bot_py), seed=seed, **settings)
 
     full = resolve(name)
     if full in on_disk():
-        return load(full, seed=seed)
-    return RandomBot(seed=seed)
+        return load(full, seed=seed, **settings)
+    return build(RandomBot, seed=seed, **settings)
+
+
+def build(cls: type[Bot], seed: int = 0, **settings: Any) -> Bot:
+    """Constructs a bot class, refusing settings it cannot take.
+
+    Checked against the signature rather than by catching TypeError: a
+    constructor that raises TypeError for its own reasons would otherwise be
+    reported as "this bot does not accept an endpoint", which sends the reader
+    looking in the wrong place entirely.
+    """
+    import inspect
+
+    given = {k: v for k, v in settings.items() if v is not None}
+    if not given:
+        return cls(seed=seed)
+
+    params = inspect.signature(cls.__init__).parameters
+    if not any(p.kind is p.VAR_KEYWORD for p in params.values()):
+        unknown = sorted(k for k in given if k not in params)
+        if unknown:
+            raise TypeError(
+                f"{cls.__name__} does not take {', '.join(unknown)}. "
+                f"--endpoint, --api-key and --model only mean something to a bot "
+                f"that calls a model."
+            )
+    return cls(seed=seed, **given)
 
 
 __all__ = ["Bot", "LLMBot", "RandomBot", "BASELINE",
-           "available", "create", "resolve"]
+           "available", "build", "create", "resolve"]

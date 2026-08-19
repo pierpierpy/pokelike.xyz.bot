@@ -194,7 +194,8 @@ def estimate(version: str, model: str, n_runs: int,
 # ------------------------------------------------------------------- pre-flight
 
 
-def preflight(version: str, model: str) -> dict[str, Any]:
+def preflight(version: str, model: str, endpoint: str | None = None,
+              token: str | None = None) -> dict[str, Any]:
     """One call, before spending anything, to find out whether this can work.
 
     The failure this exists for: a model that cannot emit tool calls scores a
@@ -221,7 +222,7 @@ def preflight(version: str, model: str) -> dict[str, Any]:
                            "tool_calls": [], "tokens_in": 0, "tokens_out": 0}
     try:
         cls = load_class(harness_path(version))
-        bot = cls(seed=0, model=model)
+        bot = cls(seed=0, model=model, endpoint=endpoint, token=token)
     except Exception as e:  # noqa: BLE001 — a bad endpoint or token lands here
         out["why"] = f"{type(e).__name__}: {e}"
         return out
@@ -528,13 +529,14 @@ class PassLog:
 
 
 def play_model(game, version: str, model: str, site: Path,
-               seeds: list[int] | None = None) -> dict[str, Any]:
+               seeds: list[int] | None = None, endpoint: str | None = None,
+               token: str | None = None) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness."""
     from .bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
-    bot = cls(seed=0, model=model)
+    bot = cls(seed=0, model=model, endpoint=endpoint, token=token)
     log = PassLog(version, model, seeds, workers=1, memory=cross_run_memory(version))
     last = [time.time()]
 
@@ -627,8 +629,10 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
 
 
 def fan_out(version: str, model: str, seeds: list[int], workers: int,
-            site: Path, port0: int = 8500) -> dict[str, Any]:
+            site: Path, port0: int = 8500, endpoint: str | None = None,
+            token: str | None = None) -> dict[str, Any]:
     """The same pass, played by several processes at once."""
+    import os
     import queue
     import subprocess
     import sys
@@ -652,6 +656,17 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             f"part of what {version} measures."
         )
 
+    # Credentials reach the workers through the environment even when they came
+    # from a flag, and NOT on their command line: every process list on the
+    # machine shows argv, so a key passed that way would be readable by any other
+    # user for as long as the benchmark runs. The model id is not a secret and
+    # stays visible, which is what makes `ps` useful here.
+    env = dict(os.environ)
+    if endpoint:
+        env["FW_ENDPOINT"] = endpoint
+    if token:
+        env["FW_TOKEN"] = token
+
     chunks = [seeds[k::workers] for k in range(workers)]
     chunks = [c for c in chunks if c]
     procs = []
@@ -660,7 +675,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             [sys.executable, "-m", "pokelike.llmbench", "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
              "--seeds", ",".join(str(s) for s in chunk)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))
 
     # Rows arrive as they finish, from whichever worker finished them, so the bar

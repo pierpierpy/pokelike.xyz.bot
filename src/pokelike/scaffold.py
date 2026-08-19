@@ -100,6 +100,14 @@ LLM_TEMPLATE = '''"""{title}
     uv run pokelike bot --bot {name} --runs 3 -d
     uv run pokelike bench --bot {name} --dry-run
 
+Or without exporting anything, with the same three values as flags:
+
+    uv run pokelike bot --bot {name} --runs 3 -d \\
+        --endpoint https://... --api-key @~/.key --model gpt-4o-mini
+
+`--api-key @path` reads the key from a file, which keeps it out of `ps` and out
+of your shell history.
+
 THE PROMPT IS THE SUBMISSION
 Everything around it lives in `pokelike.bot.llm`: the tools, the agentic loop,
 how the state is rendered, one HTTP call per turn, and what happens when a call

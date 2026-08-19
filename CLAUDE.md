@@ -464,6 +464,11 @@ providers change models behind a fixed name and sampling is stochastic.
 
 ## Secrets
 
-LLM credentials are read **only** from `FW_ENDPOINT`, `FW_TOKEN`, `MODEL_ID`.
-Never write them into code, comments, the README or the run registry. `stats/` is
-gitignored.
+LLM credentials come from `FW_ENDPOINT`, `FW_TOKEN`, `MODEL_ID`, or from the
+`--endpoint`, `--api-key` and `--model` flags, which override them. `--api-key`
+also takes `@path` and reads the file, because a literal key on a command line is
+visible in `ps` to every user of the machine and is saved in shell history.
+
+Never write a credential into code, comments, the README or the run registry. The
+token reaches exactly one place — the `Authorization` header — and must never
+appear in a result, a log or an artifact. `stats/` is gitignored.

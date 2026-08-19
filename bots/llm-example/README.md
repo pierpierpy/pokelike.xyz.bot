@@ -10,6 +10,10 @@ export FW_ENDPOINT="https://..."   # base URL, no /v1
 export FW_TOKEN="..."
 export MODEL_ID="..."
 uv run pokelike bot --bot llm-example --runs 1 -d
+
+# or pass the three as flags, which override the environment
+uv run pokelike bot --bot llm-example --runs 1 -d \
+  --endpoint https://... --api-key @~/.key --model gpt-4o-mini
 ```
 
 ## What one turn actually sends

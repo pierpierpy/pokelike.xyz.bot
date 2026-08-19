@@ -299,14 +299,18 @@ class LLMBot(Bot):
         self.model = model or self.MODEL or os.environ.get("MODEL_ID", "")
         if not self.endpoint or not self.token:
             raise LLMConfigError(
-                "FW_ENDPOINT and FW_TOKEN environment variables are required\n"
+                "FW_ENDPOINT and FW_TOKEN are required, from the environment or "
+                "from the command line\n"
                 '  export FW_ENDPOINT="https://..."   # base URL, no /v1\n'
-                '  export FW_TOKEN="..."'
+                '  export FW_TOKEN="..."\n'
+                "or, without exporting anything:\n"
+                "  --endpoint https://... --api-key sk-...\n"
+                "  --endpoint https://... --api-key @path/to/key   # keeps it out of `ps`"
             )
         if not self.model:
             raise LLMConfigError(
-                f"{type(self).__name__} pins no MODEL, so MODEL_ID is required\n"
-                '  export MODEL_ID="gpt-4o-mini"'
+                f"{type(self).__name__} pins no MODEL, so a model id is required\n"
+                '  export MODEL_ID="gpt-4o-mini"      or      --model gpt-4o-mini'
             )
 
         # Per-instance copies of the class settings, so a caller can override one

@@ -40,6 +40,63 @@ commands:
 """
 
 
+# --------------------------------------------------------------- credentials
+#
+# Three flags, on every command that can end up calling a model: --endpoint,
+# --api-key and --model. They override the environment; without them nothing
+# changes, so `export FW_ENDPOINT=...` keeps working exactly as before and no
+# existing script or fork breaks.
+#
+# A key on the command line is READABLE BY OTHER USERS of the machine, in `ps`,
+# and it lands in your shell history. That is a real cost, so `--api-key` also
+# accepts `@path`, reads the file and keeps the key out of both. The environment
+# and a file are the safe ways; the literal flag is the convenient one.
+
+
+def add_llm_flags(parser, with_model: bool = True) -> None:
+    """The credential flags, worded the same everywhere they appear."""
+    g = parser.add_argument_group(
+        "model credentials",
+        "override FW_ENDPOINT, FW_TOKEN and MODEL_ID without exporting anything",
+    )
+    g.add_argument("--endpoint", default=None, metavar="URL",
+                   help="OpenAI-compatible base URL, no /v1 (overrides $FW_ENDPOINT)")
+    g.add_argument("--api-key", dest="api_key", default=None, metavar="KEY",
+                   help="the key, or @path to read it from a file (overrides $FW_TOKEN). "
+                        "A literal key is visible in `ps` and saved in shell history")
+    if with_model:
+        g.add_argument("--model", default=None, metavar="ID",
+                       help="model id (overrides $MODEL_ID, unless the bot pins one)")
+
+
+def llm_settings(args) -> dict[str, str]:
+    """What was actually given, ready to hand to a bot's constructor.
+
+    Only non-empty values, and that is the whole point: an absent flag must not
+    become an empty string, or it would override the environment with nothing and
+    turn a working setup into "FW_TOKEN is required".
+    """
+    out: dict[str, str] = {}
+    if getattr(args, "endpoint", None):
+        out["endpoint"] = args.endpoint
+    if getattr(args, "model", None):
+        out["model"] = args.model
+    key = getattr(args, "api_key", None)
+    if key:
+        # @path reads the file, so the key never appears in argv or in history.
+        if key.startswith("@"):
+            path = Path(key[1:]).expanduser()
+            if not path.is_file():
+                print(f"no key file at {path}", file=sys.stderr)
+                raise SystemExit(2)
+            key = path.read_text(encoding="utf-8").strip()
+            if not key:
+                print(f"{path} is empty", file=sys.stderr)
+                raise SystemExit(2)
+        out["token"] = key
+    return out
+
+
 def _server_and_game(args) -> tuple[AssetServer, Game]:
     if not SITE_ROOT.is_dir() or not (SITE_ROOT / "index.html").is_file():
         print(
@@ -229,8 +286,11 @@ def cmd_bot(args) -> int:
     from ...bot import create
 
     try:
-        bot = create(args.bot, seed=args.seed)
+        bot = create(args.bot, seed=args.seed, **llm_settings(args))
     except KeyError as e:
+        print(e.args[0], file=sys.stderr)
+        raise SystemExit(2) from e
+    except TypeError as e:
         print(e.args[0], file=sys.stderr)
         raise SystemExit(2) from e
 
@@ -330,8 +390,11 @@ def cmd_bench(args) -> int:
     from ...bot import create
 
     try:
-        bot = create(args.bot, seed=0)
+        bot = create(args.bot, seed=0, **llm_settings(args))
     except KeyError as e:
+        print(e.args[0], file=sys.stderr)
+        raise SystemExit(2) from e
+    except TypeError as e:
         print(e.args[0], file=sys.stderr)
         raise SystemExit(2) from e
 
@@ -428,6 +491,11 @@ def cmd_llm_bench(args) -> int:
         print(f"\n  table written to {llmbench.write_readme(price)}")
         return 0
 
+    # Only the endpoint and the key: here the model is not a setting for one bot,
+    # it is the thing being measured, and it arrives per model in the loop below.
+    creds = llm_settings(args)
+    creds.pop("model", None)
+
     models = [m.strip() for m in (args.models or args.model or "").split(",") if m.strip()]
     if not models:
         print("name at least one model: --model openai/gpt-4o-mini", file=sys.stderr)
@@ -465,7 +533,7 @@ def cmd_llm_bench(args) -> int:
     if not args.no_preflight:
         alive = []
         for model in models:
-            p = llmbench.preflight(args.harness, model)
+            p = llmbench.preflight(args.harness, model, **creds)
             if p["ok"]:
                 print(f"  {model}: ready (called {', '.join(p['tool_calls'])}, "
                       f"{p['tokens_in']}+{p['tokens_out']} tokens)")
@@ -514,10 +582,10 @@ def cmd_llm_bench(args) -> int:
                     print(f"\n  pass {attempt} of {args.repeat}")
                 if args.workers > 1:
                     one = llmbench.fan_out(args.harness, model, seeds, args.workers,
-                                           SITE_ROOT, port0=args.port + 10)
+                                           SITE_ROOT, port0=args.port + 10, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
-                                              seeds)
+                                              seeds, **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                       f"(best {s.get('badges_best')}), "
@@ -685,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("-d", "--detailed", action="count", default=0,
                    help="one line per decision; -dd adds the bot's reasoning, "
                         "-ddd adds the team")
+    add_llm_flags(s)
     s.set_defaults(func=cmd_bot)
 
     s = sub.add_parser("api", help="start the HTTP API")
@@ -710,6 +779,7 @@ def main(argv: list[str] | None = None) -> int:
                         "practice run: it prints the result and writes no entry")
     s.add_argument("--dry-run", action="store_true",
                    help="play all 50 and print the result, but write no entry")
+    add_llm_flags(s)
     s.set_defaults(func=cmd_bench)
 
     s = sub.add_parser("leaderboard", help="rebuild and print the leaderboard table")
@@ -738,6 +808,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="play the seeds and print, but record nothing")
     s.add_argument("--table", action="store_true",
                    help="print what is recorded and regenerate llm-bench/README.md")
+    add_llm_flags(s, with_model=False)
     s.add_argument("--no-preflight", action="store_true",
                    help="skip the one-call check that the model can emit tool calls")
     s.set_defaults(func=cmd_llm_bench)

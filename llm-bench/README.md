@@ -24,11 +24,26 @@ uv run pokelike llm-bench --harness v1 --model a/b           # no --workers: see
 uv run pokelike llm-bench --table                            # what is recorded
 ```
 
+Or without exporting anything, which is the same three values as flags:
+
+```bash
+uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini \
+  --endpoint https://openrouter.ai/api --api-key sk-or-...
+
+uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini \
+  --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
+```
+
+Flags win over the environment, and only the ones you pass — so `--endpoint`
+alone still takes the key from `$FW_TOKEN`. **A key written literally on the
+command line is readable by every other user of the machine** in `ps`, and your
+shell saves it in history; `--api-key @path` reads a file instead and avoids both.
+The same three flags exist on `pokelike bot` and `pokelike bench`.
+
 There is no config file, and that is deliberate: the endpoint and the key are the
 same for every model on a given provider, so the only thing that varies is the id
 on the command line. A file listing models could only ever disagree with the
-results directory, which already *is* the record of what has been measured. Keys
-stay in the environment, where they cannot be committed by accident.
+results directory, which already *is* the record of what has been measured.
 
 **Contents**
 [The standings](#the-standings) ·
