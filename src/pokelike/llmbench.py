@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .bench import STANDARD_SEEDS, _tok, run_benchmark, summarise
+from .bench import STANDARD_SEEDS, _tok, progress_bar, run_benchmark, summarise
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "llm-bench"
@@ -723,8 +723,6 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     import sys
     import threading
 
-    from tqdm import tqdm
-
     # Not for a harness whose model keeps notes between runs. Splitting the seeds
     # would give each worker its own notebook and each note to a tenth of the pass,
     # so the result would depend on how the seeds happened to be dealt and on which
@@ -784,7 +782,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
     log = PassLog(version, model, seeds, workers=len(procs), folder=folder,
                   attempt=attempt)
-    bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
+    bar = progress_bar(total=len(seeds), desc=f"{model} @ {version}",
+                       unit="run", leave=True)
     def postfix() -> None:
         done = [r for r in rows if r.get("badges") is not None]
         # Finished runs plus what the in-flight ones have spent so far, in and out

@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import statistics
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,45 @@ def summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "completed": sum(1 for r in runs if r.get("ending") == "win-screen"),
         "steps_mean": round(statistics.mean([r["steps"] for r in runs]), 1),
     }
+
+
+def progress_bar(**kw: Any) -> Any:
+    """A tqdm bar that also works when nobody is watching a terminal.
+
+    Attached to a terminal, the usual thing: a bar that redraws in place several
+    times a second.
+
+    Detached -- `docker compose run -d`, a pipe, nohup -- there is no cursor to
+    move. tqdm still writes, but it separates frames with a carriage return and
+    never a newline, so the whole run arrives as one enormous line that a log
+    reader renders as overlapping garbage or as nothing at all. That is exactly
+    what `docker logs` shows.
+
+    So without a tty each frame becomes a whole line, and the refresh drops to
+    every ten seconds -- because a bar redrawing ten times a second into a log file
+    is thousands of lines saying almost the same thing.
+    """
+    from tqdm import tqdm
+
+    if sys.stderr.isatty():
+        return tqdm(**kw)
+
+    class Lines:
+        """tqdm's frames as complete lines, for a log with no cursor."""
+
+        def write(self, data: str) -> None:
+            data = data.replace("\r", "").strip()
+            if data:
+                sys.stderr.write(data + "\n")
+
+        def flush(self) -> None:
+            sys.stderr.flush()
+
+    # The caller's own settings win: a `mininterval` passed in is a deliberate
+    # choice and must not be overridden by the default for detached runs.
+    # Wide, because there is no terminal to wrap against and the fields are the
+    # point: at 110 columns tqdm truncates the postfix and eats the token counts.
+    return tqdm(**{"file": Lines(), "mininterval": 10.0, "ncols": 200, **kw})
 
 
 def _tok(n: int) -> str:
@@ -152,9 +192,8 @@ def run_benchmark(
     seeds = seeds or STANDARD_SEEDS
     runs: list[dict[str, Any]] = []
 
-    from tqdm import tqdm
-
-    bar = tqdm(seeds, desc=f"bench {bot_name}", unit="run", leave=True)
+    bar = progress_bar(iterable=seeds, desc=f"bench {bot_name}", unit="run",
+                       leave=True)
     for seed in bar:
         # Live, while the run is still going. Without this the bar sits at the
         # same number for one to three minutes with nothing to say whether the bot
