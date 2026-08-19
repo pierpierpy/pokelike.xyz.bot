@@ -23,6 +23,14 @@ WHAT CHANGED FROM v1, AND WHY EACH.
      turns before that are still in the journal, one line each. This is the whole
      idea, and it is the one thing here that the literature is unanimous about.
 
+     What travels is what the model SAID and what the tools answered. The screen it
+     was looking at does not -- it is replaced by one line. Measured before that:
+     one run cost 269k input tokens against 41k under v0, six and a half times,
+     because each kept turn carried another full render of team, map and actions,
+     four copies to a request, with the reasoning as the crumbs. A stale screen is
+     also wrong as well as dear, since it invites reasoning about a map that has
+     already changed while the current one is in the fresh message anyway.
+
   2. A PLAN, with a `plan` tool. One route through this map, shown back every turn
      until the model changes it, capped at PLAN_CHARS. Not a generic agent feature:
      in THIS game the map is visible ahead and choosing a node closes every other
@@ -803,8 +811,29 @@ class HarnessV2(Bot):
         raise LLMError(f"no call to play() within {self.max_rounds} rounds")
 
     def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
-        """Adds one finished exchange to the scratchpad, oldest dropped first."""
-        self.scratch.append(turn)
+        """Adds one finished exchange to the scratchpad, oldest dropped first.
+
+        The screen it was looking at is replaced by one line before the turn is
+        kept, and that line is most of what makes this version affordable. Measured
+        on three seeds with the whole turn kept: 269k input tokens for ONE run
+        against 41k under v0 -- six and a half times, because every kept turn
+        dragged another full render of team, map and actions along with it. Four
+        copies of the screen in a request, and the model's own reasoning, which is
+        the entire point of the scratchpad, as the crumbs.
+
+        It is also wrong on its own terms and not merely dear. A stale screen
+        invites the model to reason about a map that has already changed, while the
+        CURRENT one is right there in the fresh user message. What cannot be
+        reconstructed from anywhere else is what it said and what the tools told it.
+        That is what stays.
+        """
+        kept = [
+            {"role": "user",
+             "content": "[the screen you were shown that turn, since changed]"}
+            if m.get("role") == "user" else m
+            for m in turn
+        ]
+        self.scratch.append(kept)
         self.scratch = self.scratch[-self.SCRATCH_TURNS:] if self.SCRATCH_TURNS else []
 
     # ------------------------------------------------------------------ tools
