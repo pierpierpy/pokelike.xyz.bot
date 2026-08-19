@@ -441,6 +441,19 @@ def cmd_llm_bench(args) -> int:
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
     partial = len(seeds) < len(STANDARD_SEEDS)
 
+    # Checked here, before the pre-flight spends a token, as well as inside
+    # `fan_out` where it cannot be bypassed. A harness that carries the model's
+    # notes between runs has no independent runs to hand out: splitting fifty seeds
+    # over eight workers gives eight separate notebooks, each covering a fraction of
+    # the pass, and the result depends on how the seeds were dealt. It would look
+    # like an ordinary row.
+    if args.workers > 1 and llmbench.cross_run_memory(args.harness):
+        print(f"harness {args.harness} lets the model keep notes between runs, so "
+              f"the runs are not independent\nand the pass cannot be split across "
+              f"{args.workers} workers. Run it sequentially: drop --workers.",
+              file=sys.stderr)
+        raise SystemExit(2)
+
     # Asked once per model, before any seed is played. A model that cannot emit a
     # tool call scores zero over fifty runs and takes half an hour to do it, and
     # the only trace is fallback_rate at 1.0 afterwards. A few hundred tokens now
