@@ -647,6 +647,9 @@ def play_model(game, version: str, model: str, site: Path,
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
     bot = cls(seed=0, model=model, endpoint=endpoint, token=token)
+    # Taken now, against the code about to play, not at the end against whatever
+    # is on disk by then.
+    stamp = fingerprints(version)
     log = PassLog(version, model, seeds, workers=1, folder=folder,
                   attempt=attempt, memory=cross_run_memory(version))
     last = [time.time()]
@@ -693,7 +696,7 @@ def play_model(game, version: str, model: str, site: Path,
         log.close()
         raise
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
-                   result.get("notes") or {})
+                   result.get("notes") or {}, fingerprint=stamp)
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
     log.done(one)
@@ -702,14 +705,24 @@ def play_model(game, version: str, model: str, site: Path,
 
 
 def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, Any]],
-             game: dict[str, str], notes: dict[str, Any]) -> dict[str, Any]:
+             game: dict[str, str], notes: dict[str, Any],
+             fingerprint: dict[str, str] | None = None) -> dict[str, Any]:
+    """The pass as it will be recorded.
+
+    `fingerprint` is taken by the CALLER, before the first seed is played, and
+    passed in. Hashing the harness here instead would hash it half an hour later:
+    edit the file mid-pass and the row would claim the code it never ran, while
+    matching disk perfectly -- a false statement that nothing could detect, which
+    is the exact opposite of what a fingerprint is for. Recomputed here only when
+    no caller supplied one, so the function stays usable on its own.
+    """
     turns = sum(r.get("turns") or 0 for r in runs)
     falls = sum(r.get("fallbacks") or 0 for r in runs)
     return {
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": model,
         "harness": version,
-        "fingerprint": fingerprints(version),
+        "fingerprint": fingerprint or fingerprints(version),
         "game": game,
         "seeds": seeds,
         "summary": summarise(runs),
@@ -772,6 +785,9 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     # machine shows argv, so a key passed that way would be readable by any other
     # user for as long as the benchmark runs. The model id is not a secret and
     # stays visible, which is what makes `ps` useful here.
+    # Before a single worker starts, for the same reason as the sequential path.
+    stamp = fingerprints(version)
+
     env = dict(os.environ)
     if endpoint:
         env["FW_ENDPOINT"] = endpoint
@@ -881,7 +897,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
         )
 
     from .bench import bundle_fingerprint
-    one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {})
+    one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
+                   fingerprint=stamp)
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
     log.done(one)
