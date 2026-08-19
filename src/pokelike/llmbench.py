@@ -1021,7 +1021,10 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     head = (f"{'model':<34}{'passes':>7}{'runs':>6}{'badges~':>9}{'±sem':>7}"
             f"{'med':>5}{'best':>6}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
-            + (f"{'usd':>9}" if money else ""))
+            # `$` rather than `usd`, and the per-run figure beside the total: the
+            # total answers "what did this row cost", the per-run answers "what
+            # will another pass cost me", which is the question you actually ask.
+            + (f"{'$':>8}{'$/run':>9}" if money else ""))
     out = [head, "-" * len(head)]
     for r in rows:
         usd = cost(r["tokens_in_per_run"] * r["runs"], r["tokens_out_per_run"] * r["runs"],
@@ -1036,7 +1039,8 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
                if learns else "")
             + f"{r['tokens_in_per_run']:>11}"
             f"{r['tokens_out_per_run']:>12}{r['fallback_rate']:>9}"
-            + (f"{usd:>9.2f}" if usd is not None else (f"{'-':>9}" if money else ""))
+            + (f"{usd:>8.2f}{usd / r['runs']:>9.4f}" if usd is not None
+               else (f"{'-':>8}{'-':>9}" if money else ""))
             + ("  <- harness or render changed since this ran" if r.get("stale") else "")
             + ("  <- fallback over 0.1: measuring the harness, not the model"
                if r["fallback_rate"] > 0.1 else "")
@@ -1057,8 +1061,8 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
             "not a description of how well the model ends up playing.",
         ]
     if money:
-        out.append("usd is what those tokens cost at today's OpenRouter prices, "
-                   "computed now and never stored.")
+        out.append("$ is what those tokens cost at today's OpenRouter prices, "
+                   "computed now and never stored. $/run is that over its runs.")
     return "\n".join(out)
 
 
@@ -1073,8 +1077,8 @@ def markdown_table(version: str,
     lcol, lhdr = ("| learn | notes ", "|--:|--:") if learns else ("", "")
     out = [f"### Harness `{version}`", "",
            f"| # | model | passes | runs | badges~ | ±sem | best {lcol}| tok in/run "
-           f"| tok out/run | fallback | usd |",
-           f"|--:|---|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|"]
+           f"| tok out/run | fallback | $ | $/run |",
+           f"|--:|---|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|--:|"]
     for i, r in enumerate(rows, 1):
         flag = " ⚠︎" if r.get("stale") else ""
         usd = cost(r["tokens_in_per_run"] * r["runs"],
@@ -1085,11 +1089,15 @@ def markdown_table(version: str,
             d = lc.get("delta")
             cell = (f"| {'—' if d is None else f'{d:+.2f}'} "
                     f"| {r.get('notes_kept') if r.get('notes_kept') is not None else '—'} ")
+        # Total and per-run side by side: the total says what this row cost, the
+        # per-run says what another pass of it will cost.
+        each = None if usd is None else usd / r["runs"]
         out.append(
             f"| {i} | `{r['model']}`{flag} | {r['passes']} | {r['runs']} | "
             f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} {cell}| "
             f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | "
-            f"{r['fallback_rate']} | {'—' if usd is None else f'{usd:.2f}'} |")
+            f"{r['fallback_rate']} | {'—' if usd is None else f'{usd:.2f}'} "
+            f"| {'—' if each is None else f'{each:.4f}'} |")
     if learns:
         out += ["", f"`learn` is the last {LEARN_K} runs of a pass minus its "
                     f"first {LEARN_K}, in the order played — this harness lets "
