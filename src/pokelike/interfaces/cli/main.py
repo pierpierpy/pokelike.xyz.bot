@@ -435,15 +435,25 @@ def cmd_llm_bench(args) -> int:
 
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
     partial = len(seeds) < len(STANDARD_SEEDS)
-    server, game = _server_and_game(args)
+
+    # In parallel each worker owns its own browser and its own server, so the
+    # parent starts neither. One at a time still uses this process's game, which
+    # keeps a single run cheap to look at.
+    server = game = None
+    if args.workers <= 1:
+        server, game = _server_and_game(args)
     try:
         for model in models:
-            one = llmbench.play_model(game, args.harness, model, SITE_ROOT, seeds)
+            if args.workers > 1:
+                one = llmbench.fan_out(args.harness, model, seeds, args.workers,
+                                       SITE_ROOT, port0=args.port + 10)
+            else:
+                one = llmbench.play_model(game, args.harness, model, SITE_ROOT, seeds)
             s = one["summary"]
             print(f"\n  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                   f"(best {s.get('badges_best')}), "
                   f"{one['tokens_in']:,} in / {one['tokens_out']:,} out tokens, "
-                  f"fallback {one['notes'].get('fallback_rate')}")
+                  f"fallback {one['fallback_rate']}, retried {one['retries']}")
             # Same rule as the main benchmark: a partial run is practice by
             # definition, and --dry-run is how you spend a model's tokens without
             # committing to what came out.
@@ -453,8 +463,10 @@ def cmd_llm_bench(args) -> int:
                 continue
             print(f"    recorded in {llmbench.record(args.harness, model, one)}")
     finally:
-        game.close()
-        server.stop()
+        if game is not None:
+            game.close()
+        if server is not None:
+            server.stop()
 
     if not (args.dry_run or partial):
         llmbench.write_readme()
@@ -630,6 +642,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--harness", default="v0", help="harness version, e.g. v0")
     s.add_argument("--model", default="", help="model id, e.g. openai/gpt-4o-mini")
     s.add_argument("--models", default="", help="several, comma separated")
+    s.add_argument("--workers", type=int, default=1,
+                   help="play the seeds in N parallel processes. An LLM run is mostly "
+                        "spent waiting on the provider, so this can exceed your core "
+                        "count — but watch for rate limits")
     s.add_argument("--runs", type=int, default=0,
                    help="use only the first N standard seeds. A partial run is a "
                         "practice run: it prints the result and records nothing")

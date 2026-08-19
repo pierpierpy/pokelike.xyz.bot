@@ -206,27 +206,171 @@ def play_model(game, version: str, model: str, site: Path,
         n = bot.notes()
         row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),
                    calls=n.get("calls", 0), turns=n.get("turns", 0),
-                   fallbacks=n.get("fallbacks", 0))
+                   fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0))
 
     result = run_benchmark(
         game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
         category="llm", description=f"model benchmark, harness {version}",
         on_run=on_run,
     )
-    runs = result["runs"]
+    return _as_pass(version, model, seeds, result["runs"], result["game"],
+                    result.get("notes") or {})
+
+
+def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, Any]],
+             game: dict[str, str], notes: dict[str, Any]) -> dict[str, Any]:
+    turns = sum(r.get("turns") or 0 for r in runs)
+    falls = sum(r.get("fallbacks") or 0 for r in runs)
     return {
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": model,
         "harness": version,
         "fingerprint": fingerprints(version),
-        "game": result["game"],
+        "game": game,
         "seeds": seeds,
         "summary": summarise(runs),
         "tokens_in": sum(r.get("tokens_in") or 0 for r in runs),
         "tokens_out": sum(r.get("tokens_out") or 0 for r in runs),
-        "notes": result.get("notes") or {},
-        "runs": runs,
+        "retries": sum(r.get("retries") or 0 for r in runs),
+        "fallback_rate": round(falls / turns, 3) if turns else 0.0,
+        "notes": notes,
+        "runs": sorted(runs, key=lambda r: r["seed"]),
     }
+
+
+# ------------------------------------------------------------------- in parallel
+#
+# Worth much more here than for a local bot. An LLM run is about twenty turns and
+# one HTTP request each, so almost all of its wall clock is spent waiting on the
+# provider rather than on this machine -- which means workers can outnumber cores
+# and still help. Fifty seeds sequentially is half an hour; eight at a time is a
+# few minutes, for the same tokens and the same money.
+#
+# Processes, not threads, and not by choice: Playwright's sync API is bound to the
+# thread that created it, so one game per process is the only arrangement that
+# works. `experiments/drrn/collect.py` fans out the same way for the same reason.
+#
+# Seeds are independent, so splitting them changes nothing about the result: the
+# merged pass is what a sequential run would have produced, sorted back into seed
+# order. Interleaved rather than in blocks, so a worker that draws a run of long
+# games does not become the one everybody waits for.
+
+
+def fan_out(version: str, model: str, seeds: list[int], workers: int,
+            site: Path, port0: int = 8500) -> dict[str, Any]:
+    """The same pass, played by several processes at once."""
+    import queue
+    import subprocess
+    import sys
+    import threading
+
+    from tqdm import tqdm
+
+    chunks = [seeds[k::workers] for k in range(workers)]
+    chunks = [c for c in chunks if c]
+    procs = []
+    for k, chunk in enumerate(chunks):
+        procs.append(subprocess.Popen(
+            [sys.executable, "-m", "pokelike.llmbench", "--worker",
+             "--harness", version, "--model", model, "--port", str(port0 + k),
+             "--seeds", ",".join(str(s) for s in chunk)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        ))
+
+    # Rows arrive as they finish, from whichever worker finished them, so the bar
+    # measures the whole pass rather than one process's share of it.
+    rows: list[dict[str, Any]] = []
+    q: queue.Queue = queue.Queue()
+
+    def pump(p: Any) -> None:
+        for line in p.stdout:
+            line = line.strip()
+            if line.startswith("{"):
+                q.put(json.loads(line))
+        q.put(None)
+
+    for p in procs:
+        threading.Thread(target=pump, args=(p,), daemon=True).start()
+
+    bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
+    ended = 0
+    while ended < len(procs):
+        item = q.get()
+        if item is None:
+            ended += 1
+            continue
+        rows.append(item)
+        bar.update(1)
+        done = [r for r in rows if r.get("badges") is not None]
+        bar.set_postfix(
+            badges=round(sum(r["badges"] for r in done) / len(done), 2) if done else None,
+            tok=f"{sum(r.get('tokens_in', 0) + r.get('tokens_out', 0) for r in rows) / 1e6:.2f}M",
+            fell=sum(r.get("fallbacks", 0) for r in rows),
+        )
+    bar.close()
+
+    # All or nothing. A pass with 43 of 50 seeds in it is worse than no pass: the
+    # mean would be over whichever seeds happened to survive, and nothing in the
+    # file would say so.
+    for k, p in enumerate(procs):
+        p.wait()
+        if p.returncode != 0:
+            err = (p.stderr.read() or "").strip()[-600:]
+            raise RuntimeError(
+                f"worker {k} exited {p.returncode}; discarding the whole pass "
+                f"rather than recording a partial one.\n{err}"
+            )
+    if len(rows) != len(seeds):
+        raise RuntimeError(
+            f"expected {len(seeds)} runs, collected {len(rows)}; discarding the pass"
+        )
+
+    from .bench import bundle_fingerprint
+    return _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {})
+
+
+def _worker() -> int:
+    """One process, one browser, its slice of the seeds. Prints a JSON row each."""
+    import argparse
+
+    from .assets.server import AssetServer
+    from .bot.catalogue import load_class
+    from .core.game import Game
+    from .runner import play_run
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--worker", action="store_true")
+    p.add_argument("--harness", required=True)
+    p.add_argument("--model", required=True)
+    p.add_argument("--port", type=int, required=True)
+    p.add_argument("--seeds", required=True)
+    a = p.parse_args()
+
+    seeds = [int(s) for s in a.seeds.split(",") if s]
+    cls = load_class(harness_path(a.harness))
+    bot = cls(seed=0, model=a.model)
+    server = AssetServer(ROOT / "site", port=a.port)
+    server.start()
+    game = Game(url=server.url)
+    game.open()
+    try:
+        for seed in seeds:
+            full = play_run(game, bot, seed, max_steps=400)
+            n = bot.notes()
+            row = {k: full[k] for k in ("seed", "steps", "score", "badges", "maps",
+                                        "kos", "faints", "ending", "stalled")}
+            row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),
+                       calls=n.get("calls", 0), turns=n.get("turns", 0),
+                       fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0))
+            print(json.dumps(row), flush=True)
+    finally:
+        game.close()
+        server.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_worker())
 
 
 # ----------------------------------------------------------------------- table

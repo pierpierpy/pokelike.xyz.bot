@@ -42,6 +42,8 @@ from __future__ import annotations
 
 import json
 import os
+import random
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -280,6 +282,11 @@ class LLMBot(Bot):
     MAX_ROUNDS = 4
     MEMORY = 6
     TOKEN_BUDGET = 0
+    # Attempts after the first, for failures that are worth trying again: rate
+    # limits and the 5xx family. Not a nicety once runs go in parallel -- a 429
+    # would otherwise be counted as a turn the model failed to answer, which is
+    # exactly the column that decides whether a benchmark row means anything.
+    RETRIES = 4
     EXTRA_TOOLS: list[dict[str, Any]] = []
     STATE_VIEW: Any = "screen"
 
@@ -344,6 +351,7 @@ class LLMBot(Bot):
         self.tokens_used = 0
         self.tokens_in = 0
         self.tokens_out = 0
+        self.retries = 0
         self.fallbacks = 0
         self.journal: list[str] = []
         self._last_why = ""
@@ -357,7 +365,7 @@ class LLMBot(Bot):
         self.journal = []
         self._pending = None
         self.calls = self.turns = self.tokens_used = self.fallbacks = 0
-        self.tokens_in = self.tokens_out = 0
+        self.tokens_in = self.tokens_out = self.retries = 0
         self._last_why = ""
 
     def notes(self) -> dict[str, Any]:
@@ -377,6 +385,9 @@ class LLMBot(Bot):
             "tokens": self.tokens_used,
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
+            # Transient failures that were retried rather than counted
+            # against the model. High means the provider was struggling.
+            "retries": self.retries,
             "fallbacks": self.fallbacks,
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
             "temperature": self.temperature,
@@ -723,26 +734,47 @@ class LLMBot(Bot):
                 "Content-Type": "application/json",
             },
         )
-        try:
-            with urllib.request.urlopen(req, timeout=180) as r:
-                answer = json.loads(r.read())
-        except urllib.error.HTTPError as e:
-            body = e.read()[:300].decode("utf-8", "replace")
-            if e.code in (401, 403):
-                raise LLMConfigError(
-                    f"HTTP {e.code} from {self.endpoint}: the endpoint rejected the "
-                    f"token.\n  Check FW_TOKEN — a placeholder left in place looks "
-                    f"exactly like this.\n  {body}"
-                ) from e
-            if e.code == 404:
-                raise LLMConfigError(
-                    f"HTTP 404 from {self.endpoint}/v1/chat/completions.\n"
-                    f"  Either the endpoint is not an OpenAI-compatible API, or it "
-                    f"does not serve MODEL_ID={self.model!r}.\n  {body}"
-                ) from e
-            raise LLMError(f"HTTP {e.code}: {body}") from e
-        except Exception as e:  # network, timeout, malformed JSON
-            raise LLMError(f"{type(e).__name__}: {e}") from e
+        # Retried, with backoff, for the failures that are transient. A rate limit
+        # is not the model failing to answer: counted as a fallback it would show
+        # up as the model being bad at the game, and it is the first thing that
+        # happens when runs go in parallel.
+        #
+        # Auth and model-not-found are NOT retried -- they fail identically
+        # forever, so trying again just wastes the run more slowly.
+        answer: dict[str, Any] | None = None
+        for attempt in range(self.RETRIES + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=180) as r:
+                    answer = json.loads(r.read())
+                break
+            except urllib.error.HTTPError as e:
+                detail = e.read()[:300].decode("utf-8", "replace")
+                if e.code in (401, 403):
+                    raise LLMConfigError(
+                        f"HTTP {e.code} from {self.endpoint}: the endpoint rejected the "
+                        f"token.\n  Check FW_TOKEN — a placeholder left in place looks "
+                        f"exactly like this.\n  {detail}"
+                    ) from e
+                if e.code == 404:
+                    raise LLMConfigError(
+                        f"HTTP 404 from {self.endpoint}/v1/chat/completions.\n"
+                        f"  Either the endpoint is not an OpenAI-compatible API, or it "
+                        f"does not serve MODEL_ID={self.model!r}.\n  {detail}"
+                    ) from e
+                if e.code in (408, 409, 425, 429, 500, 502, 503, 504) \
+                        and attempt < self.RETRIES:
+                    self.retries += 1
+                    time.sleep(min(2 ** attempt, 30) + random.random())
+                    continue
+                raise LLMError(f"HTTP {e.code}: {detail}") from e
+            except Exception as e:  # network, timeout, malformed JSON
+                if attempt < self.RETRIES:
+                    self.retries += 1
+                    time.sleep(min(2 ** attempt, 30) + random.random())
+                    continue
+                raise LLMError(f"{type(e).__name__}: {e}") from e
+        if answer is None:
+            raise LLMError("no answer after retries")
 
         self.calls += 1
         usage = answer.get("usage") or {}
