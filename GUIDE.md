@@ -166,6 +166,14 @@ uv run pokelike bench --bot mine --dry-run                       # nothing recor
 uv run pokelike bench --bot mine --author YOUR-HANDLE --category rules
 ```
 
+If yours calls a model, the credentials can come from flags instead of exports —
+`--api-key @path` reads a file, so the key never reaches your shell history:
+
+```bash
+uv run pokelike bench --bot mine --dry-run \
+  --endpoint https://openrouter.ai/api --api-key @~/.key --model openai/gpt-4o-mini
+```
+
 > **Easy to get wrong, and now it cannot be.** Only a **complete** run records a
 > result. `--runs N` is a practice run by definition — a score over 5 seeds is
 > not comparable to one over 50 — and `--dry-run` plays all 50 and records

@@ -265,6 +265,21 @@ docker compose -f llm-bench/docker/docker-compose.yml run --rm bench \
     --harness v0 --model z-ai/glm-5.2:free --workers 8
 ```
 
+`.env` is optional — compose declares it `required: false`, so the credential
+flags work just as well and nothing needs to exist on disk:
+
+```bash
+docker compose -f llm-bench/docker/docker-compose.yml run --rm bench \
+    --harness v0 --model z-ai/glm-5.2:free --workers 8 \
+    --endpoint https://openrouter.ai/api --api-key sk-or-...
+
+# or with the key in a file, mounted, so it is in no command line at all
+docker compose -f llm-bench/docker/docker-compose.yml run --rm \
+    -v ~/.openrouter-key:/key:ro bench \
+    --harness v0 --model z-ai/glm-5.2:free --workers 8 \
+    --endpoint https://openrouter.ai/api --api-key @/key
+```
+
 Detached, for the long ones. The log is a mounted file, so you read it from the
 host with the container still running:
 

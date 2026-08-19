@@ -70,6 +70,7 @@ other one on its layer forever.*
 - [Writing a bot](#writing-a-bot) 
 - [The bots that ship with it](#the-bots-that-ship-with-it) 
 - [Making a bot play better](#making-a-bot-play-better) 
+- [Benchmarking a model](#benchmarking-a-model) 
 - [Submit a bot](#submit-a-bot)
 
 ### **Reference**
@@ -89,6 +90,7 @@ the others.
 | **[GUIDE.md](GUIDE.md)** | entering the contest | you want to write a bot and submit one. Six steps, clone to pull request |
 | **[bots/](bots/)** | every bot, and the standings | you want to see who is winning, play the leader without training anything, or read the rules in full |
 | **[experiments/](experiments/)** | making a bot better | you are past a first bot and want to train, sweep or compare — and to see what was already tried, including what failed |
+| **[llm-bench/](llm-bench/)** | measuring a model | you want to know how well a *model* plays, with the scaffold held fixed — a different question from `bots/`, where the prompt is the submission |
 | **[example.ipynb](src/pokelike/interfaces/python/example.ipynb)** | driving it yourself | you would rather poke at the game in a notebook than read about it |
 | **[CLAUDE.md](CLAUDE.md)** | changing this repo | you are editing the package itself. Internals, and the pitfalls that were hit for real |
 
@@ -685,6 +687,37 @@ See [experiments/README.md](experiments/README.md) for the game framed as an MDP
 and what makes it awkward (slow steps, sparse rewards, a state-dependent action
 set).
 
+## Benchmarking a model
+
+`bots/` and [llm-bench/](llm-bench/) ask opposite questions. In `bots/` the prompt
+and the tools **are** the submission and the model is usually whatever `$MODEL_ID`
+names, so that leaderboard ranks ideas. In `llm-bench/` the harness is frozen and
+the model is the only thing that changes, so a row says something about the model
+rather than about who tuned their scaffold hardest.
+
+```bash
+uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini \
+  --endpoint https://openrouter.ai/api --api-key @~/.key
+uv run pokelike llm-bench --table          # what has been measured, per harness
+```
+
+Credentials come from `$FW_ENDPOINT` / `$FW_TOKEN` / `$MODEL_ID` or from
+`--endpoint` / `--api-key` / `--model`, which override them. `--api-key @path`
+reads a file, so the key stays out of `ps` and out of your shell history. The same
+three flags work on `bot` and `bench`.
+
+There are two harness versions and they are **never ranked against each other**,
+because two models asked different questions were not compared. `v0` is one call a
+turn with four tools. `v1` adds a notebook the model writes with
+`remember` / `revise` / `forget` and keeps *between* runs, to ask whether a model
+gets better at the game while it plays — which costs seed independence, so `v1`
+refuses to run in parallel and reports a learning column instead of trusting its
+mean.
+
+A frozen harness is never edited once a result exists under it: that would make
+every recorded row a claim about code that no longer exists. A new idea is a new
+directory. See [llm-bench/README.md](llm-bench/README.md).
+
 ## Reproducibility
 
 Same seed + same actions = exactly the same run. That is what lets you compare
@@ -709,9 +742,10 @@ make them pass or fail spuriously.
 |---|---|
 | `setup` | browser + offline copy. Run once |
 | `play` | interactive run in the terminal |
-| `bot` | runs a bot (`--bot`, `--runs`, `--seed`) |
+| `bot` | runs a bot (`--bot`, `--runs`, `--seed`; `--endpoint`, `--api-key`, `--model` for an LLM bot) |
 | `new-bot` | creates `bots/<name>/`, ready to play (`--llm` for a prompt bot) |
 | `bench` | run the 50-seed benchmark and record the result (`--dry-run` to record nothing) |
+| `llm-bench` | run a model against a frozen harness (`--harness`, `--models`, `--repeat`, `--table`) |
 | `leaderboard` | rebuild the standings from what is measured on disk |
 | `schema` | what a bot receives, printed from a live game |
 | `api` | HTTP JSON server |

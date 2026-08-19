@@ -53,6 +53,11 @@ uv run pokelike leaderboard                    # rebuild the standings from disk
 uv run pokelike new-bot mine                   # a bot folder that already plays
 uv run pokelike new-bot mine --llm             # ... starting from the LLM harness
 
+uv run pokelike llm-bench --harness v0 --model a/b   # a model vs a FROZEN harness
+uv run pokelike llm-bench --table                    # what has been measured
+# credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
+# (--api-key @path reads a file, keeping the key out of ps and shell history)
+
 uv run python -m experiments.example.train --episodes 20     # the shape of one
 uv run python -m experiments.sarsa.train --episodes 300      # the real thing
 uv run pokelike bench --bot experiments/mine --dry-run       # measure a candidate
@@ -86,12 +91,20 @@ src/pokelike/
 ├── schema.py            what a bot receives, described from a live state
 ├── scaffold.py          new-bot: writes a bot folder that already plays
 ├── leaderboard.py       reads bots/*/result.json, ranks, fingerprints
+├── llmbench.py          the model benchmark: passes, fingerprints, tables, the
+│                        parallel fan-out and the per-pass log
 └── interfaces/          how something outside drives the game
     ├── cli/main.py        a human, in a terminal
     ├── api/server.py      a program, over HTTP
     └── python/            a script, a notebook or the REPL
         ├── driver.py        session(), open_game(), play(), compare()
         └── example.ipynb    the cell-by-cell walkthrough
+llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
+│                        and the model is the only thing that varies
+├── docker/                the container long runs happen in. Build context is
+│                          the REPO ROOT, and .dockerignore must stay there
+├── v0/harness/bot.py      FROZEN copy of bot/llm.py. See the rule below
+└── v1/harness/bot.py      v0 plus notes the model keeps between runs
 experiments/             research. OURS are tracked as worked examples; anything
 │                        else anyone creates here is gitignored by default — one
 │                        `!experiments/<name>/` line opts a folder in, and
@@ -461,6 +474,36 @@ are not obvious and matter:
 
 LLM entries are accepted but flagged as not independently reproducible:
 providers change models behind a fixed name and sampling is stochastic.
+
+## The frozen harnesses in llm-bench/
+
+**`llm-bench/*/harness/bot.py` is not editable once a result exists beside it.**
+Every recorded row is a claim about exactly that file; changing it makes the claim
+false, and no error would ever say so. An improvement is a new directory, `v2/`,
+and the old rows stay valid under the version where they were earned. That is why
+the version is in the path and not in a variable.
+
+They are mechanical copies of `bot/llm.py`, not imports of it, so that improving
+the shared harness for `bots/` cannot silently change what a recorded score meant.
+Two consequences worth knowing before touching anything:
+
+- **`pokelike.core.render` is imported, not copied**, and it is behaviour rather
+  than an interface. Every pass records a sha256 of the harness *and* of the render
+  module, and the table marks a row when either stops matching disk. Changing
+  `render.py` is allowed; it just gets caught.
+- **`pokelike.leaderboard.Artifact` and `pokelike.bot.base.Bot` are frozen public
+  API.** Both harnesses import them, as do five submitted bots whose files are
+  fingerprinted against their scores. Those import paths cannot move without a
+  permanent shim.
+
+`v1` carries the model's notes between runs, so its runs are not independent: it
+refuses `--workers > 1` rather than producing a pass that depends on how the seeds
+were dealt. A harness declares this with `CROSS_RUN_MEMORY = True`, and `llmbench`
+asks the harness rather than hardcoding versions.
+
+One naming trap in those files: `self.memory` is the journal-trim size, `MEMORY`
+turns of history. The notes the model writes are `self.notebook`. They are two
+different memories and mixing them up crashes `_commit`.
 
 ## Secrets
 

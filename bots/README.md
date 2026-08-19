@@ -172,6 +172,22 @@ It is there so a reader can tell at a glance what kind of thing is winning.
 | `human` | a person playing, for reference |
 | `other` | search, planning, hybrids, whatever else |
 
+## If you want to measure a MODEL instead of a bot
+
+An `llm` entry here is a submission whose **prompt and tools are the idea**; the
+model is usually whatever `$MODEL_ID` happens to name, so this table ranks
+scaffolds and two `llm-*` rows can differ because of the prompt, the model, or
+both.
+
+[`llm-bench/`](../llm-bench/) asks the other question. There the harness is frozen
+and the model id is the only thing that changes, so a row says something about the
+model. Nothing recorded there appears in these standings, and nothing here is
+compared with it.
+
+```bash
+uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini
+```
+
 ## Verification
 
 **Results are not re-run for you.** A number in the table is one somebody
