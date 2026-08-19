@@ -35,7 +35,14 @@ def short_label(a: dict[str, Any]) -> str:
     identical "EQUIP" entries in a log tell you nothing about what was chosen.
     """
     if a.get("kind") == "node":
-        return DISPLAY_NAMES.get(a["node"], a["node"])
+        # WITH the id, not only the kind. A layer often offers two nodes of the
+        # same kind, and without it the trace read `["tutor","tutor"]` -- two
+        # options a reader cannot tell apart, while the reason recorded beside them
+        # argues about where each one LEADS. The bot was choosing between things it
+        # could distinguish; only the log had stopped distinguishing them. This is
+        # the same rule the button labels below already follow.
+        kind = DISPLAY_NAMES.get(a["node"], a["node"])
+        return f"{kind}#{a['id']}" if a.get("id") is not None else kind
     label = (a.get("label") or "").strip()
 
     # Row context: "EQUIP — Ponyta Lv8 — empty — EQUIP". The informative half is
