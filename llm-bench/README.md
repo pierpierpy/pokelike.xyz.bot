@@ -14,6 +14,7 @@ export FW_TOKEN="sk-or-..."
 
 uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini
 uv run pokelike llm-bench --harness v0 --models a/b,c/d      # several in one go
+uv run pokelike llm-bench --harness v0 --model a/b --repeat 3 --workers 8
 uv run pokelike llm-bench --table                            # what is recorded
 ```
 
@@ -56,12 +57,17 @@ has already been caught making exactly this mistake: two RL bots that looked
 identical over fifty seeds were separated at t = 3.8 over four hundred.
 
 **More passes, not more confidence in one.** An LLM run is not reproducible —
-same seed, same prompt, different answer. So a model is played more than once and
-every pass is kept whole. Because the seed list is fixed, seed luck is already
-inside each pass's mean, which makes the spread *across* passes the model's own
-sampling noise. That is the number that tells you whether a gap is real, and it is
-why `--dry-run` exists: spend the tokens, look, decide afterwards whether it
-counts.
+same seed, same prompt, different answer. So a model is played more than once
+(`--repeat N`) and every pass is kept whole. Because the seed list is fixed, seed
+luck is already inside each pass's mean, which makes the spread *across* passes the
+model's own sampling noise.
+
+That number is not small. Three passes of one model, on the same fifty seeds, can
+differ by around 0.2 badges — which is roughly the entire gap between the top two
+entries on the `bots/` leaderboard. **A difference between two models smaller than
+one model's own spread is not a difference.** `--repeat 3` is what lets you say
+which case you are in, and `--dry-run` is how you spend the tokens without
+committing to the answer.
 
 **`fallback` disqualifies.** When a call fails or the model never calls `play`,
 the harness plays a safe move so the run does not die, and that turn was decided

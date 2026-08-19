@@ -468,25 +468,44 @@ def cmd_llm_bench(args) -> int:
     if args.workers <= 1:
         server, game = _server_and_game(args)
     try:
+        # Model outer, pass inner. Repeats of one model back to back share the
+        # same conditions -- same endpoint load, same hour -- which is what makes
+        # the spread between them the model's own variance rather than the
+        # provider having a bad afternoon halfway through.
         for model in models:
-            if args.workers > 1:
-                one = llmbench.fan_out(args.harness, model, seeds, args.workers,
-                                       SITE_ROOT, port0=args.port + 10)
-            else:
-                one = llmbench.play_model(game, args.harness, model, SITE_ROOT, seeds)
-            s = one["summary"]
-            print(f"\n  {model} @ {args.harness}: badges {s.get('badges_mean')} "
-                  f"(best {s.get('badges_best')}), "
-                  f"{one['tokens_in']:,} in / {one['tokens_out']:,} out tokens, "
-                  f"fallback {one['fallback_rate']}, retried {one['retries']}")
-            # Same rule as the main benchmark: a partial run is practice by
-            # definition, and --dry-run is how you spend a model's tokens without
-            # committing to what came out.
-            if args.dry_run or partial:
-                why = "--dry-run" if args.dry_run else f"only {len(seeds)} seeds"
-                print(f"    nothing recorded ({why})")
-                continue
-            print(f"    recorded in {llmbench.record(args.harness, model, one)}")
+            for attempt in range(1, args.repeat + 1):
+                if args.repeat > 1:
+                    print(f"\n  pass {attempt} of {args.repeat}")
+                if args.workers > 1:
+                    one = llmbench.fan_out(args.harness, model, seeds, args.workers,
+                                           SITE_ROOT, port0=args.port + 10)
+                else:
+                    one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
+                                              seeds)
+                s = one["summary"]
+                print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
+                      f"(best {s.get('badges_best')}), "
+                      f"{one['tokens_in']:,} in / {one['tokens_out']:,} out tokens, "
+                      f"fallback {one['fallback_rate']}, retried {one['retries']}")
+                print(f"    log {one.get('log')}")
+                # Same rule as the main benchmark: a partial run is practice by
+                # definition, and --dry-run is how you spend a model's tokens
+                # without committing to what came out.
+                if args.dry_run or partial:
+                    why = "--dry-run" if args.dry_run else f"only {len(seeds)} seeds"
+                    print(f"    nothing recorded ({why})")
+                    continue
+                print(f"    recorded in {llmbench.record(args.harness, model, one)}")
+            # Said per model rather than at the end, because with repeats this is
+            # the number that decides whether any gap to another model is real,
+            # and it is worth seeing before committing to the next model's spend.
+            if args.repeat > 1 and not (args.dry_run or partial):
+                st = llmbench.stats(
+                    json.loads(llmbench.result_path(args.harness, model)
+                               .read_text(encoding="utf-8")), args.harness)
+                print(f"    {st['passes']} passes: {st['badges_mean']} badges "
+                      f"±{st['badges_sem']}, spread across passes "
+                      f"{st.get('pass_spread')}")
     finally:
         if game is not None:
             game.close()
@@ -671,6 +690,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="play the seeds in N parallel processes. An LLM run is mostly "
                         "spent waiting on the provider, so this can exceed your core "
                         "count — but watch for rate limits")
+    s.add_argument("--repeat", type=int, default=1, metavar="N",
+                   help="play the whole seed list N times and record each as a pass. "
+                        "The spread between passes is the model's own sampling "
+                        "noise, and the only way to know whether a gap to another "
+                        "model is bigger than it")
     s.add_argument("--runs", type=int, default=0,
                    help="use only the first N standard seeds. A partial run is a "
                         "practice run: it prints the result and records nothing")
