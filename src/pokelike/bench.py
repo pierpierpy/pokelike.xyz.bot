@@ -72,7 +72,7 @@ def progress_bar(**kw: Any) -> Any:
     """A tqdm bar that also works when nobody is watching a terminal.
 
     Attached to a terminal, the usual thing: a bar that redraws in place several
-    times a second.
+    times a second, carrying whatever the caller puts in its postfix.
 
     Detached -- `docker compose run -d`, a pipe, nohup -- there is no cursor to
     move. tqdm still writes, but it separates frames with a carriage return and
@@ -80,14 +80,16 @@ def progress_bar(**kw: Any) -> Any:
     log driver holds an unterminated line, so `docker logs` shows NOTHING at all
     until the process exits. Known and old: tqdm#771.
 
-    So without a cursor each frame becomes a whole line, and the refresh drops to
-    every ten seconds -- because a bar redrawing ten times a second into a log file
-    is thousands of lines saying almost the same thing.
+    So without a cursor each frame becomes a whole line, ten seconds apart, and the
+    postfix is dropped: it is the live state of one run, which belongs on a bar you
+    are watching, not repeated on every line of a file. What the runs actually did
+    is already in the log beside the results, one line each. So `docker logs` gets
+    a plain bar and nothing else.
 
-    `isatty()` cannot decide this on its own, which is the part that wasted an
-    afternoon: `docker compose run` allocates a pseudo-tty EVEN WITH `-d`, so from
-    inside a detached container stderr really is /dev/pts/0 and looks interactive
-    while nobody is reading it. Hence POKELIKE_PLAIN_BAR, which the image sets: the
+    `isatty()` cannot decide this, which is the part that wasted an afternoon:
+    `docker compose run` allocates a pseudo-tty EVEN WITH `-d`, so from inside a
+    detached container stderr really is /dev/pts/0 and looks interactive while
+    nobody is reading it. Hence POKELIKE_PLAIN_BAR, which the image sets: the
     container knows what the process cannot work out for itself.
     """
     from tqdm import tqdm
@@ -95,26 +97,31 @@ def progress_bar(**kw: Any) -> Any:
     if sys.stderr.isatty() and not os.environ.get("POKELIKE_PLAIN_BAR"):
         return tqdm(**kw)
 
-    class Lines:
-        """tqdm's frames as complete lines, for a log with no cursor."""
+    class Lines(tqdm):
+        """One whole line per frame, and no postfix.
 
-        def write(self, data: str) -> None:
+        Refusing set_postfix here rather than at the call sites keeps one bar for
+        both cases: everything still reports what it always reported, and this
+        decides what a log is allowed to be.
+        """
+
+        @staticmethod
+        def _to_stderr(data: str) -> None:
             data = data.replace("\r", "").strip()
             if data:
                 sys.stderr.write(data + "\n")
 
-        def flush(self) -> None:
-            sys.stderr.flush()
+        def set_postfix(self, *_a: Any, **_k: Any) -> None:
+            return
 
-    # No `{bar}` in the format, so no row of hashes. On a terminal the drawing is
-    # the point; in a log it is forty characters of decoration in front of a
-    # percentage that says the same thing, and it made every line wrap.
-    #
-    # The caller's own settings still win: a `mininterval` passed in is a
-    # deliberate choice and must not be overridden by the default for detached runs.
-    plain = ("{desc} {percentage:3.0f}% {n_fmt}/{total_fmt} "
-             "[{elapsed}<{remaining}, {rate_fmt}{postfix}]")
-    return tqdm(**{"file": Lines(), "mininterval": 10.0, "bar_format": plain, **kw})
+        def set_postfix_str(self, *_a: Any, **_k: Any) -> None:
+            return
+
+    class Sink:
+        write = staticmethod(Lines._to_stderr)
+        flush = staticmethod(sys.stderr.flush)
+
+    return Lines(**{"file": Sink(), "mininterval": 10.0, "ncols": 80, **kw})
 
 
 def _tok(n: int) -> str:

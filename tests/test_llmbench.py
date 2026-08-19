@@ -1,0 +1,496 @@
+"""Regression tests for the model benchmark.
+
+Not coverage for its own sake. Every test here stands for a way this can go wrong
+QUIETLY — a row that looks comparable and is not, a fingerprint that certifies code
+it never ran, a credential written into a file that gets committed. The failures
+that announce themselves need no test; these do not announce themselves.
+
+Several of them pin behaviour in the FROZEN harnesses under `llm-bench/*/harness/`.
+That is the point: those files must not drift, and a test is a cheaper guard than
+remembering.
+
+No browser, no network, no model. The harnesses are loaded and inspected, and where
+one has to be constructed the credentials are nonsense on purpose.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+from pokelike import llmbench as L
+from pokelike.bench import STANDARD_SEEDS, _tok, live_fields, progress_bar
+from pokelike.bot import build, create
+from pokelike.bot.catalogue import load_class
+from pokelike.runner import short_label
+
+OFFLINE = {"endpoint": "https://example.invalid", "token": "not-a-real-token"}
+
+
+@pytest.fixture()
+def harness_v1():
+    """The frozen v1 class, constructed offline."""
+    cls = load_class(L.harness_path("v1"))
+    return cls(seed=0, model="test-model", **OFFLINE)
+
+
+# --------------------------------------------------- what may be recorded
+#
+# The single most dangerous rule in the file. A pass over anything other than the
+# standard fifty seeds is not comparable to any other row, and nothing downstream
+# can tell the difference once it is written.
+
+
+def test_only_the_standard_seeds_may_be_recorded():
+    assert L.records(STANDARD_SEEDS)
+    assert L.records(list(STANDARD_SEEDS))          # a copy is the same measurement
+
+
+def test_fifty_seeds_of_your_own_are_not_the_standard_fifty():
+    """The bug this replaced compared LENGTHS, so this recorded."""
+    mine = [s + 1000 for s in STANDARD_SEEDS]
+    assert len(mine) == len(STANDARD_SEEDS)
+    assert not L.records(mine)
+
+
+def test_the_standard_seeds_shuffled_are_not_the_standard_seeds():
+    """Order is part of the measurement under a harness that keeps notes."""
+    assert not L.records(list(reversed(STANDARD_SEEDS)))
+
+
+def test_a_partial_run_may_not_be_recorded():
+    assert not L.records(STANDARD_SEEDS[:5])
+    assert not L.records([])
+
+
+# ------------------------------------------------------------ the fingerprint
+
+
+def test_a_pass_records_the_fingerprint_it_was_given():
+    """Taken before the first seed plays, not after the last one.
+
+    Hashing at the end means an edit made during the pass produces a row that
+    claims code it never ran AND matches disk, so nothing can detect it. That is
+    the inverse of what a fingerprint is for.
+    """
+    runs = [{"seed": 10000, "badges": 1, "turns": 20, "fallbacks": 0}]
+    stamp = {"bot.py": "0" * 16, "render.py": "1" * 16}
+    one = L._as_pass("v0", "m", [10000], runs, {}, {}, fingerprint=stamp)
+    assert one["fingerprint"] == stamp
+
+
+def test_a_pass_falls_back_to_hashing_disk_when_given_nothing():
+    runs = [{"seed": 10000, "badges": 1, "turns": 20, "fallbacks": 0}]
+    one = L._as_pass("v0", "m", [10000], runs, {}, {})
+    assert one["fingerprint"] == L.fingerprints("v0")
+
+
+def test_a_changed_harness_marks_the_row_stale(tmp_path):
+    """The mechanism that catches drift instead of absorbing it."""
+    stamp = {"bot.py": "deadbeefdeadbeef", "render.py": "cafecafecafecafe"}
+    one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
+                                           "fallbacks": 0}], {}, {}, fingerprint=stamp)
+    assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is True
+
+
+def test_fingerprint_covers_the_harness_and_the_render_it_used():
+    """render.py is imported rather than frozen, so it is hashed instead."""
+    for v in L.versions():
+        assert set(L.fingerprints(v)) == {"bot.py", "render.py"}
+
+
+# ------------------------------------------------- credentials stay out of files
+
+
+def test_command_json_refuses_to_hold_a_credential(tmp_path):
+    for field in ("api_key", "token", "FW_TOKEN", "secret", "authorization"):
+        with pytest.raises(ValueError, match="refusing to write"):
+            L.record_command(tmp_path, {"harness": "v0", field: "sk-or-v1-whatever"})
+    assert not (tmp_path / "command.json").exists()
+
+
+def test_command_json_keeps_the_endpoint(tmp_path):
+    """Which provider served a row changes what the row means."""
+    p = L.record_command(tmp_path, {"harness": "v0", "models": ["a/b"],
+                                    "endpoint": "https://openrouter.ai/api"})
+    assert json.loads(p.read_text())["endpoint"] == "https://openrouter.ai/api"
+
+
+def test_the_token_never_reaches_a_result_or_a_note(harness_v1):
+    """It has exactly one destination: the Authorization header."""
+    blob = json.dumps(harness_v1.notes()) + json.dumps(
+        [a.data for a in harness_v1.artifacts() if a.data]
+    )
+    assert OFFLINE["token"] not in blob
+
+
+# ------------------------------------------------------- cross-run memory (v1)
+
+
+def test_v0_has_no_cross_run_memory_and_v1_does():
+    assert L.cross_run_memory("v0") is False
+    assert L.cross_run_memory("v1") is True
+
+
+def test_a_memory_harness_refuses_to_be_split_across_workers():
+    """Eight workers would mean eight notebooks over a fifth of the pass each, and
+    a row that depends on how the seeds were dealt out."""
+    with pytest.raises(RuntimeError, match="not independent"):
+        L.fan_out("v1", "m", list(STANDARD_SEEDS), 8, Path("site"))
+
+
+def test_the_notes_survive_the_end_of_a_run(harness_v1):
+    """One line is the whole feature: `on_start` must not clear them."""
+    harness_v1._remember("remember", {"note": "trainer nodes pay off early"})
+    kept = list(harness_v1.notebook)
+    harness_v1.journal = ["step 3: [0] something"]
+
+    harness_v1.on_start(seed=12345)
+
+    assert harness_v1.notebook == kept, "the notes are the point of v1"
+    assert harness_v1.journal == [], "the journal is per-run and must be cleared"
+
+
+def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(harness_v1):
+    """The bug that nearly shipped: the notes took the name of the journal-trim
+    size, and `_commit` slices the journal with it."""
+    assert isinstance(harness_v1.memory, int)
+    assert harness_v1.memory == harness_v1.MEMORY
+    assert isinstance(harness_v1.notebook, list)
+
+    state = {"actions": [{"kind": "menu", "label": "FIGHT"}], "team": None, "steps": 0}
+    for k in range(harness_v1.MEMORY + 4):
+        harness_v1._commit(dict(state, steps=k), 0, f"reason {k}")
+    assert len(harness_v1.journal) == harness_v1.MEMORY
+
+
+@pytest.mark.parametrize(
+    "verb,args,expect",
+    [
+        ("remember", {"note": "a lesson"}, "noted as [1]"),
+        ("remember", {"note": "   "}, "nothing to remember"),
+        ("revise", {"id": 9, "note": "x"}, "there is no note [9]"),
+        ("revise", {"id": "two", "note": "x"}, "must be a number"),
+        ("forget", {"id": 0}, "there is no note [0]"),
+    ],
+)
+def test_the_memory_verbs_answer_instead_of_raising(harness_v1, verb, args, expect):
+    """A model that gets an exception loses the turn to the fallback; a model that
+    gets a sentence carries on."""
+    assert expect in harness_v1._remember(verb, args)
+
+
+def test_a_note_is_truncated_rather_than_rejected(harness_v1):
+    harness_v1._remember("remember", {"note": "x" * 500})
+    assert len(harness_v1.notebook[0]) == harness_v1.NOTE_CHARS
+
+
+def test_notes_are_capped_and_the_model_is_told_how_to_make_room(harness_v1):
+    for i in range(harness_v1.NOTES_MAX):
+        harness_v1._remember("remember", {"note": f"lesson {i}"})
+    reply = harness_v1._remember("remember", {"note": "one more"})
+    assert len(harness_v1.notebook) == harness_v1.NOTES_MAX
+    assert "revise" in reply and "forget" in reply
+
+
+def test_every_memory_reply_says_how_full_the_notebook_is(harness_v1):
+    """Without it a model keeps calling `remember`, is refused, and behaves as
+    though the lesson were saved."""
+    cap = str(harness_v1.NOTES_MAX)
+    assert cap in harness_v1._remember("remember", {"note": "one"})
+    assert cap in harness_v1._remember("revise", {"id": 1, "note": "two"})
+    assert cap in harness_v1._remember("forget", {"id": 1})
+
+
+def test_the_notes_are_injected_above_the_journal(harness_v1):
+    """What was learned across fifty runs outranks the last six turns of this one."""
+    harness_v1._remember("remember", {"note": "a lesson"})
+    harness_v1.journal = ["step 3: [0] whatever"]
+    text = harness_v1._situation({"actions": [{"kind": "menu", "label": "FIGHT"}],
+                                  "team": None, "steps": 3})
+    assert 0 <= text.find("WHAT YOU HAVE LEARNED") < text.find("YOUR RECENT MOVES")
+
+
+def test_v1_offers_the_three_memory_tools_and_still_ends_a_turn_with_play(harness_v1):
+    names = harness_v1.tool_names()
+    assert {"remember", "revise", "forget"} <= set(names)
+    assert "play" in names, "without it every turn falls back"
+
+
+def test_notes_reported_per_run_are_a_copy(harness_v1):
+    """The row is a snapshot of what it believed then, not a live handle."""
+    harness_v1._remember("remember", {"note": "a lesson"})
+    reported = harness_v1.notes()["notebook"]
+    reported.append("mutated")
+    assert "mutated" not in harness_v1.notebook
+
+
+# --------------------------------------------------------------- the learning curve
+
+
+def _pass(badges, order=True):
+    return {"runs": [{"seed": 10000 + i, "badges": b,
+                      **({"order": i + 1} if order else {})}
+                     for i, b in enumerate(badges)]}
+
+
+def test_learning_is_the_last_ten_runs_against_the_first_ten():
+    out = L.learning([_pass(list(range(50)))])
+    assert out["first"] == 4.5 and out["last"] == 44.5 and out["delta"] == 40.0
+
+
+def test_learning_is_measured_in_the_order_played_not_by_seed():
+    """Rows are stored sorted by seed; the fortieth run had thirty-nine runs of
+    notes behind it."""
+    rows = [{"seed": 10000 + i, "order": 50 - i, "badges": b}
+            for i, b in enumerate(range(50))]
+    assert L.learning([{"runs": rows}])["delta"] == -40.0
+
+
+def test_learning_falls_back_to_seed_order_for_rows_recorded_without_it():
+    assert L.learning([_pass(list(range(50)), order=False)])["delta"] == 40.0
+
+
+def test_learning_needs_two_disjoint_ends():
+    """Fewer than 2k runs and the two halves overlap, showing a gain that is the
+    same runs counted twice."""
+    assert L.learning([_pass([1] * 19)])["delta"] is None
+    assert L.learning([])["delta"] is None
+
+
+def test_learning_averages_per_pass_and_never_pools():
+    """Pooling would compare one lifetime's start with another's end."""
+    flat, climb = _pass([1] * 50), _pass(list(range(50)))
+    assert L.learning([climb, flat])["delta"] == 20.0
+
+
+def test_the_learn_column_appears_only_for_a_harness_that_keeps_notes(monkeypatch):
+    doc = {"model": "m", "passes": [_pass(list(range(50)))]}
+    for r in doc["passes"][0]["runs"]:
+        r.update(tokens_in=1, tokens_out=1, turns=1, fallbacks=0, notes_kept=3)
+    monkeypatch.setattr(L, "load", lambda v: [doc])
+    assert "learn" in L.format_table("v1")
+    assert "learn" not in L.format_table("v0")
+
+
+# ---------------------------------------------------------------- the seed list
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("10010", [10010]),
+        ("10010,10011", [10010, 10011]),
+        ("10010-10013", [10010, 10011, 10012, 10013]),
+        ("10049,10000-10001", [10049, 10000, 10001]),   # order as written
+        (" 10010 , 10011 ", [10010, 10011]),
+    ],
+)
+def test_parse_seeds(text, expected):
+    from pokelike.interfaces.cli.main import parse_seeds
+
+    assert parse_seeds(text) == expected
+
+
+@pytest.mark.parametrize("bad", ["", "10011-10010", "10010,10010"])
+def test_parse_seeds_refuses_nonsense(bad):
+    from pokelike.interfaces.cli.main import parse_seeds
+
+    with pytest.raises(ValueError):
+        parse_seeds(bad)
+
+
+# ------------------------------------------------------------------ credentials
+
+
+class _Args:
+    def __init__(self, **kw):
+        self.__dict__.update({"endpoint": None, "api_key": None, "model": None, **kw})
+
+
+def test_absent_flags_pass_nothing_through():
+    """An absent flag must not become an empty string: that would override the
+    environment with nothing and turn a working setup into "FW_TOKEN is required"."""
+    from pokelike.interfaces.cli.main import llm_settings
+
+    assert llm_settings(_Args()) == {}
+
+
+def test_flags_are_forwarded_under_the_names_the_constructor_uses():
+    from pokelike.interfaces.cli.main import llm_settings
+
+    got = llm_settings(_Args(endpoint="https://e", api_key="sk-x", model="m"))
+    assert got == {"endpoint": "https://e", "token": "sk-x", "model": "m"}
+
+
+def test_a_key_can_come_from_a_file(tmp_path):
+    """A literal key is readable by every other user of the machine in `ps`."""
+    from pokelike.interfaces.cli.main import llm_settings
+
+    f = tmp_path / "key"
+    f.write_text("sk-from-a-file\n")
+    assert llm_settings(_Args(api_key=f"@{f}")) == {"token": "sk-from-a-file"}
+
+
+def test_a_missing_key_file_stops_the_command(tmp_path):
+    from pokelike.interfaces.cli.main import llm_settings
+
+    with pytest.raises(SystemExit):
+        llm_settings(_Args(api_key=f"@{tmp_path / 'nope'}"))
+
+
+def test_the_environment_still_works_with_no_flags_at_all(monkeypatch):
+    """The behaviour every existing script and fork depends on."""
+    monkeypatch.setenv("FW_ENDPOINT", "https://from-env")
+    monkeypatch.setenv("FW_TOKEN", "env-token")
+    monkeypatch.setenv("MODEL_ID", "env-model")
+    bot = create("llm-survivor")
+    assert (bot.endpoint, bot.token, bot.model) == ("https://from-env", "env-token",
+                                                    "env-model")
+
+
+def test_flags_win_over_the_environment(monkeypatch):
+    monkeypatch.setenv("FW_ENDPOINT", "https://from-env")
+    monkeypatch.setenv("FW_TOKEN", "env-token")
+    bot = create("llm-survivor", endpoint="https://from-flag", token="flag-token",
+                 model="flag-model")
+    assert (bot.endpoint, bot.token) == ("https://from-flag", "flag-token")
+
+
+def test_a_bot_that_cannot_take_credentials_says_so_clearly():
+    """Checked against the signature: a constructor raising TypeError for its own
+    reasons must not be reported as being about credentials."""
+    from pokelike.bot.random_bot import RandomBot
+
+    with pytest.raises(TypeError, match="does not take"):
+        build(RandomBot, endpoint="https://e")
+    assert build(RandomBot).__class__ is RandomBot
+
+
+# ------------------------------------------------------- what a pass writes down
+
+
+def test_one_directory_per_command_with_a_numbered_log_per_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    folder = L.session_dir("v0")
+    logs = [L.PassLog("v0", "vendor/model-x", [10000, 10001], workers=1,
+                      folder=folder, attempt=n) for n in (1, 2)]
+    for lg in logs:
+        lg.close()
+
+    names = sorted(p.name for p in folder.iterdir())
+    assert names == ["vendor--model-x-pass1.jsonl", "vendor--model-x-pass1.log",
+                     "vendor--model-x-pass2.jsonl", "vendor--model-x-pass2.log"]
+    assert folder.parent.name == "logs" and folder.parent.parent.name == "v0"
+
+
+def test_results_do_not_live_in_the_command_directory():
+    """One file per model with every pass appended is the comparable record: ten
+    commands over three days build one model's history."""
+    assert L.result_path("v0", "a/b").parent.name == "results"
+
+
+def test_the_decision_trace_counts_tokens_at_three_levels(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    log = L.PassLog("v0", "m", [10000, 10001], workers=2)
+
+    def decide(seed, step, run_in, run_out):
+        log.decision({"seed": seed, "step": step, "run_in": run_in,
+                      "run_out": run_out, "chosen": 0, "chosen_label": "battle#3",
+                      "options": ["battle#3"], "why": "because"})
+
+    decide(10000, 1, 2_100, 900)
+    decide(10001, 1, 1_800, 700)
+    decide(10000, 2, 4_400, 1_950)
+    log.run({"seed": 10000, "badges": 1, "tokens_in": 5_000, "tokens_out": 2_200})
+    decide(10001, 2, 3_500, 1_500)
+    log.close()
+
+    rows = [json.loads(x) for x in log.trace_path.read_text().splitlines()]
+    assert rows[2]["turn_in"] == 2_300, "the turn is the difference, not the total"
+    assert rows[2]["run_in"] == 4_400
+    # 5000 from the finished run plus 3500 still in flight on the other worker.
+    assert rows[3]["pass_in"] == 8_500
+
+
+def test_the_trace_says_which_option_it_took_and_why(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    log = L.PassLog("v0", "m", [10000], workers=1)
+    log.decision({"seed": 10000, "step": 3, "chosen": 1, "chosen_label": "catch#13",
+                  "options": ["battle#12", "catch#13"], "why": "a second type",
+                  "run_in": 1, "run_out": 1})
+    log.close()
+    row = json.loads(log.trace_path.read_text().splitlines()[0])
+    assert row["chose"] == 1 and row["action"] == "catch#13"
+    assert row["options"] == ["battle#12", "catch#13"] and row["why"] == "a second type"
+
+
+def test_two_map_nodes_of_the_same_kind_are_distinguishable():
+    """The trace once read `["tutor","tutor"]` beside a reason that argued about
+    where each one led."""
+    a = short_label({"kind": "node", "node": "move_tutor", "id": 14})
+    b = short_label({"kind": "node", "node": "move_tutor", "id": 15})
+    assert a != b and a == "tutor#14"
+
+
+# ------------------------------------------------------------------ what is shown
+
+
+def test_live_fields_report_depth_from_the_nodes():
+    """The engine has no "how long is this map" field; the deepest layer is the
+    boss, so layer 6 of 7 says what a step count cannot."""
+    nodes = [{"id": f"n{i}", "layer": i} for i in range(8)]
+    out = live_fields({"run": {"map": 1, "badges": 2},
+                       "map": {"nodes": nodes, "current": "n6"}})
+    assert out["layer"] == "6/7" and out["map"] == 1 and out["badges"] == 2
+
+
+def test_live_fields_survive_a_screen_that_is_not_the_board():
+    nodes = [{"id": "n0", "layer": 0}, {"id": "n1", "layer": 1}]
+    assert live_fields({"map": {"nodes": nodes, "current": None}})["layer"] == "?/1"
+    assert live_fields({})["badges"] == 0
+
+
+def test_live_fields_only_mention_tokens_for_a_bot_that_spends_them():
+    class Terse:
+        tokens_in = tokens_out = fallbacks = 0
+
+    assert "in" not in live_fields({}, Terse())
+
+
+@pytest.mark.parametrize("n,text", [(0, "0k"), (21_000, "21k"), (999_499, "999k"),
+                                    (999_500, "1.00M"), (1_580_000, "1.58M")])
+def test_token_counts_are_short_enough_for_a_bar(n, text):
+    assert _tok(n) == text
+
+
+def test_the_bar_writes_whole_lines_when_nothing_is_watching(capsys, monkeypatch):
+    """`docker compose run` allocates a pseudo-tty even with -d, so isatty cannot
+    decide this. Carriage-return frames leave Docker's log driver holding an
+    unterminated line and `docker logs` shows nothing for the whole run.
+
+    And no postfix: the live state of one run belongs on a bar you are watching,
+    not repeated on every line of a file that already has the finished runs in it.
+    """
+    monkeypatch.setenv("POKELIKE_PLAIN_BAR", "1")
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
+    bar = progress_bar(total=2, desc="d", mininterval=0)
+    bar.set_postfix({"badges": 0.75, "now": "10046@5/8"})
+    bar.update(1)
+    bar.close()
+    err = capsys.readouterr().err
+    assert err and "\r" not in err and err.endswith("\n")
+    assert "badges" not in err and "now" not in err
+
+
+def test_a_watched_bar_still_carries_the_live_state(capsys, monkeypatch):
+    """The postfix is dropped only where nobody can see it change."""
+    monkeypatch.delenv("POKELIKE_PLAIN_BAR", raising=False)
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
+    bar = progress_bar(total=2, desc="d", mininterval=0)
+    bar.set_postfix({"badges": 0.75})
+    bar.close()
+    assert "badges" in capsys.readouterr().err

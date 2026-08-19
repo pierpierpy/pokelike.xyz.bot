@@ -262,6 +262,22 @@ def preflight(version: str, model: str, endpoint: str | None = None,
 # ------------------------------------------------------------------- recording
 
 
+def records(seeds: list[int]) -> bool:
+    """Whether a pass over these seeds may be written to `results/`.
+
+    Only the standard fifty, and compared BY VALUE. Length is not enough: fifty
+    seeds of somebody's own choosing would otherwise be recorded, and the row would
+    sit in the table looking exactly like one that is comparable to every other.
+    That is the one mistake this file exists to prevent, so it is a function with a
+    test rather than a comparison inlined at the one place that happens to need it.
+
+    Order counts too, deliberately. Under a harness that carries the model's notes
+    from one run to the next, the order the seeds were played in is part of what was
+    measured, so the same fifty seeds shuffled are not the same measurement.
+    """
+    return list(seeds) == list(STANDARD_SEEDS)
+
+
 def result_path(version: str, model: str) -> Path:
     return BENCH / version / "results" / f"{slug(model)}.json"
 
@@ -432,10 +448,21 @@ def record_command(folder: Path, payload: dict[str, Any]) -> Path:
     hours later and the flags it ran with were gone, so a surprising number could
     not be traced to how it was asked for.
 
-    NEVER the key. The endpoint is written because a row measured against one
-    provider is not the same measurement as against another, and that is worth
-    knowing later; a token is worth nothing later and is a liability forever.
+    The endpoint is written because a row measured against one provider is not the
+    same measurement as against another, and that is worth knowing later. A token is
+    worth nothing later and is a liability forever, so this REFUSES to write one
+    rather than trusting every future caller to leave it out. The check is on the
+    keys, not on the values: guessing at the shape of a secret is how secrets get
+    written, while a field called `api_key` has no business here whatever it holds.
     """
+    banned = {"api_key", "apikey", "token", "fw_token", "key", "secret",
+              "password", "authorization"}
+    bad = sorted(k for k in payload if k.lower().replace("-", "_") in banned)
+    if bad:
+        raise ValueError(
+            f"refusing to write {', '.join(bad)} into {folder.name}/command.json: "
+            f"credentials do not belong in a record of what was measured."
+        )
     path = folder / "command.json"
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")

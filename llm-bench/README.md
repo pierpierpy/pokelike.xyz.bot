@@ -32,7 +32,11 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 
 _No models measured under harness `v1` yet._
 
-_No models measured under harness `v0` yet._
+### Harness `v0`
+
+| # | model | passes | runs | badges~ | ±sem | best | tok in/run | tok out/run | fallback | usd |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 37740 | 13965 | 0.027 | 0.15 |
 
 <!-- END llm-bench -->
 

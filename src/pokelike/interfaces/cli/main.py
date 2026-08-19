@@ -517,10 +517,10 @@ def cmd_llm_bench(args) -> int:
     else:
         seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
 
-    # Compared by VALUE, not by length. Fifty seeds of somebody's choosing are not
-    # the standard fifty, and a row measured on them would sit in the table looking
-    # exactly like one that is comparable.
-    partial = seeds != STANDARD_SEEDS
+    # Asked of llmbench rather than compared here: it is the one rule whose
+    # failure puts an incomparable row in the table looking exactly like a
+    # comparable one, so it lives in one place and has a test.
+    partial = not llmbench.records(seeds)
 
     # Checked here, before the pre-flight spends a token, as well as inside
     # `fan_out` where it cannot be bypassed. A harness that carries the model's
