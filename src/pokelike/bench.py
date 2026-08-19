@@ -66,6 +66,47 @@ def summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def live_fields(obs: dict[str, Any], bot: Any = None) -> dict[str, Any]:
+    """What is worth seeing WHILE a run is still going, for a progress bar.
+
+    Not a log line and not a record: every reading replaces the last one. The
+    record is the row written when the run ends.
+
+    Depth comes from the nodes rather than from a field, because the engine has no
+    "how long is this map" anywhere -- each node carries a `layer`, so the deepest
+    one is the boss and `current`'s layer is how far in the bot has got. That
+    answers the question a step count cannot: 34 steps means nothing, layer 6 of 7
+    means the gym leader is next.
+    """
+    run = obs.get("run") or {}
+    m = obs.get("map") or {}
+    out: dict[str, Any] = {"badges": run.get("badges", 0)}
+    if run.get("map") is not None:
+        out["map"] = run["map"]
+
+    nodes = m.get("nodes") or []
+    layers = [n.get("layer") for n in nodes if isinstance(n.get("layer"), int)]
+    here = next((n for n in nodes if n.get("id") == m.get("current")), None)
+    if layers and here is not None and isinstance(here.get("layer"), int):
+        out["layer"] = f"{here['layer']}/{max(layers)}"
+    elif layers:
+        # Between maps, or on a screen that is not the board: the depth is still
+        # worth showing, the position is simply not known yet.
+        out["layer"] = f"?/{max(layers)}"
+
+    if bot is not None:
+        spent = (getattr(bot, "tokens_in", 0) or 0) + (getattr(bot, "tokens_out", 0) or 0)
+        if spent:
+            out["tok"] = f"{spent / 1000:.0f}k"
+        fell = getattr(bot, "fallbacks", 0) or 0
+        if fell:
+            out["fell"] = fell
+        notes = getattr(bot, "notebook", None)
+        if notes is not None:
+            out["notes"] = len(notes)
+    return out
+
+
 def run_benchmark(
     game,
     bot,
@@ -77,6 +118,7 @@ def run_benchmark(
     description: str = "",
     max_steps: int = 400,
     on_run=None,
+    on_step=None,
 ) -> dict[str, Any]:
     """Plays the seed list and returns the result document."""
     from . import __version__
@@ -88,7 +130,18 @@ def run_benchmark(
 
     bar = tqdm(seeds, desc=f"bench {bot_name}", unit="run", leave=True)
     for seed in bar:
-        full = play_run(game, bot, seed, max_steps=max_steps)
+        # Live, while the run is still going. Without this the bar sits at the
+        # same number for one to three minutes with nothing to say whether the bot
+        # is making progress or stuck on a wedged screen -- and on a fifty-seed
+        # LLM pass that is most of an hour of no information at all. Written into
+        # the bar rather than printed: it is the state of one run, which is
+        # replaced by the next reading rather than worth a line of its own.
+        def live(obs, steps, _seed=seed):
+            bar.set_postfix(seed=_seed, step=steps, **live_fields(obs, bot))
+            if on_step:
+                on_step(obs, steps)
+
+        full = play_run(game, bot, seed, max_steps=max_steps, on_step=live)
         # The heavy fields (final state, full team) are for callers who want
         # them; a result file keeps one compact row per run.
         row = {k: full[k] for k in

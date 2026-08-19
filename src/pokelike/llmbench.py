@@ -681,35 +681,56 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     # Rows arrive as they finish, from whichever worker finished them, so the bar
     # measures the whole pass rather than one process's share of it.
     rows: list[dict[str, Any]] = []
+    # Where each worker is right now, keyed by worker. Overwritten rather than
+    # appended: this is a reading, not a record -- the record is the row that
+    # arrives when the run finishes.
+    live: dict[int, dict[str, Any]] = {}
     q: queue.Queue = queue.Queue()
 
-    def pump(p: Any) -> None:
+    def pump(p: Any, k: int) -> None:
         for line in p.stdout:
             line = line.strip()
             if line.startswith("{"):
-                q.put(json.loads(line))
-        q.put(None)
+                q.put((k, json.loads(line)))
+        q.put((k, None))
 
-    for p in procs:
-        threading.Thread(target=pump, args=(p,), daemon=True).start()
+    for k, p in enumerate(procs):
+        threading.Thread(target=pump, args=(p, k), daemon=True).start()
 
     log = PassLog(version, model, seeds, workers=len(procs))
     bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
+    def postfix() -> None:
+        done = [r for r in rows if r.get("badges") is not None]
+        spent = sum(r.get("tokens_in", 0) + r.get("tokens_out", 0) for r in rows)
+        spent += sum(v.get("tokens", 0) for v in live.values())
+        bar.set_postfix(
+            badges=round(sum(r["badges"] for r in done) / len(done), 2) if done else None,
+            tok=f"{spent / 1e6:.2f}M",
+            fell=sum(r.get("fallbacks", 0) for r in rows),
+            # What the workers are on at this instant, so a bar stuck on the same
+            # count still shows movement -- or shows that there is none.
+            now=" ".join(
+                f"{v['seed']}@L{v.get('layer', '?')}/{v.get('badges', 0)}b/{v['step']}s"
+                for v in sorted(live.values(), key=lambda x: x["seed"])),
+        )
+
     ended = 0
     while ended < len(procs):
-        item = q.get()
+        k, item = q.get()
         if item is None:
             ended += 1
+            live.pop(k, None)
+            postfix()
+            continue
+        if item.get("live"):
+            live[k] = item
+            postfix()
             continue
         rows.append(item)
         log.run(item)
+        live.pop(k, None)
         bar.update(1)
-        done = [r for r in rows if r.get("badges") is not None]
-        bar.set_postfix(
-            badges=round(sum(r["badges"] for r in done) / len(done), 2) if done else None,
-            tok=f"{sum(r.get('tokens_in', 0) + r.get('tokens_out', 0) for r in rows) / 1e6:.2f}M",
-            fell=sum(r.get("fallbacks", 0) for r in rows),
-        )
+        postfix()
     bar.close()
 
     # All or nothing. A pass with 43 of 50 seeds in it is worse than no pass: the
@@ -747,6 +768,7 @@ def _worker() -> int:
     from .assets.server import AssetServer
     from .bot.catalogue import load_class
     from .core.game import Game
+    from .bench import live_fields
     from .runner import play_run
 
     p = argparse.ArgumentParser()
@@ -767,7 +789,21 @@ def _worker() -> int:
     try:
         for seed in seeds:
             began = time.time()
-            full = play_run(game, bot, seed, max_steps=400)
+
+            # A worker's run takes one to three minutes and the parent cannot see
+            # inside it, so without this the shared bar has nothing to say for
+            # minutes at a time. Every fifth step, because the point is "it is
+            # moving and here is where", not a transcript.
+            def live(obs, steps, _seed=seed):
+                if steps % 5:
+                    return
+                print(json.dumps({
+                    "live": True, "seed": _seed, "step": steps,
+                    "tokens": bot.tokens_in + bot.tokens_out,
+                    **live_fields(obs, bot),
+                }), flush=True)
+
+            full = play_run(game, bot, seed, max_steps=400, on_step=live)
             n = bot.notes()
             row = {k: full[k] for k in ("seed", "steps", "score", "badges", "maps",
                                         "kos", "faints", "ending", "stalled")}
