@@ -37,6 +37,36 @@ def harness_v1():
     return cls(seed=0, model="test-model", **OFFLINE)
 
 
+@pytest.mark.parametrize("version", L.versions())
+def test_every_harness_is_loadable_and_reports_itself(version):
+    """Catches what a mechanical copy gets wrong.
+
+    v2 was generated from v1 and two references to `HarnessV1` survived the
+    rename, one of them in `view_name()` -- so the class imported fine, played
+    fine, and raised NameError only when a pass ended and asked it for its notes.
+    Half an hour in, at the one moment there is a result to lose.
+    """
+    cls = load_class(L.harness_path(version))
+    bot = cls(seed=0, model="test-model", **OFFLINE)
+    notes = bot.notes()
+    assert notes["harness"] == cls.HARNESS
+    assert "play" in bot.tool_names()
+    assert [a.name for a in bot.artifacts()]
+    assert bot.view_name()
+
+
+@pytest.mark.parametrize("version", L.versions())
+def test_every_harness_survives_a_committed_move(version):
+    """`_commit` slices the journal with `self.memory`, so a version that gave that
+    name to something else crashes on the first decision of the first run."""
+    cls = load_class(L.harness_path(version))
+    bot = cls(seed=0, model="test-model", **OFFLINE)
+    state = {"actions": [{"kind": "menu", "label": "FIGHT"}], "team": None, "steps": 0}
+    for k in range(bot.MEMORY + 3):
+        bot._commit(dict(state, steps=k), 0, f"reason {k}")
+    assert len(bot.journal) == bot.MEMORY
+
+
 # --------------------------------------------------- what may be recorded
 #
 # The single most dangerous rule in the file. A pass over anything other than the
