@@ -1,0 +1,27 @@
+# Docker reads .dockerignore from the BUILD CONTEXT ROOT, which is this directory,
+# so this file cannot live beside the Dockerfile it serves. That Dockerfile is in
+# llm-bench/docker/, and the context is here because the image installs the
+# pokelike package from src/ with pyproject.toml and uv.lock.
+# The host's virtualenv is for the host's platform. The image builds its own.
+.venv/
+
+# 130 MB of downloaded game. Mounted at run time instead: it changes upstream,
+# and every result already records the bundle's sha256, so baking a copy into an
+# image would only create a second answer to "which game was played".
+site/
+
+# History, and the source recording that is too large for GitHub anyway.
+.git/
+img/*.mp4
+
+# Output, never input. Results and logs are written to mounted directories so a
+# long run's findings survive the container that produced them.
+llm-bench/*/logs/
+experiments/*/output/
+experiments/*/logs/
+stats/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

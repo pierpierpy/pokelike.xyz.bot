@@ -31,6 +31,7 @@ stay in the environment, where they cannot be committed by accident.
 [How a new version happens](#how-a-new-version-happens) ·
 [What is recorded](#what-is-recorded) ·
 [Watching a long run](#watching-a-run-that-takes-hours) ·
+[In a container](#running-it-in-a-container) ·
 [Layout](#layout)
 
 ---
@@ -183,11 +184,53 @@ not a defect — it is what shows you a worker stuck on one game for two minutes
 Logs are gitignored. The rows are already stored in full in the result; this is
 the running commentary, not the record.
 
+## Running it in a container
+
+A slow model over fifty seeds is a long time to leave a browser, a Python process
+and eight subprocesses attached to a laptop. The container is not about isolation
+for its own sake — it is so the run cannot notice anything you do to the host: no
+library upgrade halfway through, no Chromium updating under it, no sleep.
+
+```bash
+cp .env.example .env        # FW_ENDPOINT and FW_TOKEN go in here, never in git
+docker compose -f llm-bench/docker/docker-compose.yml build
+docker compose -f llm-bench/docker/docker-compose.yml run --rm bench \
+    --harness v0 --model z-ai/glm-5.2:free --workers 8
+```
+
+Detached, for the long ones. The log is a mounted file, so you read it from the
+host with the container still running:
+
+```bash
+docker compose -f llm-bench/docker/docker-compose.yml run -d --name sweep bench \
+    --harness v0 --models a/b,c/d --repeat 3 --workers 8
+tail -f llm-bench/v0/logs/*.log
+```
+
+Three things about it worth knowing:
+
+- **The base image is Playwright's own**, pinned to the same version as
+  `pyproject.toml`, so Chromium and every system library it needs come with it.
+  That is the most fragile part of running this anywhere — `playwright install`
+  exits 0 even when the host lacks libraries — and here there is nothing to detect.
+  Bump the Playwright pin and bump the image tag together.
+- **`shm_size: 2gb` is not optional.** Docker gives a container 64 MB of shared
+  memory and Chromium wants far more; eight workers want eight times more again.
+  Without it browsers die mid-run with errors that read like the game crashed.
+- **Only `llm-bench/` is writable, and `site/` is read-only.** The image contains
+  the whole package and could run `pokelike bench --bot sarsa-v2`, which would
+  record a `result.json` inside the container and lose it on exit. Recording a
+  score is the one step worth doing deliberately, on the host, where you can see
+  the fingerprint it writes.
+
 ## Layout
 
 ```
 llm-bench/
 ├── README.md              this file, with the generated table in it
+├── docker/                the container these runs happen in
+│   ├── Dockerfile         build context is the REPO ROOT, not this folder
+│   └── docker-compose.yml volumes, shm-size and the env file, in one place
 └── v0/
     ├── harness/bot.py     frozen. Do not edit once results exist
     ├── results/           one file per model, many passes inside
