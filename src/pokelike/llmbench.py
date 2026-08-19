@@ -39,6 +39,7 @@ from __future__ import annotations
 import hashlib
 import json
 import statistics
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -254,6 +255,105 @@ def cost(stat: dict[str, Any], usd_in_per_mtok: float, usd_out_per_mtok: float) 
          + stat.get("tokens_out_per_run", 0) * usd_out_per_mtok) * runs / 1e6, 4)
 
 
+# --------------------------------------------------------------------- logging
+#
+# A benchmark can run for hours. A progress bar is fine while you are watching it
+# and worth nothing afterwards: come back to a finished terminal and there is no
+# answer to "what did it do for three hours", "when did it start failing", or
+# "how much did that cost". So every pass writes a log beside its results.
+#
+# Deliberately a readable text file rather than JSON. The rows themselves are
+# already stored, in full, in the result -- this is the thing you `tail -f` from
+# another terminal, so it is aligned columns and nothing else.
+
+
+class PassLog:
+    """One line per finished run, flushed as it happens.
+
+    Flushed per line on purpose: a log that buffers tells you nothing about a run
+    still in progress, which is the only time you need it, and loses the ending if
+    the process dies -- which is exactly the ending worth reading.
+
+    In parallel, lines arrive in completion order rather than seed order, because
+    they are written as workers finish. That is not a defect: it is what tells you
+    a particular worker has been stuck on one game for two minutes.
+    """
+
+    COLUMNS = ("  seed  badges  steps        in       out  fell  retry     secs")
+
+    def __init__(self, version: str, model: str, seeds: list[int], workers: int) -> None:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.path = BENCH / version / "logs" / f"{slug(model)}-{stamp}.log"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.started = time.time()
+        self.n = 0
+        self.total = len(seeds)
+        self.badges: list[int] = []
+        self.fh = self.path.open("w", encoding="utf-8", buffering=1)
+        self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
+        self._say(f"{len(seeds)} seeds, {workers} worker{'s' if workers != 1 else ''}, "
+                  f"seeds {seeds[0]}..{seeds[-1]}")
+        self._say(self.COLUMNS)
+
+    def _say(self, line: str) -> None:
+        self.fh.write(line + "\n")
+
+    def run(self, row: dict[str, Any]) -> None:
+        self.n += 1
+        self.badges.append(row.get("badges") or 0)
+        self._say(
+            f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}{row.get('steps') or 0:>7}"
+            f"{row.get('tokens_in') or 0:>10}{row.get('tokens_out') or 0:>10}"
+            f"{row.get('fallbacks') or 0:>6}{row.get('retries') or 0:>7}"
+            f"{row.get('secs') or 0:>9.1f}"
+            # Only annotated when it is worth reading: a run the model did not
+            # really play, or one that wedged.
+            + ("   <- fell back" if (row.get("fallbacks") or 0) else "")
+            + ("   <- STALLED" if row.get("stalled") else "")
+        )
+        # A mark every ten runs, with where it is and when it should finish. The
+        # point of the whole file: come back after an hour and the last of these
+        # lines answers "is this going to take another twenty minutes or another
+        # three hours", without doing arithmetic on the column above.
+        if self.total and self.n % 10 == 0 and self.n < self.total:
+            done = time.time() - self.started
+            left = done / self.n * (self.total - self.n)
+            self._say(
+                f"  .. {self.n}/{self.total}  "
+                f"badges {sum(self.badges) / len(self.badges):.2f}  "
+                f"{done / 60:.0f} min in, about {left / 60:.0f} left, "
+                f"done around {datetime.fromtimestamp(time.time() + left):%H:%M}"
+            )
+
+    def done(self, one_pass: dict[str, Any]) -> None:
+        s = one_pass.get("summary") or {}
+        mins = (time.time() - self.started) / 60
+        fell = one_pass.get("fallback_rate", 0)
+        self._say(
+            f"done  {s.get('runs', self.n)} runs  {s.get('badges_mean')} badges  "
+            f"{one_pass.get('tokens_in', 0) / 1e6:.2f}M in  "
+            f"{one_pass.get('tokens_out', 0) / 1e6:.2f}M out  "
+            f"fallback {fell}  retries {one_pass.get('retries', 0)}  "
+            f"in {mins:.1f} min"
+        )
+        if fell > 0.1:
+            self._say("WARNING fallback over 0.1: this row measures the harness, "
+                      "not the model")
+
+    def fail(self, why: str) -> None:
+        self._say(f"FAILED after {self.n} runs: {why}")
+
+    def close(self) -> None:
+        if not self.fh.closed:
+            self.fh.close()
+
+    def __enter__(self) -> "PassLog":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
+
+
 # ---------------------------------------------------------------------- running
 
 
@@ -265,23 +365,38 @@ def play_model(game, version: str, model: str, site: Path,
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
     bot = cls(seed=0, model=model)
+    log = PassLog(version, model, seeds, workers=1)
+    last = [time.time()]
 
     # Token counts are per run: `on_start` resets them, so reading notes() once at
     # the end would report only the last of fifty runs. `on_run` hands back the row
     # itself, so each one carries what that run actually spent.
     def on_run(row: dict[str, Any], done: int, total: int) -> None:
+        now = time.time()
         n = bot.notes()
         row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),
                    calls=n.get("calls", 0), turns=n.get("turns", 0),
-                   fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0))
+                   fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0),
+                   secs=round(now - last[0], 1))
+        last[0] = now
+        log.run(row)
 
-    result = run_benchmark(
-        game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
-        category="llm", description=f"model benchmark, harness {version}",
-        on_run=on_run,
-    )
-    return _as_pass(version, model, seeds, result["runs"], result["game"],
-                    result.get("notes") or {})
+    try:
+        result = run_benchmark(
+            game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
+            category="llm", description=f"model benchmark, harness {version}",
+            on_run=on_run,
+        )
+    except BaseException as e:
+        log.fail(f"{type(e).__name__}: {e}")
+        log.close()
+        raise
+    one = _as_pass(version, model, seeds, result["runs"], result["game"],
+                   result.get("notes") or {})
+    one["log"] = str(log.path)
+    log.done(one)
+    log.close()
+    return one
 
 
 def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, Any]],
@@ -359,6 +474,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     for p in procs:
         threading.Thread(target=pump, args=(p,), daemon=True).start()
 
+    log = PassLog(version, model, seeds, workers=len(procs))
     bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
     ended = 0
     while ended < len(procs):
@@ -367,6 +483,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             ended += 1
             continue
         rows.append(item)
+        log.run(item)
         bar.update(1)
         done = [r for r in rows if r.get("badges") is not None]
         bar.set_postfix(
@@ -383,17 +500,25 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
         p.wait()
         if p.returncode != 0:
             err = (p.stderr.read() or "").strip()[-600:]
+            log.fail(f"worker {k} exited {p.returncode}: {err[-200:]}")
+            log.close()
             raise RuntimeError(
                 f"worker {k} exited {p.returncode}; discarding the whole pass "
                 f"rather than recording a partial one.\n{err}"
             )
     if len(rows) != len(seeds):
+        log.fail(f"collected {len(rows)} of {len(seeds)} runs")
+        log.close()
         raise RuntimeError(
             f"expected {len(seeds)} runs, collected {len(rows)}; discarding the pass"
         )
 
     from .bench import bundle_fingerprint
-    return _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {})
+    one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {})
+    one["log"] = str(log.path)
+    log.done(one)
+    log.close()
+    return one
 
 
 def _worker() -> int:
@@ -422,13 +547,15 @@ def _worker() -> int:
     game.open()
     try:
         for seed in seeds:
+            began = time.time()
             full = play_run(game, bot, seed, max_steps=400)
             n = bot.notes()
             row = {k: full[k] for k in ("seed", "steps", "score", "badges", "maps",
                                         "kos", "faints", "ending", "stalled")}
             row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),
                        calls=n.get("calls", 0), turns=n.get("turns", 0),
-                       fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0))
+                       fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0),
+                       secs=round(time.time() - began, 1))
             print(json.dumps(row), flush=True)
     finally:
         game.close()

@@ -29,6 +29,7 @@ stay in the environment, where they cannot be committed by accident.
 [Why the harness is frozen](#why-the-harness-is-frozen) ·
 [How a new version happens](#how-a-new-version-happens) ·
 [What is recorded](#what-is-recorded) ·
+[Watching a long run](#watching-a-run-that-takes-hours) ·
 [Layout](#layout)
 
 ---
@@ -136,6 +137,38 @@ Rows are the record; every statistic in the table is derived from them at print
 time. Nothing that can be recomputed is stored — a saved average is a number
 nobody can check, and it goes quietly wrong the moment its definition changes.
 
+## Watching a run that takes hours
+
+Every pass writes a log beside its results, one line per finished run, flushed as
+it happens — so it can be read from another terminal while the benchmark is still
+going, and it still answers questions afterwards when the progress bar is gone:
+
+```bash
+tail -f llm-bench/v0/logs/*.log
+```
+
+```
+2026-08-19 15:30:23  harness v0  z-ai/glm-5.2:free
+50 seeds, 8 workers, seeds 10000..10049
+  seed  badges  steps        in       out  fell  retry     secs
+ 10000       1     34     24791      1048     0      0     83.0
+ 10003       0     38     26828      2593     1      0     35.1   <- fell back
+  .. 10/50  badges 0.70  5 min in, about 20 left, done around 15:50
+done  50 runs  0.82 badges  1.58M in  0.08M out  fallback 0.002  retries 0  in 5.0 min
+```
+
+A mark every ten runs says where it is and roughly when it will finish, which is
+the whole point of the file: coming back after an hour, the last of those lines
+answers "another twenty minutes or another three hours" without doing arithmetic
+on the column above it. Runs the model did not really play are annotated, because
+those are the ones worth looking at.
+
+In parallel the lines arrive in completion order rather than seed order. That is
+not a defect — it is what shows you a worker stuck on one game for two minutes.
+
+Logs are gitignored. The rows are already stored in full in the result; this is
+the running commentary, not the record.
+
 ## Layout
 
 ```
@@ -143,5 +176,6 @@ llm-bench/
 ├── README.md              this file, with the generated table in it
 └── v0/
     ├── harness/bot.py     frozen. Do not edit once results exist
-    └── results/           one file per model, many passes inside
+    ├── results/           one file per model, many passes inside
+    └── logs/              one per pass, tail-able        (gitignored)
 ```
