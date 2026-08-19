@@ -76,10 +76,18 @@ harness, not the model — a model that cannot emit tool calls scores badly for 
 reason that has nothing to do with playing Pokemon.
 
 **Tokens are counted, money is not.** Input and output are recorded separately
-per run, because output is priced several times higher and a single total cannot
-be turned into a bill. Prices are somebody else's changing fact, so cost is
-computed from these counts whenever it is asked for rather than frozen into a
-result that would then rot.
+per run, because output is priced several times higher and a single total cannot be
+turned into a bill. The `usd` column is computed at print time from OpenRouter's
+public price list — no key needed — and never written into a result. A cost stored
+in a file is a claim about what today costs, made months ago, that nobody can
+correct without re-running a benchmark that has not changed. Offline the column is
+simply absent.
+
+The same numbers answer the question before you spend anything: `llm-bench` prints
+an estimate per model after the pre-flight, using the tokens per run already
+recorded under that harness. For scale, one 50-seed pass at typical counts is about
+1.5M in and 0.08M out — free on a `:free` model, roughly $0.27 on `gpt-4o-mini`,
+roughly $5.70 on `claude-sonnet-4.5`. Multiply by `--repeat`.
 
 ## Why the harness is frozen
 

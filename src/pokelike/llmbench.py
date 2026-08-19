@@ -88,6 +88,82 @@ def fingerprints(version: str) -> dict[str, str]:
     return {"bot.py": sha(harness_path(version)), "render.py": sha(RENDER)}
 
 
+def prices(url: str = "https://openrouter.ai/api/v1/models",
+           timeout: float = 10.0) -> dict[str, dict[str, float]]:
+    """Per-token USD prices, keyed by model id. Fetched, never stored.
+
+    A public endpoint: no key, so this works whatever provider a run actually
+    used. OpenRouter quotes per TOKEN as strings — `"0.00000015"` — and a free
+    model is exactly `"0"`, which is why the column can legitimately read 0.
+
+    Returns an empty dict rather than raising when there is no network. Cost is a
+    convenience on top of the measurement, and a table that refuses to print
+    because a price list was unreachable would have its priorities backwards.
+    """
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            data = json.loads(r.read()).get("data") or []
+    except Exception:  # noqa: BLE001 — offline is a normal state, not an error
+        return {}
+    out: dict[str, dict[str, float]] = {}
+    for m in data:
+        p = m.get("pricing") or {}
+        try:
+            out[m["id"]] = {"in": float(p.get("prompt") or 0),
+                            "out": float(p.get("completion") or 0)}
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def cost(tokens_in: int, tokens_out: int, price: dict[str, float] | None) -> float | None:
+    """USD for tokens already counted, at prices supplied from outside.
+
+    Kept as a function of the two counts rather than a field in the result, and
+    that is the whole point: prices are somebody else's changing fact. A cost
+    written into a result would be a claim about what today costs, made months
+    ago, that nobody can correct without re-running a benchmark that has not
+    changed. The tokens are the measurement; money is a view of it.
+    """
+    if not price:
+        return None
+    return tokens_in * price.get("in", 0.0) + tokens_out * price.get("out", 0.0)
+
+
+# Tokens a single run spends, when nothing has been recorded yet to look at.
+# Only used to answer "what will this cost me" BEFORE the first pass exists; once
+# one does, the real numbers replace it.
+TYPICAL_RUN = (30_000, 1_600)
+
+
+def estimate(version: str, model: str, n_runs: int,
+             price: dict[str, float] | None) -> dict[str, Any]:
+    """What a sweep is about to cost, before any of it is spent.
+
+    Uses the tokens per run actually recorded under this harness — any model's,
+    since the harness is what decides how much text a turn carries — and falls
+    back to a documented guess when the benchmark is empty. Says which it used,
+    because an estimate whose basis is invisible gets quoted as a measurement.
+    """
+    seen = [r for d in load(version) for p in (d.get("passes") or [])
+            for r in (p.get("runs") or [])]
+    if seen:
+        per_in = sum(r.get("tokens_in") or 0 for r in seen) / len(seen)
+        per_out = sum(r.get("tokens_out") or 0 for r in seen) / len(seen)
+        basis = f"{len(seen)} runs already recorded under {version}"
+    else:
+        per_in, per_out = TYPICAL_RUN
+        basis = "a typical run; nothing recorded under this harness yet"
+    total_in, total_out = round(per_in * n_runs), round(per_out * n_runs)
+    return {
+        "model": model, "runs": n_runs, "basis": basis,
+        "tokens_in": total_in, "tokens_out": total_out,
+        "usd": cost(total_in, total_out, price),
+    }
+
+
 # ------------------------------------------------------------------- pre-flight
 
 
@@ -240,19 +316,6 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
         used = {k: v for p in passes for k, v in (p.get("fingerprint") or {}).items()}
         out["stale"] = bool(used) and used != now
     return out
-
-
-def cost(stat: dict[str, Any], usd_in_per_mtok: float, usd_out_per_mtok: float) -> float:
-    """What a pass would have cost at the prices you pass in.
-
-    Not stored anywhere and not fetched here on purpose: prices are somebody
-    else's changing fact, and a benchmark that recorded them would be reporting
-    history as though it were current.
-    """
-    runs = max(stat.get("runs") or 1, 1)
-    return round(
-        (stat.get("tokens_in_per_run", 0) * usd_in_per_mtok
-         + stat.get("tokens_out_per_run", 0) * usd_out_per_mtok) * runs / 1e6, 4)
 
 
 # --------------------------------------------------------------------- logging
@@ -570,21 +633,26 @@ if __name__ == "__main__":
 # ----------------------------------------------------------------------- table
 
 
-def format_table(version: str) -> str:
+def format_table(version: str, price: dict[str, dict[str, float]] | None = None) -> str:
     rows = [stats(d, version) for d in load(version)]
     rows = [r for r in rows if r.get("runs")]
     if not rows:
         return f"no models measured under harness {version} yet"
     rows.sort(key=lambda r: -r["badges_mean"])
+    money = bool(price)
     head = (f"{'model':<34}{'passes':>7}{'runs':>6}{'badges~':>9}{'±sem':>7}"
-            f"{'med':>5}{'best':>6}{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}")
+            f"{'med':>5}{'best':>6}{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
+            + (f"{'usd':>9}" if money else ""))
     out = [head, "-" * len(head)]
     for r in rows:
+        usd = cost(r["tokens_in_per_run"] * r["runs"], r["tokens_out_per_run"] * r["runs"],
+                   (price or {}).get(r["model"])) if money else None
         out.append(
             f"{str(r['model'])[:33]:<34}{r['passes']:>7}{r['runs']:>6}"
             f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
             f"{r['badges_best']:>6}{r['tokens_in_per_run']:>11}"
             f"{r['tokens_out_per_run']:>12}{r['fallback_rate']:>9}"
+            + (f"{usd:>9.2f}" if usd is not None else (f"{'-':>9}" if money else ""))
             + ("  <- harness or render changed since this ran" if r.get("stale") else "")
             + ("  <- fallback over 0.1: measuring the harness, not the model"
                if r["fallback_rate"] > 0.1 else "")
@@ -594,31 +662,38 @@ def format_table(version: str) -> str:
             f"whose means differ by less than about",
             "twice the ±sem are not distinguishable here — read that column before "
             "reading the order."]
+    if money:
+        out.append("usd is what those tokens cost at today's OpenRouter prices, "
+                   "computed now and never stored.")
     return "\n".join(out)
 
 
-def markdown_table(version: str) -> str:
+def markdown_table(version: str,
+                   price: dict[str, dict[str, float]] | None = None) -> str:
     rows = [stats(d, version) for d in load(version)]
     rows = [r for r in rows if r.get("runs")]
     if not rows:
         return f"_No models measured under harness `{version}` yet._"
     rows.sort(key=lambda r: -r["badges_mean"])
     out = [f"### Harness `{version}`", "",
-           "| # | model | passes | runs | badges~ | ±sem | best | tok in/run | tok out/run | fallback |",
-           "|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|"]
+           "| # | model | passes | runs | badges~ | ±sem | best | tok in/run | tok out/run | fallback | usd |",
+           "|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
     for i, r in enumerate(rows, 1):
         flag = " ⚠︎" if r.get("stale") else ""
+        usd = cost(r["tokens_in_per_run"] * r["runs"],
+                   r["tokens_out_per_run"] * r["runs"], (price or {}).get(r["model"]))
         out.append(
             f"| {i} | `{r['model']}`{flag} | {r['passes']} | {r['runs']} | "
             f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} | "
-            f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | {r['fallback_rate']} |")
+            f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | "
+            f"{r['fallback_rate']} | {'—' if usd is None else f'{usd:.2f}'} |")
     return "\n".join(out)
 
 
-def write_readme() -> Path:
+def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
     """Regenerates the table in llm-bench/README.md, newest harness first."""
     path = BENCH / "README.md"
-    blocks = [markdown_table(v) for v in reversed(versions())]
+    blocks = [markdown_table(v, price) for v in reversed(versions())]
     body = "\n\n".join(blocks) if blocks else "_Nothing measured yet._"
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():

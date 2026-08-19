@@ -417,10 +417,15 @@ def cmd_llm_bench(args) -> int:
     from ... import llmbench
 
     if args.table:
+        # Fetched now, not stored: prices are somebody else's changing fact, and a
+        # cost written into a result would be a claim about today made months ago.
+        price = llmbench.prices()
+        if not price:
+            print("  (no price list: offline, so no cost column)", file=sys.stderr)
         for v in reversed(llmbench.versions()):
             print()
-            print(llmbench.format_table(v))
-        print(f"\n  table written to {llmbench.write_readme()}")
+            print(llmbench.format_table(v, price))
+        print(f"\n  table written to {llmbench.write_readme(price)}")
         return 0
 
     models = [m.strip() for m in (args.models or args.model or "").split(",") if m.strip()]
@@ -460,6 +465,24 @@ def cmd_llm_bench(args) -> int:
                   file=sys.stderr)
             raise SystemExit(1)
         models = alive
+
+        # What this is about to cost, before it is spent. The one question a
+        # progress bar can never answer and the one worth answering first.
+        price = llmbench.prices()
+        if price:
+            total = 0.0
+            for model in models:
+                e = llmbench.estimate(args.harness, model,
+                                      len(seeds) * args.repeat, price.get(model))
+                usd = e["usd"]
+                total += usd or 0.0
+                print(f"    {model}: ~{e['tokens_in'] / 1e6:.1f}M in / "
+                      f"{e['tokens_out'] / 1e6:.2f}M out, "
+                      + ("free" if usd == 0 else f"about ${usd:.2f}" if usd
+                         else "price unknown"))
+            if total:
+                print(f"    estimated total: about ${total:.2f} "
+                      f"({llmbench.estimate(args.harness, models[0], 1, None)['basis']})")
 
     # In parallel each worker owns its own browser and its own server, so the
     # parent starts neither. One at a time still uses this process's game, which
