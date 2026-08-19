@@ -119,7 +119,9 @@ llm-bench/v1/harness/bot.py      v0 plus the idea, with its README saying what c
 llm-bench/v1/results/            re-run from empty
 ```
 
-`v0/harness/bot.py` is never edited once a result exists under `v0/results/`.
+Each version's `harness/README.md` says what that version asks a model and, from
+`v1` on, what changed and why. `v0/harness/bot.py` is never edited once a result
+exists under `v0/results/`.
 Editing it would make every one of those rows a claim about code that no longer
 exists, which is why the version is in the path rather than in a variable.
 
@@ -232,7 +234,9 @@ llm-bench/
 │   ├── Dockerfile         build context is the REPO ROOT, not this folder
 │   └── docker-compose.yml volumes, shm-size and the env file, in one place
 └── v0/
-    ├── harness/bot.py     frozen. Do not edit once results exist
+    ├── harness/
+    │   ├── bot.py         frozen. Do not edit once results exist
+    │   └── README.md      what this version asks a model, exactly
     ├── results/           one file per model, many passes inside
     └── logs/              one per pass, tail-able        (gitignored)
 ```
