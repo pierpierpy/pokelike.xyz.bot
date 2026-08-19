@@ -358,8 +358,14 @@ docker compose -f llm-bench/docker/docker-compose.yml run -d --name learn bench 
 tail -f llm-bench/v1/logs/*/*.log      # shows each note as the model writes it
 ```
 
-Three things about it worth knowing:
+Four things about it worth knowing:
 
+- **The bar writes whole lines in here**, because `POKELIKE_PLAIN_BAR=1` is set in
+  the image. `docker compose run` allocates a pseudo-tty even with `-d`, so from
+  inside a detached container stderr looks interactive while nobody reads it — and
+  tqdm then separates frames with carriage returns, which Docker's log driver holds
+  as an unterminated line. `docker logs` shows nothing at all for the whole run. On
+  the host, attached to a real terminal, the bar redraws in place as usual.
 - **The base image is Playwright's own**, pinned to the same version as
   `pyproject.toml`, so Chromium and every system library it needs come with it.
   That is the most fragile part of running this anywhere — `playwright install`

@@ -36,6 +36,13 @@ WORKDIR /app
 ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
     PYTHONUNBUFFERED=1 \
+    # `docker compose run` allocates a pseudo-tty even with -d, so from in here
+    # stderr looks interactive while nobody is reading it -- and tqdm then writes
+    # frames separated by carriage returns, which Docker's log driver holds as an
+    # unterminated line. The result is `docker logs` showing nothing for the whole
+    # run. This makes the bar write whole lines instead. Nothing in a container is
+    # ever watching a cursor.
+    POKELIKE_PLAIN_BAR=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Dependencies first, on their own layer, so editing the source does not reinstall

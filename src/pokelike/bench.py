@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import statistics
 import sys
 from datetime import datetime, timezone
@@ -75,17 +76,23 @@ def progress_bar(**kw: Any) -> Any:
 
     Detached -- `docker compose run -d`, a pipe, nohup -- there is no cursor to
     move. tqdm still writes, but it separates frames with a carriage return and
-    never a newline, so the whole run arrives as one enormous line that a log
-    reader renders as overlapping garbage or as nothing at all. That is exactly
-    what `docker logs` shows.
+    never a newline, so the whole run arrives as one enormous line -- and Docker's
+    log driver holds an unterminated line, so `docker logs` shows NOTHING at all
+    until the process exits. Known and old: tqdm#771.
 
-    So without a tty each frame becomes a whole line, and the refresh drops to
+    So without a cursor each frame becomes a whole line, and the refresh drops to
     every ten seconds -- because a bar redrawing ten times a second into a log file
     is thousands of lines saying almost the same thing.
+
+    `isatty()` cannot decide this on its own, which is the part that wasted an
+    afternoon: `docker compose run` allocates a pseudo-tty EVEN WITH `-d`, so from
+    inside a detached container stderr really is /dev/pts/0 and looks interactive
+    while nobody is reading it. Hence POKELIKE_PLAIN_BAR, which the image sets: the
+    container knows what the process cannot work out for itself.
     """
     from tqdm import tqdm
 
-    if sys.stderr.isatty():
+    if sys.stderr.isatty() and not os.environ.get("POKELIKE_PLAIN_BAR"):
         return tqdm(**kw)
 
     class Lines:
