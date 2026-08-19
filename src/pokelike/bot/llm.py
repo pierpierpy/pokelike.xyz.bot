@@ -342,6 +342,8 @@ class LLMBot(Bot):
         self.calls = 0
         self.turns = 0
         self.tokens_used = 0
+        self.tokens_in = 0
+        self.tokens_out = 0
         self.fallbacks = 0
         self.journal: list[str] = []
         self._last_why = ""
@@ -355,6 +357,7 @@ class LLMBot(Bot):
         self.journal = []
         self._pending = None
         self.calls = self.turns = self.tokens_used = self.fallbacks = 0
+        self.tokens_in = self.tokens_out = 0
         self._last_why = ""
 
     def notes(self) -> dict[str, Any]:
@@ -372,6 +375,8 @@ class LLMBot(Bot):
             "calls": self.calls,
             "turns": self.turns,
             "tokens": self.tokens_used,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
             "fallbacks": self.fallbacks,
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
             "temperature": self.temperature,
@@ -740,7 +745,19 @@ class LLMBot(Bot):
             raise LLMError(f"{type(e).__name__}: {e}") from e
 
         self.calls += 1
-        self.tokens_used += (answer.get("usage") or {}).get("total_tokens", 0)
+        usage = answer.get("usage") or {}
+        # Split, not just the total. Input and output are priced differently --
+        # output several times higher -- so a single total cannot be turned into
+        # money afterwards, and a model that thinks in long answers costs quite
+        # unlike one that reads a long prompt. Kept as counts and nothing else:
+        # prices change, and a measurement should not go stale because a provider
+        # ran a promotion. Cost is a function of these two numbers applied later.
+        self.tokens_in += usage.get("prompt_tokens", 0)
+        self.tokens_out += usage.get("completion_tokens", 0)
+        self.tokens_used += usage.get(
+            "total_tokens",
+            usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
+        )
         choices = answer.get("choices") or []
         if not choices:
             raise LLMError("response had no choices")
