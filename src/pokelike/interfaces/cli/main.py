@@ -508,8 +508,19 @@ def cmd_llm_bench(args) -> int:
         print(e, file=sys.stderr)
         raise SystemExit(2) from e
 
-    seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
-    partial = len(seeds) < len(STANDARD_SEEDS)
+    if args.seeds:
+        try:
+            seeds = parse_seeds(args.seeds)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            raise SystemExit(2) from e
+    else:
+        seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
+
+    # Compared by VALUE, not by length. Fifty seeds of somebody's choosing are not
+    # the standard fifty, and a row measured on them would sit in the table looking
+    # exactly like one that is comparable.
+    partial = seeds != STANDARD_SEEDS
 
     # Checked here, before the pre-flight spends a token, as well as inside
     # `fan_out` where it cannot be bypassed. A harness that carries the model's
@@ -579,7 +590,7 @@ def cmd_llm_bench(args) -> int:
         "harness": args.harness,
         "models": models,
         "runs": len(seeds),
-        "seeds": [seeds[0], seeds[-1]],
+        "seeds": seeds,
         "workers": args.workers,
         "repeat": args.repeat,
         "records": not (args.dry_run or partial),
@@ -722,6 +733,33 @@ def cmd_api(args) -> int:
 # ------------------------------------------------------------------ arguments
 
 
+def parse_seeds(text: str) -> list[int]:
+    """`10010,10011` or `10010-10019`, or both mixed, in the order written.
+
+    Order is kept rather than sorted: under a harness that carries notes between
+    runs the order IS part of the measurement, so quietly reordering would change
+    what was asked for.
+    """
+    out: list[int] = []
+    for part in text.replace(" ", "").split(","):
+        if not part:
+            continue
+        if "-" in part:
+            a, _, b = part.partition("-")
+            lo, hi = normalise_seed(int(a)), normalise_seed(int(b))
+            if hi < lo:
+                raise ValueError(f"--seeds {part}: {b} comes before {a}")
+            out += list(range(lo, hi + 1))
+        else:
+            out.append(normalise_seed(int(part)))
+    if not out:
+        raise ValueError("--seeds needs at least one seed, e.g. --seeds 10010,10011")
+    if len(out) != len(set(out)):
+        raise ValueError("--seeds lists the same seed twice; every run has to be a "
+                         "different game")
+    return out
+
+
 def seed_arg(value: str) -> int:
     """`--seed` as argparse sees it: refused here rather than after the run.
 
@@ -832,6 +870,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--runs", type=int, default=0,
                    help="use only the first N standard seeds. A partial run is a "
                         "practice run: it prints the result and records nothing")
+    s.add_argument("--seeds", default="",
+                   help="pick the seeds yourself: 10010,10011 or 10010-10019. "
+                        "Anything other than the standard 50 records nothing, so "
+                        "this is for testing and for running two at once")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
     s.add_argument("--table", action="store_true",
