@@ -177,6 +177,12 @@ def estimate(version: str, model: str, n_runs: int,
     else:
         per_in, per_out = TYPICAL_RUN
         basis = "a typical run; nothing recorded under this harness yet"
+        # Not silently scaled up by a guessed factor -- that would be an invented
+        # number wearing an estimate's clothes. Said out loud instead: a harness
+        # that carries notes puts them in every prompt of every turn, so its real
+        # input is higher than this until one pass exists to measure.
+        if cross_run_memory(version):
+            basis += ", which had none of the notes this one puts in every prompt"
     total_in, total_out = round(per_in * n_runs), round(per_out * n_runs)
     return {
         "model": model, "runs": n_runs, "basis": basis,
