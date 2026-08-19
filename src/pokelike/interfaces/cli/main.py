@@ -412,6 +412,56 @@ def cmd_bench(args) -> int:
     return 0
 
 
+def cmd_llm_bench(args) -> int:
+    """Runs one or more models against a frozen harness version."""
+    from ... import llmbench
+
+    if args.table:
+        for v in reversed(llmbench.versions()):
+            print()
+            print(llmbench.format_table(v))
+        print(f"\n  table written to {llmbench.write_readme()}")
+        return 0
+
+    models = [m.strip() for m in (args.models or args.model or "").split(",") if m.strip()]
+    if not models:
+        print("name at least one model: --model openai/gpt-4o-mini", file=sys.stderr)
+        raise SystemExit(2)
+    try:
+        llmbench.harness_path(args.harness)
+    except FileNotFoundError as e:
+        print(e, file=sys.stderr)
+        raise SystemExit(2) from e
+
+    seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
+    partial = len(seeds) < len(STANDARD_SEEDS)
+    server, game = _server_and_game(args)
+    try:
+        for model in models:
+            one = llmbench.play_model(game, args.harness, model, SITE_ROOT, seeds)
+            s = one["summary"]
+            print(f"\n  {model} @ {args.harness}: badges {s.get('badges_mean')} "
+                  f"(best {s.get('badges_best')}), "
+                  f"{one['tokens_in']:,} in / {one['tokens_out']:,} out tokens, "
+                  f"fallback {one['notes'].get('fallback_rate')}")
+            # Same rule as the main benchmark: a partial run is practice by
+            # definition, and --dry-run is how you spend a model's tokens without
+            # committing to what came out.
+            if args.dry_run or partial:
+                why = "--dry-run" if args.dry_run else f"only {len(seeds)} seeds"
+                print(f"    nothing recorded ({why})")
+                continue
+            print(f"    recorded in {llmbench.record(args.harness, model, one)}")
+    finally:
+        game.close()
+        server.stop()
+
+    if not (args.dry_run or partial):
+        llmbench.write_readme()
+        print(f"\n{llmbench.format_table(args.harness)}")
+    return 0
+
+
 def cmd_leaderboard(args) -> int:
     """Rebuilds the index from the entries on disk and prints the table."""
     index = build_index(BOTS)
@@ -572,6 +622,22 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("leaderboard", help="rebuild and print the leaderboard table")
     s.set_defaults(func=cmd_leaderboard)
+
+    # A different question from `bench`, which is why it is a different command.
+    # There the prompt is the submission; here the harness is frozen and the model
+    # is the only thing that varies, so a row says something about the model.
+    s = sub.add_parser("llm-bench", help="run models against a frozen LLM harness")
+    s.add_argument("--harness", default="v0", help="harness version, e.g. v0")
+    s.add_argument("--model", default="", help="model id, e.g. openai/gpt-4o-mini")
+    s.add_argument("--models", default="", help="several, comma separated")
+    s.add_argument("--runs", type=int, default=0,
+                   help="use only the first N standard seeds. A partial run is a "
+                        "practice run: it prints the result and records nothing")
+    s.add_argument("--dry-run", action="store_true",
+                   help="play the seeds and print, but record nothing")
+    s.add_argument("--table", action="store_true",
+                   help="print what is recorded and regenerate llm-bench/README.md")
+    s.set_defaults(func=cmd_llm_bench)
 
     s = sub.add_parser("schema", help="what a bot receives: state, actions, node kinds")
     s.add_argument("--json", action="store_true", help="print a real observation instead")
