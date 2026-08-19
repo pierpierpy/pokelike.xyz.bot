@@ -843,12 +843,13 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             "out": _tok(t_out),
             "fell": sum(r.get("fallbacks", 0) for r in rows),
             # What the workers are on at this instant, so a bar stuck on the same
-            # count still shows movement -- or shows that there is none. Passed as a
-            # dict rather than as keywords because tqdm renders numbers through its
-            # own formatter, and a seed becomes `1e+4`.
-            "now": " ".join(
-                f"{v['seed']}@L{v.get('layer', '?')}/{v.get('badges', 0)}b/{v['step']}s"
-                for v in sorted(live.values(), key=lambda x: x["seed"])),
+            # count still shows movement -- or shows that there is none. Seed and
+            # depth only: badges and steps mid-run are noise, and the row written
+            # when the run finishes carries both. Passed as a dict rather than as
+            # keywords because tqdm renders numbers through its own formatter, and
+            # a seed becomes `1e+4`.
+            "now": " ".join(f"{v['seed']}@{v.get('layer', '?')}"
+                            for v in sorted(live.values(), key=lambda x: x["seed"])),
         })
 
     ended = 0

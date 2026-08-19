@@ -106,11 +106,15 @@ def progress_bar(**kw: Any) -> Any:
         def flush(self) -> None:
             sys.stderr.flush()
 
-    # The caller's own settings win: a `mininterval` passed in is a deliberate
-    # choice and must not be overridden by the default for detached runs.
-    # Wide, because there is no terminal to wrap against and the fields are the
-    # point: at 110 columns tqdm truncates the postfix and eats the token counts.
-    return tqdm(**{"file": Lines(), "mininterval": 10.0, "ncols": 200, **kw})
+    # No `{bar}` in the format, so no row of hashes. On a terminal the drawing is
+    # the point; in a log it is forty characters of decoration in front of a
+    # percentage that says the same thing, and it made every line wrap.
+    #
+    # The caller's own settings still win: a `mininterval` passed in is a
+    # deliberate choice and must not be overridden by the default for detached runs.
+    plain = ("{desc} {percentage:3.0f}% {n_fmt}/{total_fmt} "
+             "[{elapsed}<{remaining}, {rate_fmt}{postfix}]")
+    return tqdm(**{"file": Lines(), "mininterval": 10.0, "bar_format": plain, **kw})
 
 
 def _tok(n: int) -> str:
