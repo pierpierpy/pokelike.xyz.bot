@@ -144,6 +144,7 @@ def run_benchmark(
     max_steps: int = 400,
     on_run=None,
     on_step=None,
+    on_decision=None,
 ) -> dict[str, Any]:
     """Plays the seed list and returns the result document."""
     from . import __version__
@@ -172,7 +173,14 @@ def run_benchmark(
             if on_step:
                 on_step(obs, steps)
 
-        full = play_run(game, bot, seed, max_steps=max_steps, on_step=live)
+        # The seed is injected here rather than added to the trace entry itself:
+        # `play_run` plays ONE run and has no reason to repeat which one on every
+        # line, but a file collecting fifty runs does.
+        def decided(entry, _seed=seed):
+            on_decision({"seed": _seed, **entry})
+
+        full = play_run(game, bot, seed, max_steps=max_steps, on_step=live,
+                        on_decision=decided if on_decision else None)
         # The heavy fields (final state, full team) are for callers who want
         # them; a result file keeps one compact row per run.
         row = {k: full[k] for k in

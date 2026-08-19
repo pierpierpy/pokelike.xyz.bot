@@ -592,6 +592,7 @@ def cmd_llm_bench(args) -> int:
                       f"{one['tokens_in']:,} in / {one['tokens_out']:,} out tokens, "
                       f"fallback {one['fallback_rate']}, retried {one['retries']}")
                 print(f"    log {one.get('log')}")
+                print(f"    decisions {one.get('trace')}")
                 # Same rule as the main benchmark: a partial run is practice by
                 # definition, and --dry-run is how you spend a model's tokens
                 # without committing to what came out.

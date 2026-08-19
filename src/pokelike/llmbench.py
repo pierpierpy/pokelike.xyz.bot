@@ -432,6 +432,15 @@ class PassLog:
         self.memory = memory
         self.book: list[str] = []
         self.fh = self.path.open("w", encoding="utf-8", buffering=1)
+        # What the model decided and why, one JSON object per decision. A separate
+        # file because it is a different shape and a different reader: the .log is
+        # for a person watching, this is for anyone asking afterwards "why did it
+        # walk into that". Line-buffered too, so a killed run keeps what it had.
+        #
+        # NOT in the result. Twenty decisions a run times fifty runs would multiply
+        # the size of a file whose job is to hold one comparable row per seed.
+        self.trace_path = self.path.with_suffix(".jsonl")
+        self.tf = self.trace_path.open("w", encoding="utf-8", buffering=1)
         self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
         self._say(f"{len(seeds)} seeds, {workers} worker{'s' if workers != 1 else ''}, "
                   f"seeds {seeds[0]}..{seeds[-1]}")
@@ -511,12 +520,39 @@ class PassLog:
             for i, note in enumerate(self.book, 1):
                 self._say(f"  [{i}] {note}")
 
+    def decision(self, e: dict[str, Any]) -> None:
+        """One decision, as JSON. The minimum that answers what and why.
+
+        Deliberately not the prompt, not the tool calls and not the rendered
+        screen: those are reconstructible from the harness plus the seed, they are
+        most of the bytes, and none of them is what you come here to read. What is
+        NOT reconstructible is which option it took out of the ones it had and the
+        sentence it gave for it.
+
+        `options` is kept because an index means nothing on its own, and `why`
+        already says when the turn was played by the fallback instead of the model.
+        """
+        self.tf.write(json.dumps({
+            "seed": e.get("seed"),
+            "step": e.get("step"),
+            "screen": e.get("screen"),
+            "map": e.get("map"),
+            "badges": e.get("badges"),
+            "chose": e.get("chosen"),
+            "action": e.get("chosen_label"),
+            "options": e.get("options"),
+            "swapped": e.get("swapped"),
+            "why": e.get("why"),
+        }, ensure_ascii=False) + "\n")
+
     def fail(self, why: str) -> None:
         self._say(f"FAILED after {self.n} runs: {why}")
 
     def close(self) -> None:
         if not self.fh.closed:
             self.fh.close()
+        if not self.tf.closed:
+            self.tf.close()
 
     def __enter__(self) -> "PassLog":
         return self
@@ -575,7 +611,7 @@ def play_model(game, version: str, model: str, site: Path,
         result = run_benchmark(
             game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
             category="llm", description=f"model benchmark, harness {version}",
-            on_run=on_run,
+            on_run=on_run, on_decision=log.decision,
         )
     except BaseException as e:
         log.fail(f"{type(e).__name__}: {e}")
@@ -584,6 +620,7 @@ def play_model(game, version: str, model: str, site: Path,
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
                    result.get("notes") or {})
     one["log"] = str(log.path)
+    one["trace"] = str(log.trace_path)
     log.done(one)
     log.close()
     return one
@@ -734,6 +771,12 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             live[k] = item
             postfix()
             continue
+        if "trace" in item:
+            # Written by the parent rather than by each worker, so a parallel pass
+            # produces ONE trace file instead of one per process -- and so no two
+            # processes ever write the same file.
+            log.decision(item["trace"])
+            continue
         rows.append(item)
         log.run(item)
         live.pop(k, None)
@@ -764,6 +807,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     from .bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {})
     one["log"] = str(log.path)
+    one["trace"] = str(log.trace_path)
     log.done(one)
     log.close()
     return one
@@ -813,7 +857,12 @@ def _worker() -> int:
                     **live_fields(obs),
                 }), flush=True)
 
-            full = play_run(game, bot, seed, max_steps=400, on_step=live)
+            def decided(entry, _seed=seed):
+                print(json.dumps({"trace": {"seed": _seed, **entry}},
+                                 ensure_ascii=False), flush=True)
+
+            full = play_run(game, bot, seed, max_steps=400, on_step=live,
+                            on_decision=decided)
             n = bot.notes()
             row = {k: full[k] for k in ("seed", "steps", "score", "badges", "maps",
                                         "kos", "faints", "ending", "stalled")}

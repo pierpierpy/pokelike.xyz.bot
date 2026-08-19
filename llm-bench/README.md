@@ -248,8 +248,41 @@ those are the ones worth looking at.
 In parallel the lines arrive in completion order rather than seed order. That is
 not a defect — it is what shows you a worker stuck on one game for two minutes.
 
-Logs are gitignored. The rows are already stored in full in the result; this is
-the running commentary, not the record.
+While a run is still going the bar carries the rest: which map, how deep into it
+(`layer=7/8` means the gym leader is next), badges so far, and tokens in and out
+as `this run / the whole pass`. A fifty-seed pass is otherwise most of an hour in
+which nothing distinguishes progress from a wedged screen.
+
+### What it decided, and why
+
+Beside each `.log` is a `.jsonl` with one object per decision:
+
+```json
+{"seed":10000,"step":3,"screen":"map-screen","map":0,"badges":0,
+ "chose":1,"action":"go to node 13 (catch)",
+ "options":["go to node 12 (battle)","go to node 13 (catch)"],
+ "swapped":null,"why":"a second Pokemon matters more than one more fight this early"}
+```
+
+Deliberately **not** the prompt, the tool calls or the rendered screen: those are
+reconstructible from the frozen harness plus the seed, they are most of the bytes,
+and none of them is what you come here for. What cannot be reconstructed is which
+option it took out of the ones it had, and the sentence it gave for it. `why` also
+says when a turn was played by the fallback rather than by the model.
+
+About 230 bytes a decision, so a full pass is a few hundred kilobytes. It is not
+in the result on purpose — twenty decisions a run over fifty runs would swamp a
+file whose job is one comparable row per seed. In parallel the parent writes it, so
+a pass has one trace file however many workers played it.
+
+```bash
+# what it said on the run that scored worst
+jq -r 'select(.seed==10007) | "\(.step) [\(.chose)] \(.action) -- \(.why)"' \
+  llm-bench/v0/logs/*.jsonl
+```
+
+Both files are gitignored. The rows are already stored in full in the result; these
+are the running commentary and the reasoning, not the record.
 
 ## Running it in a container
 
