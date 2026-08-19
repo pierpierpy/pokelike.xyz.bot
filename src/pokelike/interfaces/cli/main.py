@@ -436,6 +436,31 @@ def cmd_llm_bench(args) -> int:
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
     partial = len(seeds) < len(STANDARD_SEEDS)
 
+    # Asked once per model, before any seed is played. A model that cannot emit a
+    # tool call scores zero over fifty runs and takes half an hour to do it, and
+    # the only trace is fallback_rate at 1.0 afterwards. A few hundred tokens now
+    # instead of a wasted benchmark later.
+    #
+    # `preflight` reports rather than raises, deliberately: the harness is a frozen
+    # copy with its own exception classes, so there is nothing here that could
+    # reliably catch what it throws.
+    if not args.no_preflight:
+        alive = []
+        for model in models:
+            p = llmbench.preflight(args.harness, model)
+            if p["ok"]:
+                print(f"  {model}: ready (called {', '.join(p['tool_calls'])}, "
+                      f"{p['tokens_in']}+{p['tokens_out']} tokens)")
+                alive.append(model)
+            else:
+                print(f"  {model}: SKIPPED — {p.get('why', 'unknown')}",
+                      file=sys.stderr)
+        if not alive:
+            print("\nno model passed the pre-flight; nothing to benchmark",
+                  file=sys.stderr)
+            raise SystemExit(1)
+        models = alive
+
     # In parallel each worker owns its own browser and its own server, so the
     # parent starts neither. One at a time still uses this process's game, which
     # keeps a single run cheap to look at.
@@ -653,6 +678,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="play the seeds and print, but record nothing")
     s.add_argument("--table", action="store_true",
                    help="print what is recorded and regenerate llm-bench/README.md")
+    s.add_argument("--no-preflight", action="store_true",
+                   help="skip the one-call check that the model can emit tool calls")
     s.set_defaults(func=cmd_llm_bench)
 
     s = sub.add_parser("schema", help="what a bot receives: state, actions, node kinds")

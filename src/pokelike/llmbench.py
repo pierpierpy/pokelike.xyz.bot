@@ -87,6 +87,73 @@ def fingerprints(version: str) -> dict[str, str]:
     return {"bot.py": sha(harness_path(version)), "render.py": sha(RENDER)}
 
 
+# ------------------------------------------------------------------- pre-flight
+
+
+def preflight(version: str, model: str) -> dict[str, Any]:
+    """One call, before spending anything, to find out whether this can work.
+
+    The failure this exists for: a model that cannot emit tool calls scores a
+    perfect zero and takes half an hour to do it. Every turn exhausts its rounds,
+    falls back to the safe heuristic, and the run completes looking like a model
+    that plays badly — the only sign being `fallback_rate` at 1.0, read afterwards.
+    Fifty runs, real money, and nothing measured.
+
+    So: one trivial request with the real tools attached, asking for the one thing
+    the harness cannot do without. Deliberately not a game state — this is not
+    asking whether the model plays well, only whether it can speak the protocol.
+    Costs a few hundred tokens.
+
+    NEVER RAISES, and that is not laziness. The harness is a frozen copy, so it
+    defines its own `LLMConfigError` under its own module name — a class the
+    package's `except LLMConfigError` does not catch. Anything that reaches out
+    from behind that boundary and expects the caller to recognise it is wrong by
+    construction. So every outcome comes back as data, and the caller has one
+    branch: `ok`.
+    """
+    from .bot.catalogue import load_class
+
+    out: dict[str, Any] = {"model": model, "harness": version, "ok": False,
+                           "tool_calls": [], "tokens_in": 0, "tokens_out": 0}
+    try:
+        cls = load_class(harness_path(version))
+        bot = cls(seed=0, model=model)
+    except Exception as e:  # noqa: BLE001 — a bad endpoint or token lands here
+        out["why"] = f"{type(e).__name__}: {e}"
+        return out
+
+    # Something with an unambiguous right answer, so a refusal to use the tool is
+    # about the model's abilities and not about the question being hard.
+    probe = [
+        {"role": "system", "content": "You are testing a tool call. Do exactly as asked."},
+        {"role": "user", "content":
+            "There is one legal action, index 0. Call the play tool with index 0 "
+            "and any reason. Do not answer in prose."},
+    ]
+    try:
+        msg = bot._call(probe)
+    except Exception as e:  # noqa: BLE001
+        out.update(why=f"{type(e).__name__}: {e}",
+                   tokens_in=bot.tokens_in, tokens_out=bot.tokens_out,
+                   retries=bot.retries)
+        return out
+
+    calls = msg.get("tool_calls") or []
+    out.update(
+        tool_calls=[c.get("function", {}).get("name") for c in calls],
+        tokens_in=bot.tokens_in, tokens_out=bot.tokens_out, retries=bot.retries,
+        ok=bool(calls),
+    )
+    if not calls:
+        out["why"] = (
+            "answered, but called no tool. The harness ends a turn by calling "
+            "play(), so every turn would exhaust its rounds and fall back to the "
+            "safe heuristic — fifty runs of our heuristic under the model's name. "
+            "Check that this model supports tool calling on this endpoint."
+        )
+    return out
+
+
 # ------------------------------------------------------------------- recording
 
 
