@@ -476,6 +476,13 @@ class PassLog:
         # reprinting twelve unchanged notes fifty times.
         self.memory = memory
         self.book: list[str] = []
+        # Per seed, the last (in, out) seen for it. Two jobs from one dict: the
+        # difference against the previous reading is what a turn cost, and the sum
+        # over every seed is what the pass has cost -- including runs still in
+        # flight on other workers, which a running total of finished rows alone
+        # would miss. A finished row overwrites its seed's entry with the final
+        # figure, so nothing is double counted.
+        self.spent: dict[int, tuple[int, int]] = {}
         self.fh = self.path.open("w", encoding="utf-8", buffering=1)
         # What the model decided and why, one JSON object per decision. A separate
         # file because it is a different shape and a different reader: the .log is
@@ -500,6 +507,10 @@ class PassLog:
     def run(self, row: dict[str, Any]) -> None:
         self.n += 1
         self.badges.append(row.get("badges") or 0)
+        # The final word on what this seed spent: the last decision was not the end
+        # of the run, since the turn after it can still have cost tokens.
+        self.spent[row.get("seed")] = (row.get("tokens_in") or 0,
+                                       row.get("tokens_out") or 0)
         self._say(
             f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}{row.get('steps') or 0:>7}"
             f"{row.get('tokens_in') or 0:>10}{row.get('tokens_out') or 0:>10}"
@@ -577,8 +588,15 @@ class PassLog:
         `options` is kept because an index means nothing on its own, and `why`
         already says when the turn was played by the fallback instead of the model.
         """
+        seed = e.get("seed")
+        run_in, run_out = e.get("run_in") or 0, e.get("run_out") or 0
+        was_in, was_out = self.spent.get(seed, (0, 0))
+        self.spent[seed] = (run_in, run_out)
+        pass_in = sum(v[0] for v in self.spent.values())
+        pass_out = sum(v[1] for v in self.spent.values())
+
         self.tf.write(json.dumps({
-            "seed": e.get("seed"),
+            "seed": seed,
             "step": e.get("step"),
             "screen": e.get("screen"),
             "map": e.get("map"),
@@ -588,6 +606,16 @@ class PassLog:
             "options": e.get("options"),
             "swapped": e.get("swapped"),
             "why": e.get("why"),
+            # Three levels of the same two numbers. `turn_*` is the difference
+            # against this seed's previous decision, so it covers every HTTP call
+            # the turn made -- v0 allows four tool rounds, and what you want to know
+            # is what the TURN cost, not what one of its requests cost.
+            "turn_in": max(run_in - was_in, 0),
+            "turn_out": max(run_out - was_out, 0),
+            "run_in": run_in,
+            "run_out": run_out,
+            "pass_in": pass_in,
+            "pass_out": pass_out,
         }, ensure_ascii=False) + "\n")
 
     def fail(self, why: str) -> None:
@@ -906,8 +934,11 @@ def _worker() -> int:
                 }), flush=True)
 
             def decided(entry, _seed=seed):
-                print(json.dumps({"trace": {"seed": _seed, **entry}},
-                                 ensure_ascii=False), flush=True)
+                print(json.dumps({"trace": {
+                    "seed": _seed,
+                    "run_in": bot.tokens_in, "run_out": bot.tokens_out,
+                    **entry,
+                }}, ensure_ascii=False), flush=True)
 
             full = play_run(game, bot, seed, max_steps=400, on_step=live,
                             on_decision=decided)

@@ -222,8 +222,18 @@ def run_benchmark(
         # The seed is injected here rather than added to the trace entry itself:
         # `play_run` plays ONE run and has no reason to repeat which one on every
         # line, but a file collecting fifty runs does.
+        #
+        # The token counters come along for the same reason. They are the bot's, and
+        # `on_start` resets them, so they are THIS run's cumulative -- everything
+        # else (what one turn cost, what the pass has cost) is arithmetic on top,
+        # and is done by whoever writes the file.
         def decided(entry, _seed=seed):
-            on_decision({"seed": _seed, **entry})
+            on_decision({
+                "seed": _seed,
+                "run_in": getattr(bot, "tokens_in", 0) or 0,
+                "run_out": getattr(bot, "tokens_out", 0) or 0,
+                **entry,
+            })
 
         full = play_run(game, bot, seed, max_steps=max_steps, on_step=live,
                         on_decision=decided if on_decision else None)
