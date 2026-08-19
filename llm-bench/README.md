@@ -221,13 +221,39 @@ nobody can check, and it goes quietly wrong the moment its definition changes.
 
 ## Watching a run that takes hours
 
-Every pass writes a log beside its results, one line per finished run, flushed as
-it happens — so it can be read from another terminal while the benchmark is still
-going, and it still answers questions afterwards when the progress bar is gone:
+**One directory per command**, named for the moment you launched it. Everything
+that command writes goes inside: a log and a decision trace per pass, plus what
+you asked for.
+
+```
+llm-bench/v0/logs/20260819-144219/
+├── command.json                     harness, models, seeds, workers, repeat, endpoint
+├── glm-5.2-nvfp4-pass1.log          one line per finished run
+├── glm-5.2-nvfp4-pass1.jsonl        one JSON object per decision
+├── glm-5.2-nvfp4-pass2.log
+└── glm-5.2-nvfp4-pass2.jsonl
+```
+
+So `ls -t llm-bench/v0/logs/` lists your commands, newest first, and this follows
+exactly one command and nothing else:
 
 ```bash
-tail -f llm-bench/v0/logs/*.log
+tail -f llm-bench/v0/logs/20260819-144219/*.log
 ```
+
+`command.json` exists because it was the one thing nothing wrote down: come back to
+a finished sweep three hours later and the flags were gone, so a surprising number
+could not be traced to how it was asked for. It records the endpoint — which
+provider served a row changes what the row means — and **never the key**.
+
+**Results are not in here.** They stay one file per model with every pass appended,
+because that is the comparable record: ten commands over three days build one
+model's history, and splitting it by invocation would destroy the only thing it is
+for.
+
+The `.log` is one line per finished run, flushed as it happens, so it can be read
+from another terminal while the benchmark is still going and it still answers
+questions afterwards when the progress bar is gone:
 
 ```
 2026-08-19 15:30:23  harness v0  z-ai/glm-5.2:free
@@ -276,9 +302,9 @@ file whose job is one comparable row per seed. In parallel the parent writes it,
 a pass has one trace file however many workers played it.
 
 ```bash
-# what it said on the run that scored worst
+# what it said on the run that scored worst, for one command
 jq -r 'select(.seed==10007) | "\(.step) [\(.chose)] \(.action) -- \(.why)"' \
-  llm-bench/v0/logs/*.jsonl
+  llm-bench/v0/logs/20260819-144219/*.jsonl
 ```
 
 Both files are gitignored. The rows are already stored in full in the result; these
@@ -319,7 +345,7 @@ host with the container still running:
 ```bash
 docker compose -f llm-bench/docker/docker-compose.yml run -d --name sweep bench \
     --harness v0 --models a/b,c/d --repeat 3 --workers 8
-tail -f llm-bench/v0/logs/*.log
+tail -f llm-bench/v0/logs/*/*.log        # or name the directory
 ```
 
 `v1` is where this matters most: no workers means a pass takes about half an hour,
@@ -329,7 +355,7 @@ survives because `llm-bench/` is a mounted volume rather than container-local.
 ```bash
 docker compose -f llm-bench/docker/docker-compose.yml run -d --name learn bench \
     --harness v1 --models a/b,c/d --repeat 2
-tail -f llm-bench/v1/logs/*.log        # shows each note as the model writes it
+tail -f llm-bench/v1/logs/*/*.log      # shows each note as the model writes it
 ```
 
 Three things about it worth knowing:
@@ -406,11 +432,12 @@ llm-bench/
 │   │   ├── bot.py         frozen. Do not edit once results exist
 │   │   └── README.md      what this version asks a model, exactly
 │   ├── results/           one file per model, many passes inside
-│   └── logs/              one per pass, tail-able        (gitignored)
+│   └── logs/<stamp>/      one directory per command: command.json, a .log and
+│                          a .jsonl per pass                    (gitignored)
 └── v1/                    same shape: v0 plus notes kept between runs
     ├── harness/
     │   ├── bot.py         frozen, generated from v0's
     │   └── README.md      what changed, and what it costs
     ├── results/
-    └── logs/              also logs each note as it is written  (gitignored)
+    └── logs/<stamp>/      same, and the .log shows each note as it is written
 ```

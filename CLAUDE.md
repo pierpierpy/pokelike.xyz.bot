@@ -104,7 +104,10 @@ llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
 ├── docker/                the container long runs happen in. Build context is
 │                          the REPO ROOT, and .dockerignore must stay there
 ├── v0/harness/bot.py      FROZEN copy of bot/llm.py. See the rule below
-└── v1/harness/bot.py      v0 plus notes the model keeps between runs
+├── v1/harness/bot.py      v0 plus notes the model keeps between runs
+└── v*/logs/<stamp>/       ONE DIRECTORY PER COMMAND: command.json, plus a .log
+                           and a .jsonl of decisions per pass. Results stay one
+                           file per model, outside, because that is the record
 experiments/             research. OURS are tracked as worked examples; anything
 │                        else anyone creates here is gitignored by default — one
 │                        `!experiments/<name>/` line opts a folder in, and

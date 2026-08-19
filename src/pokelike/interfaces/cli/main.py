@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from ...assets.mirror import PHASES, build
@@ -530,10 +532,13 @@ def cmd_llm_bench(args) -> int:
     # `preflight` reports rather than raises, deliberately: the harness is a frozen
     # copy with its own exception classes, so there is nothing here that could
     # reliably catch what it throws.
+    preflight_said: dict[str, str] = {}
     if not args.no_preflight:
         alive = []
         for model in models:
             p = llmbench.preflight(args.harness, model, **creds)
+            preflight_said[model] = ("ready: " + ", ".join(p["tool_calls"])
+                                     if p["ok"] else f"skipped: {p.get('why', '')[:200]}")
             if p["ok"]:
                 print(f"  {model}: ready (called {', '.join(p['tool_calls'])}, "
                       f"{p['tokens_in']}+{p['tokens_out']} tokens)")
@@ -565,6 +570,26 @@ def cmd_llm_bench(args) -> int:
                 print(f"    estimated total: about ${total:.2f} "
                       f"({llmbench.estimate(args.harness, models[0], 1, None)['basis']})")
 
+    # One directory for this whole command: every pass of every model writes its
+    # log and its decision trace inside it, so `ls -t` lists your commands and
+    # `tail -f <dir>/*.log` follows one of them.
+    folder = llmbench.session_dir(args.harness)
+    llmbench.record_command(folder, {
+        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "harness": args.harness,
+        "models": models,
+        "runs": len(seeds),
+        "seeds": [seeds[0], seeds[-1]],
+        "workers": args.workers,
+        "repeat": args.repeat,
+        "records": not (args.dry_run or partial),
+        # The endpoint, never the key: which provider served a row changes what the
+        # row means, and is worth having later. A token is worth nothing later.
+        "endpoint": creds.get("endpoint") or os.environ.get("FW_ENDPOINT") or None,
+        "preflight": preflight_said,
+    })
+    print(f"  writing to {folder}")
+
     # In parallel each worker owns its own browser and its own server, so the
     # parent starts neither. One at a time still uses this process's game, which
     # keeps a single run cheap to look at.
@@ -582,10 +607,12 @@ def cmd_llm_bench(args) -> int:
                     print(f"\n  pass {attempt} of {args.repeat}")
                 if args.workers > 1:
                     one = llmbench.fan_out(args.harness, model, seeds, args.workers,
-                                           SITE_ROOT, port0=args.port + 10, **creds)
+                                           SITE_ROOT, port0=args.port + 10,
+                                           folder=folder, attempt=attempt, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
-                                              seeds, **creds)
+                                              seeds, folder=folder, attempt=attempt,
+                                              **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                       f"(best {s.get('badges_best')}), "

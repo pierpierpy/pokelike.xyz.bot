@@ -403,6 +403,45 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
 # another terminal, so it is aligned columns and nothing else.
 
 
+def session_dir(version: str) -> Path:
+    """One directory per command, named for the moment it was launched.
+
+    Everything that command writes goes inside: a log and a decision trace for
+    each pass, and what was asked for. Flat files named by model and timestamp
+    could not answer "which of these twelve belong together" -- with `--models a,b
+    --repeat 3` there were six pairs loose in one directory and only the clock to
+    guess by.
+
+    `ls -t` therefore lists your commands, newest first, and
+    `tail -f logs/<stamp>/*.log` follows exactly one command and nothing else.
+
+    Results deliberately do NOT live here. A result is one file per model with
+    every pass appended, because it is the comparable record: ten commands over
+    three days build up one model's history, and splitting it by invocation would
+    destroy the only thing it is for.
+    """
+    d = BENCH / version / "logs" / datetime.now().strftime("%Y%m%d-%H%M%S")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def record_command(folder: Path, payload: dict[str, Any]) -> Path:
+    """What was asked for, beside what it produced.
+
+    The one thing nothing wrote down before: come back to a finished sweep three
+    hours later and the flags it ran with were gone, so a surprising number could
+    not be traced to how it was asked for.
+
+    NEVER the key. The endpoint is written because a row measured against one
+    provider is not the same measurement as against another, and that is worth
+    knowing later; a token is worth nothing later and is a liability forever.
+    """
+    path = folder / "command.json"
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8")
+    return path
+
+
 class PassLog:
     """One line per finished run, flushed as it happens.
 
@@ -419,9 +458,15 @@ class PassLog:
     COLUMNS_MEMORY = COLUMNS + "  notes"
 
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
-                 memory: bool = False) -> None:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.path = BENCH / version / "logs" / f"{slug(model)}-{stamp}.log"
+                 memory: bool = False, folder: Path | None = None,
+                 attempt: int = 1) -> None:
+        # The command's directory, made by the caller so that every pass of a
+        # sweep lands in the same one. Created here when there is no caller to ask
+        # -- play_model() is usable on its own from a notebook.
+        folder = folder or session_dir(version)
+        # Numbered rather than timestamped: inside one command the pass number is
+        # what tells them apart, and it sorts correctly.
+        self.path = folder / f"{slug(model)}-pass{attempt}.log"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.started = time.time()
         self.n = 0
@@ -566,14 +611,16 @@ class PassLog:
 
 def play_model(game, version: str, model: str, site: Path,
                seeds: list[int] | None = None, endpoint: str | None = None,
-               token: str | None = None) -> dict[str, Any]:
+               token: str | None = None, folder: Path | None = None,
+               attempt: int = 1) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness."""
     from .bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
     bot = cls(seed=0, model=model, endpoint=endpoint, token=token)
-    log = PassLog(version, model, seeds, workers=1, memory=cross_run_memory(version))
+    log = PassLog(version, model, seeds, workers=1, folder=folder,
+                  attempt=attempt, memory=cross_run_memory(version))
     last = [time.time()]
 
     # One bot for the whole pass, which is what resets a memory harness: notes
@@ -667,7 +714,8 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
 
 def fan_out(version: str, model: str, seeds: list[int], workers: int,
             site: Path, port0: int = 8500, endpoint: str | None = None,
-            token: str | None = None) -> dict[str, Any]:
+            token: str | None = None, folder: Path | None = None,
+            attempt: int = 1) -> dict[str, Any]:
     """The same pass, played by several processes at once."""
     import os
     import queue
@@ -734,7 +782,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     for k, p in enumerate(procs):
         threading.Thread(target=pump, args=(p, k), daemon=True).start()
 
-    log = PassLog(version, model, seeds, workers=len(procs))
+    log = PassLog(version, model, seeds, workers=len(procs), folder=folder,
+                  attempt=attempt)
     bar = tqdm(total=len(seeds), desc=f"{model} @ {version}", unit="run", leave=True)
     def postfix() -> None:
         done = [r for r in rows if r.get("badges") is not None]
