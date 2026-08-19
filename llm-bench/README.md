@@ -32,6 +32,7 @@ stay in the environment, where they cannot be committed by accident.
 [What is recorded](#what-is-recorded) ·
 [Watching a long run](#watching-a-run-that-takes-hours) ·
 [In a container](#running-it-in-a-container) ·
+[Which models](#which-models-and-why) ·
 [Layout](#layout)
 
 ---
@@ -224,6 +225,51 @@ Three things about it worth knowing:
   record a `result.json` inside the container and lose it on exit. Recording a
   score is the one step worth doing deliberately, on the host, where you can see
   the fingerprint it writes.
+
+## Which models, and why
+
+The instrument resolves roughly 0.3 badges, so a table of five similar mid-tier
+models would be unreadable. Pick for **spread**, and include something whose answer
+you already know.
+
+| tier | model | why it is on the list |
+|---|---|---|
+| floor | `liquid/lfm-2.5-2.6b:free` | 2.6B. Should land near the fallback floor. If it does not, suspect the measurement before celebrating |
+| small | `nvidia/nemotron-nano-9b-v2:free`, `openai/gpt-oss-20b:free` | the size where playing at all starts to be possible |
+| mid | `google/gemma-4-31b-it:free`, `nvidia/nemotron-3-nano-30b-a3b:free` | two different families at a similar size, so a gap is about the model and not the parameter count |
+| large | `nvidia/nemotron-3-super-120b-a12b:free`, `z-ai/glm-5.2:free` | |
+| frontier | `nvidia/nemotron-3-ultra-550b-a55b:free` | 550B MoE. The ceiling this harness can reach for free |
+
+**The control is worth more than any single row.** `z-ai/glm-5.2:free` is the same
+model served on the Fastweb `bpod1` endpoint as `glm-5.2-nvfp4`, quantised. Running
+both is the only way to find out whether the endpoint and its quantisation change
+how well it plays — a confound sitting under every other row, worth measuring once
+rather than assuming.
+
+**`openrouter/free` is excluded, and not as an oversight.** It is a *router*: it
+picks a free model at random per request. A row labelled with it would name a model
+that never played, which is the one thing a benchmark may not do.
+
+Then let the pre-flight decide the rest. All seventeen accept `temperature` and all
+can emit reasoning tokens, and v0 freezes `max_tokens` at 1500 — so a model that
+reasons at length may spend its budget thinking and never reach `play()`. That is
+exactly what the pre-flight is for: one call each, a few hundred tokens, and the
+ones that cannot get a tool call out in budget are skipped before a benchmark is
+wasted on them. Do not guess which; ask.
+
+```bash
+# ask all of them, cheaply, and see who is viable before spending anything
+uv run pokelike llm-bench --harness v0 --runs 2 --dry-run --models \
+  liquid/lfm-2.5-2.6b:free,nvidia/nemotron-nano-9b-v2:free,openai/gpt-oss-20b:free,\
+google/gemma-4-31b-it:free,nvidia/nemotron-3-nano-30b-a3b:free,\
+nvidia/nemotron-3-super-120b-a12b:free,z-ai/glm-5.2:free,\
+nvidia/nemotron-3-ultra-550b-a55b:free
+```
+
+**Start with few workers on the free tier.** `:free` variants are rate-limited, and
+eight workers will collect 429s. They are retried rather than counted against the
+model, but a retry still costs wall clock — so begin at `--workers 2`, watch the
+`retry` column in the log, and raise it only while that column stays near zero.
 
 ## Layout
 
