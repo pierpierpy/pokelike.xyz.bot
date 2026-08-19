@@ -161,6 +161,20 @@ ls -t llm-bench/v0/logs/                        # your commands, newest first
 tail -f llm-bench/v0/logs/20260819-144219/*.log # follow one of them
 ```
 
+There is a script for the common case, so the flags and the credentials are not
+retyped every time:
+
+```bash
+bash llm-bench/run.sh deepseek/deepseek-v4-flash-0731      # 50 seeds, recorded
+bash llm-bench/run.sh google/gemini-3.7-flash --workers 2
+bash llm-bench/run.sh a/b,c/d --runs 2 --dry-run           # cheap check first
+```
+
+It builds, runs detached with `--workers 4` unless you say otherwise, names the
+container after the model so `docker logs -f <name>` is guessable, and removes it
+when it finishes. Credentials come from `.env`, never from the command line.
+Anything after the model is passed straight through, so every flag above works.
+
 The `.log` is what you watch: one line per finished game, plus a mark every ten
 games saying when it should finish.
 
