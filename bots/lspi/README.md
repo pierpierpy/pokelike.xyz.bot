@@ -9,8 +9,8 @@ from batch statistics accumulated over real transitions, then re-solves
 periodically as more data arrives and the policy improves.
 
 ```bash
-uv run pokelike bot --bot lspi --runs 5 -d
-uv run pokelike bench --bot lspi --dry-run
+uv run pokelike bot run --bot lspi --runs 5 -d
+uv run pokelike bot bench --bot lspi --dry-run
 ```
 
 | | |

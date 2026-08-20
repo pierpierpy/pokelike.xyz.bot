@@ -39,28 +39,32 @@ and talk to its global functions.
 uv sync                          # environment
 uv run pokelike setup            # browser + offline copy (once)
 uv run pokelike play --seed 42   # interactive run
-uv run pokelike bot --runs 5     # the random bot
+uv run pokelike schema           # what a bot receives (--markdown regenerates STATE.md)
 uv run pokelike history -d       # what you played here, columns explained
-uv run pokelike schema           # what a bot receives (--markdown regenerates it in README.md)
-uv run pokelike bot -d --runs 1  # log every decision, for any bot
-uv run pytest                    # full suite, ~1 minute
-uv run pytest -m "not slow"      # fast tests only, no browser
+uv run pytest                    # full suite, ~1 minute, needs the game on disk
+uv run pytest -m "not slow"      # 133 tests in 2 s, no browser. What CI runs
 
-uv run pokelike bench --bot random             # the standard benchmark, 50 seeds
-uv run pokelike bench --bot random --dry-run   # ... without writing an entry
-uv run pokelike leaderboard                    # rebuild the standings from disk
+# THE COMPETITION: your code is the entry, the game is fixed
+uv run pokelike bot new mine                        # a folder that already plays
+uv run pokelike bot new mine --llm                  # ... from the shared LLM harness
+uv run pokelike bot run --bot random --runs 5       # play it
+uv run pokelike bot run -d --runs 1                 # log every decision
+uv run pokelike bot bench --bot random              # the 50 standard seeds, records
+uv run pokelike bot bench --bot random --dry-run    # ... without writing an entry
+uv run pokelike bot board                           # the standings, from disk
 
-uv run pokelike new-bot mine                   # a bot folder that already plays
-uv run pokelike new-bot mine --llm             # ... starting from the LLM harness
-
-uv run pokelike llm-bench --harness v0 --model a/b   # a model vs a FROZEN harness
-uv run pokelike llm-bench --table                    # what has been measured
+# THE INSTRUMENT: the scaffold is frozen, the model is the entry
+uv run pokelike model bench --harness v3 --model a/b
+uv run pokelike model board                         # every version's table
+# --harness is REQUIRED: a version is the question a row answers
 # credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
 # (--api-key @path reads a file, keeping the key out of ps and shell history)
+#
+# `bench`, `leaderboard`, `llm-bench` and `new-bot` still work as unlisted aliases.
 
 uv run python -m experiments.example.train --episodes 20     # the shape of one
 uv run python -m experiments.sarsa.train --episodes 300      # the real thing
-uv run pokelike bench --bot experiments/mine --dry-run       # measure a candidate
+uv run pokelike bot bench --bot experiments/mine --dry-run       # measure a candidate
 ```
 
 ## Architecture
@@ -90,15 +94,20 @@ src/pokelike/
 │   ├── mirror.py          builds site/ in five phases
 │   └── server.py          serves site/ from disk
 ├── stats/registry.py    SQLite in stats/runs.db
-├── bench.py             the standard 50-seed benchmark
+├── competition/         THE BOT COMPETITION: your code is the entry
+│   ├── bench.py           the standard 50-seed benchmark
+│   └── scaffold.py        bot new: writes a bot folder that already plays
+├── instrument/          THE MODEL BENCHMARK: the scaffold is frozen
+│   └── llmbench.py        versions, fingerprints, passes, tables, fan-out
 ├── runner.py            play_run(): the one loop that plays a run with a bot
 ├── schema.py            what a bot receives, generated from a LIVE state and
 │                        self-checking: a field present in a real observation
 │                        and missing from FIELDS is reported as undocumented
-├── scaffold.py          new-bot: writes a bot folder that already plays
-├── leaderboard.py       reads bots/*/result.json, ranks, fingerprints
-├── llmbench.py          the model benchmark: passes, fingerprints, tables, the
-│                        parallel fan-out and the per-pass log
+├── leaderboard.py       reads bots/*/result.json, ranks, fingerprints. NOT under
+│                        competition/ although it belongs there: it also defines
+│                        Artifact, which the frozen harnesses and the submitted bots
+│                        import, and both are fingerprinted over files containing
+│                        that path, so moving it would mark every recorded score
 └── interfaces/          how something outside drives the game
     ├── cli/main.py        a human, in a terminal
     ├── api/server.py      a program, over HTTP
@@ -129,7 +138,7 @@ experiments/             research. OURS are tracked as worked examples; anything
 
 Every experiment has the same shape: README, agent, train, output/, logs/. Keep
 it that way when adding one. There is ONE way to measure a candidate, namely the
-official benchmark, by path: `pokelike bench --bot experiments/mine --dry-run`.
+official benchmark, by path: `pokelike bot bench --bot experiments/mine --dry-run`.
 Do not add per-experiment evaluation scripts with their own seed sets: a seed
 set picked during development mis-ranks models (the same weights score 1.60 on
 one such set and 1.10 on the official 50).
@@ -174,7 +183,7 @@ archived submissions unrunnable: we claimed they were self-contained and they
 could not be executed from where they sat.
 
 `result.json` lives in the same folder and holds a sha256 over `bot.py` and every
-artifact. `pokelike leaderboard` recomputes it on read and marks a row stale when
+artifact. `pokelike bot board` recomputes it on read and marks a row stale when
 they no longer match, so a score cannot describe code that has since changed. A
 result with **no** fingerprint is reported as unchecked (`?`) rather than folded
 into either bucket: calling it stale would be a claim we cannot support, calling
@@ -544,7 +553,7 @@ ranked together.
   fingerprinted against their scores. They cannot move without a permanent shim.
 - **`CROSS_RUN_MEMORY` is asked of the harness, never hardcoded.** A version carrying
   notes between runs has no independent runs, so `--workers > 1` is refused and the
-  `learn` column appears. Adding a version needs no edit in `llmbench.py` or `run.sh`.
+  `learn` column appears. Adding a version needs no edit in `instrument/llmbench.py` or `run.sh`.
 
 ### What a run writes, and where
 

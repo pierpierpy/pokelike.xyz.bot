@@ -1,6 +1,6 @@
 """A network scoring the same features sarsa-v2 scores with a dot product.
 
-    uv run pokelike bench --bot experiments/drrn --dry-run
+    uv run pokelike bot bench --bot experiments/drrn --dry-run
 
     q̂(s, a) = MLP(x(s, a))          against        q̂(s, a) = wᵀ x(s, a)
 

@@ -140,7 +140,7 @@ the game bundle, taken before the first seed is played.
 ## Running it
 
 ```bash
-uv run pokelike llm-bench --harness v2 --model <id> \
+uv run pokelike model bench --harness v2 --model <id> \
   --endpoint https://openrouter.ai/api --api-key @~/.key
 ```
 

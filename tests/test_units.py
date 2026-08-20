@@ -209,7 +209,7 @@ def test_new_bot_writes_something_that_loads(tmp_path):
     """
     from pokelike.bot.catalogue import load_class
     from pokelike.bot.llm import LLMBot
-    from pokelike.scaffold import new_bot
+    from pokelike.competition.scaffold import new_bot
 
     plain = load_class(new_bot("probe-plain", tmp_path) / "bot.py")
     assert plain(seed=0).choose({"actions": [{}, {}], "team": []}) in (0, 1)

@@ -20,7 +20,7 @@ Credentials never appear in a bot file. They come from the environment, always:
     export FW_ENDPOINT="https://..."     # base URL; /v1/chat/completions is added
     export FW_TOKEN="..."
     export MODEL_ID="..."                # unless the bot pins MODEL itself
-    uv run pokelike bot --bot llm-survivor --runs 3
+    uv run pokelike bot run --bot llm-survivor --runs 3
 
 **This file is shared, which is the thing to be careful about.** The whole point
 of a bot being self-contained is that improving our code cannot silently change

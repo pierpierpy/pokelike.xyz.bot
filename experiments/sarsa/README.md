@@ -181,7 +181,7 @@ the official benchmark, from wherever the weights are:
 
 ```bash
 uv run python -m experiments.sarsa.train --episodes 300 --groups node,mon,lookahead --out candidate.json
-uv run pokelike bench --bot experiments/mine --dry-run
+uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 Every variant is a question with an answer you can be wrong about, written down
@@ -239,7 +239,7 @@ Two rules follow, and both are load-bearing:
 
 ```bash
 uv run python -m experiments.sarsa.train --episodes 300 --reward progress
-uv run pokelike bench --bot experiments/mine --dry-run    # measure: official 50, records nothing
+uv run pokelike bot bench --bot experiments/mine --dry-run    # measure: official 50, records nothing
 ```
 
 | flag | meaning | default |
@@ -264,11 +264,11 @@ replace a policy that is on the leaderboard.
 Write the bot inside your experiment folder and point the benchmark at it:
 
 ```bash
-uv run pokelike bench --bot experiments/mine --dry-run
+uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 A bot measured by path is never recorded. The run prints its numbers on the
-official 50 seeds and that is all. Compare them with `pokelike leaderboard`.
+official 50 seeds and that is all. Compare them with `pokelike bot board`.
 When it earns its place, bring it into `bots/` the standard way, either `new-bot` or
 copying your `bot.py` and artifacts into a folder of its own, and bench it there,
 under its own name. A candidate is never measured under another bot's name.

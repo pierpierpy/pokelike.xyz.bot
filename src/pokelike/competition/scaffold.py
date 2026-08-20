@@ -1,4 +1,4 @@
-"""Creating a new bot: `pokelike new-bot <name>`.
+"""Creating a new bot: `pokelike bot new <name>`.
 
 Writes a folder that already plays. That is the point — you can benchmark it
 before changing a line, so when the number moves you know it moved because of
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .bot.catalogue import BOTS, available, slugify
+from ..bot.catalogue import BOTS, available, slugify
 
 
 def fill(template: str, **fields: str) -> str:
@@ -26,8 +26,8 @@ def fill(template: str, **fields: str) -> str:
 
 TEMPLATE = '''"""{title}
 
-    uv run pokelike bot --bot {name} --runs 5 -d
-    uv run pokelike bench --bot {name} --dry-run
+    uv run pokelike bot run --bot {name} --runs 5 -d
+    uv run pokelike bot bench --bot {name} --dry-run
 
 A bot is one method: given the state, say which action to take. Everything else
 -- starting the browser, applying the move, scoring the run -- is handled for you.
@@ -97,12 +97,12 @@ LLM_TEMPLATE = '''"""{title}
     export FW_ENDPOINT="https://..."   # base URL, no /v1
     export FW_TOKEN="..."
     export MODEL_ID="..."              # unless you pin MODEL below
-    uv run pokelike bot --bot {name} --runs 3 -d
-    uv run pokelike bench --bot {name} --dry-run
+    uv run pokelike bot run --bot {name} --runs 3 -d
+    uv run pokelike bot bench --bot {name} --dry-run
 
 Or without exporting anything, with the same three values as flags:
 
-    uv run pokelike bot --bot {name} --runs 3 -d \\
+    uv run pokelike bot run --bot {name} --runs 3 -d \\
         --endpoint https://... --api-key @~/.key --model gpt-4o-mini
 
 `--api-key @path` reads the key from a file, which keeps it out of `ps` and out
@@ -189,8 +189,8 @@ README = '''# {name}
 _One line on what this bot does and how it decides._
 
 ```bash
-uv run pokelike bot --bot {name} --runs 5 -d
-uv run pokelike bench --bot {name} --dry-run
+uv run pokelike bot run --bot {name} --runs 5 -d
+uv run pokelike bot bench --bot {name} --dry-run
 ```
 
 | | |
@@ -215,7 +215,7 @@ def new_bot(name: str, root: Path | None = None, llm: bool = False) -> Path:
     if d.exists():
         raise FileExistsError(
             f"{d} already exists. Pick another name, or work on the one that is "
-            f"there:\n  uv run pokelike bot --bot {slug} --runs 5 -d"
+            f"there:\n  uv run pokelike bot run --bot {slug} --runs 5 -d"
         )
     if slug in available(base):
         raise FileExistsError(f"a bot named '{slug}' already exists")

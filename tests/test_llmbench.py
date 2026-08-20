@@ -21,8 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from pokelike import llmbench as L
-from pokelike.bench import STANDARD_SEEDS, _tok, live_fields, progress_bar
+from pokelike.instrument import llmbench as L
+from pokelike.competition.bench import (STANDARD_SEEDS, _tok, live_fields,
+                                        progress_bar)
 from pokelike.bot import build, create
 from pokelike.bot.catalogue import load_class
 from pokelike.runner import short_label

@@ -16,9 +16,9 @@ and where every submitted one lives:
 implements, and `RandomBot`, which is the baseline everything is measured
 against and has to exist even in a checkout with no `bots/` folder at all.
 
-    uv run pokelike new-bot mine     # creates bots/mine/
-    uv run pokelike bot --bot mine
-    uv run pokelike bench --bot mine
+    uv run pokelike bot new mine     # creates bots/mine/
+    uv run pokelike bot run --bot mine
+    uv run pokelike bot bench --bot mine
 
 Nothing here is imported by name from a registry any more. A bot is a directory,
 so someone can hand you one by handing you a directory.
@@ -73,7 +73,7 @@ def resolve(name: str) -> str:
         )
     raise KeyError(
         f"unknown bot '{name}' — available: {', '.join(sorted(names))}\n"
-        f"Start a new one with:  uv run pokelike new-bot {slug}"
+        f"Start a new one with:  uv run pokelike bot new {slug}"
     )
 
 
@@ -84,7 +84,7 @@ def create(name: str, seed: int = 0, **settings: Any) -> Bot:
     the bot you are writing inside your experiment folder can be played and
     benchmarked without moving it:
 
-        uv run pokelike bench --bot experiments/mine --dry-run
+        uv run pokelike bot bench --bot experiments/mine --dry-run
 
     Only a bot in `bots/` can be recorded; measuring by path never records.
 

@@ -178,11 +178,11 @@ default, small sets diverge, with weights of 10⁹ and beyond.
 One way, the official benchmark, straight from where the bot lives:
 
 ```bash
-uv run pokelike bench --bot experiments/mine --dry-run
+uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 The 50 fixed seeds everyone is scored on; measured by path it records nothing.
-Compare the number with `uv run pokelike leaderboard`.
+Compare the number with `uv run pokelike bot board`.
 
 There is deliberately no second protocol. Runs vary enormously by luck, so any
 seed set picked during development mostly measures who drew the nicer maps,

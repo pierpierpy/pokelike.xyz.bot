@@ -32,7 +32,7 @@ the pair measures the state view rather than the wording.
 
 This compares **the actual bots**, loaded from `bots/`, not a copy of their
 prompts. A prompt that wins here is the same file that gets benchmarked, so it
-cannot drift between the two. Add your own with `pokelike new-bot mine --llm` and
+cannot drift between the two. Add your own with `pokelike bot new mine --llm` and
 it joins the default set automatically.
 
 ## Why paired, again
@@ -53,7 +53,7 @@ export FW_TOKEN="..."
 export MODEL_ID="..."
 
 # equivalently, per command
-uv run pokelike bot --bot llm-survivor \
+uv run pokelike bot run --bot llm-survivor \
   --endpoint https://... --api-key @~/.key --model gpt-4o-mini
 ```
 

@@ -142,10 +142,10 @@ with it. The notes are `self.notebook`.
 ```bash
 export FW_ENDPOINT="https://openrouter.ai/api"
 export FW_TOKEN="..."
-uv run pokelike llm-bench --harness v1 --model <the model id> --repeat 1
+uv run pokelike model bench --harness v1 --model <the model id> --repeat 1
 
 # or with no exports at all
-uv run pokelike llm-bench --harness v1 --model <the model id> --repeat 1 \
+uv run pokelike model bench --harness v1 --model <the model id> --repeat 1 \
   --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
 ```
 
@@ -157,6 +157,6 @@ says `reproducible: false`.
 The comparison the version is for costs two passes of the same model:
 
 ```bash
-uv run pokelike llm-bench --harness v0 --model <id> --workers 4
-uv run pokelike llm-bench --harness v1 --model <id>
+uv run pokelike model bench --harness v0 --model <id> --workers 4
+uv run pokelike model bench --harness v1 --model <id>
 ```

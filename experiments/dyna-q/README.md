@@ -76,7 +76,7 @@ plateaus, either stochastic Dyna-Q with outcome counts, or **Dyna-Q+**
 uv run python -m experiments.dyna-q.train --episodes 50
 
 # how good is it? the official benchmark, straight from this folder
-uv run pokelike bench --bot bots/dyna-q --dry-run
+uv run pokelike bot bench --bot bots/dyna-q --dry-run
 ```
 
 | flag | meaning | default |

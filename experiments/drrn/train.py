@@ -168,7 +168,7 @@ def train(tag: str = "mixed", iters: int = 30, gamma: float = 0.98,
     print(f"\n{(time.monotonic() - started) / 60:.1f} min")
     print(f"model:   {path}")
     print(f"\nMeasure it the one way there is:")
-    print(f"  uv run pokelike bench --bot experiments/drrn --dry-run")
+    print(f"  uv run pokelike bot bench --bot experiments/drrn --dry-run")
     return {"history": history, "path": path}
 
 

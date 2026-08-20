@@ -5,7 +5,7 @@ A bot is a FOLDER, not a file in this package:
     bots/<name>/
     ├── bot.py        one class inheriting from Bot. Self-contained.
     ├── artifacts/    weights, prompts, tables — whatever it needs
-    └── result.json   what the benchmark measured, written by `pokelike bench`
+    └── result.json   what the benchmark measured, written by `pokelike bot bench`
 
 `src/pokelike/bot/` holds the interface every bot implements and the random
 baseline everything is measured against. Nothing else: an LLM bot needs prompts,
@@ -110,7 +110,7 @@ def load(name: str, seed: int = 0, root: Path | None = None,
     if not d.is_dir():
         raise KeyError(
             f"no bot named '{name}'. On disk: {', '.join(available(root)) or 'none'}\n"
-            f"Start one with:  uv run pokelike new-bot {slugify(name)}"
+            f"Start one with:  uv run pokelike bot new {slugify(name)}"
         )
     return build(load_class(d / "bot.py"), seed=seed, **settings)
 

@@ -7,7 +7,7 @@ allowed to exist. `STANDARD_SEEDS` and `run_benchmark` are imported from the
 package, so the seeds, the run loop, the step cap and the score are the official
 ones to the letter. Nothing here chooses a seed.
 
-What it adds is that the rows survive. `pokelike bench --bot experiments/drrn`
+What it adds is that the rows survive. `pokelike bot bench --bot experiments/drrn`
 prints the aggregate and records nothing, which is right — a candidate measured
 by path is not a submission — but it means the fifty per-seed results are
 computed and thrown away. Those rows are what makes the comparison paired, and
@@ -18,7 +18,7 @@ a large shared term, and throwing it away costs exactly the effect size this
 experiment is trying to detect.
 
 It writes into `output/runs/`, which is gitignored, and it can never file a
-leaderboard entry: only `pokelike bench` on a folder under `bots/` does that.
+leaderboard entry: only `pokelike bot bench` on a folder under `bots/` does that.
 """
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ def main() -> int:
                   f"{c['wins']}W-{c['draws']}D-{c['losses']}L")
 
     print(f"\n  rows: {out}")
-    print("  NOT a leaderboard entry: only `pokelike bench` on a folder in bots/ records one.")
+    print("  NOT a leaderboard entry: only `pokelike bot bench` on a folder in bots/ records one.")
     return 0
 
 

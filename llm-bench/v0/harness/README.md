@@ -120,10 +120,10 @@ it.
 ```bash
 export FW_ENDPOINT="https://openrouter.ai/api"
 export FW_TOKEN="..."
-uv run pokelike llm-bench --harness v0 --model <the model id> --repeat 1
+uv run pokelike model bench --harness v0 --model <the model id> --repeat 1
 
 # or, without exporting anything
-uv run pokelike llm-bench --harness v0 --model <the model id> --repeat 1 \
+uv run pokelike model bench --harness v0 --model <the model id> --repeat 1 \
   --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
 ```
 

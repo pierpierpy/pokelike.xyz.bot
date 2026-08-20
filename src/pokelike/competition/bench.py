@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .runner import play_run
+from ..runner import play_run
 
 # The official seed list. Fifty runs is enough to see past the luck without
 # taking all afternoon, and it is held well away from the seeds used elsewhere
@@ -205,7 +205,7 @@ def run_benchmark(
     on_decision=None,
 ) -> dict[str, Any]:
     """Plays the seed list and returns the result document."""
-    from . import __version__
+    from .. import __version__
 
     seeds = seeds or STANDARD_SEEDS
     runs: list[dict[str, Any]] = []

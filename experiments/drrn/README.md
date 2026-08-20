@@ -123,7 +123,7 @@ uv run --with numpy python -m experiments.drrn.train --data mixed --iters 30 \
 
 # 3. measure, the one way there is
 cp experiments/drrn/output/models/drrn.json experiments/drrn/artifacts/weights.json
-uv run pokelike bench --bot experiments/drrn
+uv run pokelike bot bench --bot experiments/drrn
 ```
 
 Every command is run from the repository root, including the `cp`: `-m` needs it,

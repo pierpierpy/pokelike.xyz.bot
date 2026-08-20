@@ -116,7 +116,7 @@ class _Worker:
             raise TimeoutError(
                 f"{getattr(fn, '__name__', fn)} did not finish within {timeout:.0f}s "
                 f"on the game thread. The browser is usually the reason: check that "
-                f"`uv run pokelike bot --bot random --runs 1` works from a terminal."
+                f"`uv run pokelike bot run --bot random --runs 1` works from a terminal."
             ) from None
 
     def stop(self) -> None:

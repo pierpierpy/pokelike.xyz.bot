@@ -26,6 +26,39 @@ like.*
   policy, a prompt, a rulebook, tree search, anything that turns a state into a move.
   [Writing a bot](#writing-a-bot).
 
+```
+                       ONE GAME, RUN HEADLESS AND REPRODUCIBLY
+                       same seed, same run, every time
+                                     |
+        +----------------------------+----------------------------+
+        |                            |                            |
+  THE ENVIRONMENT              THE COMPETITION              THE INSTRUMENT
+  simulate a run               your code is the entry       the model is the entry
+
+  you fix    nothing           the 50 seeds                 the 50 seeds AND the
+                                                            whole scaffold
+  you vary   the seed,         everything: policy,          the model id, and
+             the moves         prompt, view, tools,         nothing else
+                               even the bridge
+  you get    a state, a        a row in the standings       a row in the model
+             screen, a score   that ranks IDEAS             table, per version
+                                                            that ranks MODELS
+
+  for        a player with     curious, beginner or         an AI researcher
+             a coding agent    twenty years of RL           measuring an odd
+                                                            agentic task
+
+  pokelike   play              bot new / run                model bench
+             api               bot bench                    model board
+                               bot board
+
+  lives in   src/pokelike/     bots/<yours>/                llm-bench/v<n>/
+```
+
+Rows never cross between the last two. The competition asks who had the better idea,
+and the model is whatever the author happened to point at. The instrument asks which
+model plays better with everything else held still.
+
 ## 🏆 The bot competition is open
 
 
@@ -199,8 +232,8 @@ symbol legend, `s` for the score, `j` for the raw JSON state, `n` for a new run,
 ## Let a bot play
 
 ```bash
-uv run pokelike bot --runs 5             # the random bot
-uv run pokelike bot --runs 1 -d          # + log every decision it made
+uv run pokelike bot run --runs 5             # the random bot
+uv run pokelike bot run --runs 1 -d          # + log every decision it made
 uv run pokelike history                  # how it went
 ```
 
@@ -368,7 +401,7 @@ but everything needed to *play* is in all three.
 | draw the map | `-g` | n/a | `render.graph_view` |
 | what the state contains | `pokelike schema` | `GET /schema` | `pokelike.schema.describe` |
 | run a bot over many seeds | `pokelike bot` | n/a | `evaluate`, `compare` |
-| benchmark and submit | `pokelike bench` | n/a | `bench.run_benchmark` |
+| benchmark and submit | `pokelike bot bench` | n/a | `bench.run_benchmark` |
 | history and leaderboard | `pokelike history`, `leaderboard` | n/a | `stats`, `leaderboard` |
 | install and mirror | `pokelike setup`, `mirror` | n/a | `assets.mirror.build` |
 
@@ -393,7 +426,7 @@ game as it is right now.
 **A bot is a folder**, and one command creates it:
 
 ```bash
-uv run pokelike new-bot mine
+uv run pokelike bot new mine
 ```
 
 ```
@@ -419,7 +452,7 @@ class MyBot(Bot):
         return 0
 ```
 
-Then `uv run pokelike bot --bot mine`. **Nothing is registered anywhere**: the
+Then `uv run pokelike bot run --bot mine`. **Nothing is registered anywhere**: the
 folder being there is what makes the name work, so someone can hand you a bot by
 handing you a directory. A bot is loaded only when asked for, so one that pulls
 in torch does not slow down anyone else.
@@ -433,7 +466,7 @@ nothing but the prompt, and your result is comparable with the other `llm-*`
 bots because the loop asking the model is the same one:
 
 ```bash
-uv run pokelike new-bot my-prompt --llm
+uv run pokelike bot new my-prompt --llm
 ```
 
 **Two bots may not share a name.** `bots/` is flat and the folder name is the
@@ -579,7 +612,7 @@ would put an entry on the leaderboard that no model ever played.
 Your own prompt is one command away, and you write nothing but the prompt:
 
 ```bash
-uv run pokelike new-bot my-prompt --llm
+uv run pokelike bot new my-prompt --llm
 ```
 
 **`dyna-q`** ([bots/dyna-q/](bots/dyna-q/)) plays a policy trained
@@ -661,7 +694,7 @@ There is a [leaderboard](bots/): anyone can submit a bot, of any kind.
 Hand-written rules, a prompt and an LLM, a trained RL policy, a search, a mix.
 
 ```bash
-uv run pokelike bench --bot yourbot --name "your-bot" \
+uv run pokelike bot bench --bot yourbot --name "your-bot" \
     --author "your-handle" --category rules --description "how it works"
 ```
 
@@ -714,9 +747,9 @@ the model is the only thing that changes, so a row says something about the mode
 rather than about who tuned their scaffold hardest.
 
 ```bash
-uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini \
+uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini \
   --endpoint https://openrouter.ai/api --api-key @~/.key
-uv run pokelike llm-bench --table          # what has been measured, per harness
+uv run pokelike model board          # what has been measured, per harness
 ```
 
 Credentials come from `$FW_ENDPOINT` / `$FW_TOKEN` / `$MODEL_ID` or from

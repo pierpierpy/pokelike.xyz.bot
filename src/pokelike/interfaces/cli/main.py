@@ -14,7 +14,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ...assets.mirror import PHASES, build
-from ...bench import CATEGORIES, STANDARD_SEEDS, format_result, run_benchmark
+from ...competition.bench import (CATEGORIES, STANDARD_SEEDS, format_result,
+                                  run_benchmark)
 from ...leaderboard import build_index, format_table, record_result
 from ...runner import play_run
 from ...assets.server import AssetServer
@@ -166,7 +167,7 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     # rather than being pinned away from one.
     scripts = {}
     if getattr(args, "harness", None):
-        from ... import llmbench as _lb
+        from ...instrument import llmbench as _lb
         scripts = _lb.script_paths(args.harness)
     else:
         own = _own_bridge(getattr(args, "bot", None))
@@ -417,7 +418,7 @@ def cmd_bot(args) -> int:
 
 def cmd_new_bot(args) -> int:
     """Creates a bot folder that already plays, so it can be measured at once."""
-    from ...scaffold import new_bot
+    from ...competition.scaffold import new_bot
 
     try:
         d = new_bot(args.name, BOTS, llm=args.llm)
@@ -441,8 +442,8 @@ def cmd_new_bot(args) -> int:
         print('  export MODEL_ID="..."')
     else:
         print("Try it, then measure it before you change anything:\n")
-    print(f"  uv run pokelike bot --bot {slug} --runs 5 -d")
-    print(f"  uv run pokelike bench --bot {slug} --dry-run\n")
+    print(f"  uv run pokelike bot run --bot {slug} --runs 5 -d")
+    print(f"  uv run pokelike bot bench --bot {slug} --dry-run\n")
     print("The whole path from here to a pull request is in GUIDE.md.")
     return 0
 
@@ -469,6 +470,15 @@ def cmd_bench(args) -> int:
                else Path(args.bot).resolve().name) if from_path else args.bot
 
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
+
+    # The one place the two benchmarks get mixed up. Both end up as "an LLM playing
+    # the game", and nothing on screen said which question was being answered.
+    if args.category == "llm":
+        print("note: this records an entry in the BOT competition, where the model is\n"
+              "  not controlled: your prompt, view and tools are the submission, and\n"
+              "  the model is whatever $MODEL_ID names. To measure a MODEL with the\n"
+              "  scaffold held still, that is `pokelike model bench --harness <v>`.\n")
+
     server, game = _server_and_game(args)
     try:
         result = run_benchmark(
@@ -511,13 +521,13 @@ def cmd_bench(args) -> int:
         # Fifty runs took minutes; a failure in the last five seconds must not
         # throw them away. Written somewhere plain, with the one command that
         # files it once whatever broke is fixed.
-        from ...bench import save
+        from ...competition.bench import save
         from ...bot.catalogue import slugify
 
         rescue = save(result, BOTS / slugify(args.bot) / "result.unrecorded.json")
         print(f"\n  could not record: {type(e).__name__}: {e}", file=sys.stderr)
         print(f"  the {len(seeds)} runs are NOT lost, they are in {rescue}", file=sys.stderr)
-        print("  fix the error, then:  uv run pokelike leaderboard", file=sys.stderr)
+        print("  fix the error, then:  uv run pokelike bot board", file=sys.stderr)
         raise SystemExit(1) from e
     build_index(BOTS)
 
@@ -539,7 +549,7 @@ def cmd_bench(args) -> int:
 
 def cmd_llm_bench(args) -> int:
     """Runs one or more models against a frozen harness version."""
-    from ... import llmbench
+    from ...instrument import llmbench
 
     if args.table:
         # Fetched now, not stored: prices are somebody else's changing fact, and a
@@ -851,30 +861,81 @@ def seed_arg(value: str) -> int:
     return seed
 
 
-def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(
-        prog="pokelike",
-        description="Play pokelike.xyz headless, from the command line or over HTTP.",
-    )
-    p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
-    sub = p.add_subparsers(dest="command", required=True)
+# ------------------------------------------------------------------ the commands
+#
+# Two families, because there are two benchmarks in here and they answer different
+# questions. Keeping them as `bench` and `llm-bench` at the same level made the
+# second read as a special case of the first, which is the opposite of true:
+#
+#   pokelike bot   ...   your code is the entry, the game is fixed
+#   pokelike model ...   the scaffold is fixed, the model is the entry
+#
+# `bench` appears in both, qualified by the noun, so the word now says what varies
+# instead of hiding it. And `pokelike bot bench --harness v3` does not exist, so the
+# two cannot be mixed by accident.
+#
+# The old flat names still work and are not listed: see ALIASES below.
 
-    s = sub.add_parser("setup", help="get everything ready: browser + offline copy (run once)")
-    s.add_argument("--force", action="store_true", help="rebuild the copy even if present")
-    s.set_defaults(func=cmd_setup)
+GROUPS = """
+commands
 
-    s = sub.add_parser("mirror", help="rebuild only the offline copy of the game")
-    s.add_argument("--phase", choices=list(PHASES), default="all",
-                   help="resume from one phase without downloading everything again")
-    s.set_defaults(func=cmd_mirror)
+  setting up      setup, mirror
+  playing         play, api
 
-    s = sub.add_parser("play", help="interactive run in the terminal")
-    s.add_argument("--seed", type=seed_arg, default=1, help="seed of the run")
-    s.add_argument("--watch", action="store_true", help="open a real window and watch")
-    s.add_argument("--shots", metavar="FOLDER", help="save an image of every screen")
-    s.set_defaults(func=cmd_play)
+  bot             the competition: your code is the entry, ranked by idea
+                    new    write a bot folder that already plays
+                    run    play it and watch the decisions
+                    bench  the 50 standard seeds, records a result
+                    board  the standings
 
-    s = sub.add_parser("bot", help="run a bot")
+  model           the instrument: the scaffold is frozen, the model is the variable
+                    bench  a model against one frozen harness version
+                    board  what has been measured, per version
+
+  reference       schema, history
+
+`pokelike <command> --help` for any of them.
+"""
+
+# `pokelike bot run --bot mine` means `pokelike bot run --bot mine`, and `pokelike model
+# --table` means `pokelike model board`. Without this, adding the verb would break
+# every command already written down.
+FAMILY_DEFAULT = {"bot": "run", "model": "bench"}
+
+# The flat names this replaced. Registered without `help=`, so they keep working and
+# are not advertised.
+ALIASES = {"new-bot": ("bot", "new"), "bench": ("bot", "bench"),
+           "leaderboard": ("bot", "board"), "llm-bench": ("model", "bench")}
+
+
+def _with_default_verb(argv: list[str]) -> list[str]:
+    """Inserts the family's default verb when only flags follow it.
+
+    Walks past the global flags rather than looking at `argv[0]`, and stops at the
+    first bare word, so `--bot bot` cannot be mistaken for the family name.
+    """
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--port":
+            i += 2
+            continue
+        if a.startswith("-"):
+            i += 1
+            continue
+        break
+    if i < len(argv) and argv[i] in FAMILY_DEFAULT:
+        nxt = argv[i + 1] if i + 1 < len(argv) else None
+        # `--help` after a family means the family, not its default verb: someone
+        # asking what `bot` can do should not be handed the flags of `bot run`.
+        if nxt in ("-h", "--help"):
+            return list(argv)
+        if nxt is None or nxt.startswith("-"):
+            return argv[:i + 1] + [FAMILY_DEFAULT[argv[i]]] + argv[i + 1:]
+    return list(argv)
+
+
+def _bot_run_args(s) -> None:
     s.add_argument("--bot", default="random", help="which bot to play: a folder under bots/")
     s.add_argument("--seed", type=seed_arg, default=1)
     s.add_argument("--runs", type=int, default=3)
@@ -895,18 +956,15 @@ def main(argv: list[str] | None = None) -> int:
     add_llm_flags(s)
     s.set_defaults(func=cmd_bot)
 
-    s = sub.add_parser("api", help="start the HTTP API")
-    s.add_argument("--api-port", type=int, default=8423)
-    s.add_argument("--seed", type=seed_arg, default=1, help="seed of the initial run")
-    s.set_defaults(func=cmd_api)
 
-    s = sub.add_parser("new-bot", help="create a new bot folder under bots/")
+def _bot_new_args(s) -> None:
     s.add_argument("name", help="what to call it, e.g. my-bot")
     s.add_argument("--llm", action="store_true",
                    help="start from the shared LLM harness: you write only the prompt")
     s.set_defaults(func=cmd_new_bot)
 
-    s = sub.add_parser("bench", help="run the standard benchmark and produce a result file")
+
+def _bot_bench_args(s) -> None:
     s.add_argument("--bot", default="random", help="which bot to benchmark")
     s.add_argument("--name", default=None, help="name for the leaderboard (defaults to --bot)")
     s.add_argument("--author", default="", help="your name or github handle")
@@ -921,29 +979,22 @@ def main(argv: list[str] | None = None) -> int:
     add_llm_flags(s)
     s.set_defaults(func=cmd_bench)
 
-    s = sub.add_parser("leaderboard", help="rebuild and print the leaderboard table")
-    s.set_defaults(func=cmd_leaderboard)
 
-    # A different question from `bench`, which is why it is a different command.
-    # There the prompt is the submission; here the harness is frozen and the model
-    # is the only thing that varies, so a row says something about the model.
-    s = sub.add_parser("llm-bench", help="run models against a frozen LLM harness")
-    # No default. A harness version IS the question a row answers, so choosing one
+def _model_bench_args(s) -> None:
+    # No default harness. A version IS the question a row answers, so choosing one
     # silently would let two passes that asked different things look like the same
-    # command. Not `required=True` either, because `--table` reads every version and
-    # has no harness of its own; the check is in `cmd_llm_bench`, where the
-    # difference between reading and running is known.
-    from ... import llmbench as _lbv
+    # command. Not `required=True` either, because `board` reads every version; the
+    # check is in `cmd_llm_bench`, where reading and running are told apart.
+    from ...instrument import llmbench as _lbv
     s.add_argument("--harness", default=None,
                    help="harness version, one of: "
-                        f"{', '.join(_lbv.versions()) or 'none on disk'}. "
-                        "Required unless --table")
+                        f"{', '.join(_lbv.versions()) or 'none on disk'}. Required")
     s.add_argument("--model", default="", help="model id, e.g. openai/gpt-4o-mini")
     s.add_argument("--models", default="", help="several, comma separated")
     s.add_argument("--workers", type=int, default=1,
                    help="play the seeds in N parallel processes. An LLM run is mostly "
                         "spent waiting on the provider, so this can exceed your core "
-                        "count — but watch for rate limits")
+                        "count, but watch for rate limits")
     s.add_argument("--repeat", type=int, default=1, metavar="N",
                    help="play the whole seed list N times and record each as a pass. "
                         "The spread between passes is the model's own sampling "
@@ -958,12 +1009,79 @@ def main(argv: list[str] | None = None) -> int:
                         "this is for testing and for running two at once")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
-    s.add_argument("--table", action="store_true",
-                   help="print what is recorded and regenerate llm-bench/README.md")
+    s.add_argument("--table", action="store_true", help=argparse.SUPPRESS)
     add_llm_flags(s, with_model=False)
     s.add_argument("--no-preflight", action="store_true",
                    help="skip the one-call check that the model can emit tool calls")
     s.set_defaults(func=cmd_llm_bench)
+
+
+def _model_board_args(s) -> None:
+    s.set_defaults(func=cmd_llm_bench, table=True, harness=None)
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(
+        prog="pokelike",
+        description="Play pokelike.xyz headless, from the command line or over HTTP.",
+        epilog=GROUPS,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
+    # The listing is in the epilog, grouped by family, so the brace list is replaced
+    # by a placeholder rather than printing eleven names on one line.
+    sub = p.add_subparsers(dest="command", required=True, metavar="<command>")
+
+    s = sub.add_parser("setup", help="get everything ready: browser + offline copy (run once)")
+    s.add_argument("--force", action="store_true", help="rebuild the copy even if present")
+    s.set_defaults(func=cmd_setup)
+
+    s = sub.add_parser("mirror", help="rebuild only the offline copy of the game")
+    s.add_argument("--phase", choices=list(PHASES), default="all",
+                   help="resume from one phase without downloading everything again")
+    s.set_defaults(func=cmd_mirror)
+
+    s = sub.add_parser("play", help="interactive run in the terminal")
+    s.add_argument("--seed", type=seed_arg, default=1, help="seed of the run")
+    s.add_argument("--watch", action="store_true", help="open a real window and watch")
+    s.add_argument("--shots", metavar="FOLDER", help="save an image of every screen")
+    s.set_defaults(func=cmd_play)
+
+    s = sub.add_parser("api", help="start the HTTP API")
+    s.add_argument("--api-port", type=int, default=8423)
+    s.add_argument("--seed", type=seed_arg, default=1, help="seed of the initial run")
+    s.set_defaults(func=cmd_api)
+
+    # ---- the competition: your code is the entry -------------------------------
+    fam = sub.add_parser(
+        "bot", help="write, play and benchmark a bot. Your code is the entry",
+        description="The competition. Your code is the entry and the game is fixed, so "
+                    "the standings rank ideas. To measure a MODEL with the scaffold "
+                    "held still, see `pokelike model`.",
+    )
+    bots = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
+    _bot_new_args(bots.add_parser("new", help="write a bot folder that already plays"))
+    _bot_run_args(bots.add_parser("run", help="play it and watch the decisions"))
+    _bot_bench_args(bots.add_parser(
+        "bench", help="the 50 standard seeds, records a result",
+        description="Plays the standard fifty seeds and writes bots/<name>/result.json. "
+                    "The scaffold is whatever you wrote, so this ranks ideas.",
+    ))
+    bots.add_parser("board", help="the standings").set_defaults(func=cmd_leaderboard)
+
+    # ---- the instrument: the model is the entry --------------------------------
+    fam = sub.add_parser(
+        "model", help="benchmark a model against a frozen harness",
+        description="The instrument. Every version freezes the loop, the text the "
+                    "model reads, the state and the seed, so the model is the only "
+                    "thing that varies and a row says something about it. To rank "
+                    "your own code instead, see `pokelike bot`.",
+    )
+    models = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
+    _model_bench_args(models.add_parser(
+        "bench", help="a model against one frozen harness version"))
+    _model_board_args(models.add_parser(
+        "board", help="what has been measured, per version"))
 
     s = sub.add_parser("schema", help="what a bot receives: state, actions, node kinds")
     s.add_argument("--json", action="store_true", help="print a real observation instead")
@@ -972,7 +1090,7 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(func=cmd_schema)
 
     # `history`, not `stats`: this is what YOU played on this machine, and the
-    # name has to stop reading like a sibling of `leaderboard`.
+    # name has to stop reading like a sibling of the standings.
     s = sub.add_parser("history",
                        help="what you have played on this machine (not comparable)")
     s.add_argument("-d", "--explain", action="store_true",
@@ -981,7 +1099,14 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bot", default=None, help="filter the recent list by bot")
     s.set_defaults(func=cmd_stats)
 
-    args = p.parse_args(argv)
+    # The flat names, kept working and not advertised. No `help=`, so they do not
+    # appear in the listing.
+    _bot_new_args(sub.add_parser("new-bot"))
+    _bot_bench_args(sub.add_parser("bench"))
+    sub.add_parser("leaderboard").set_defaults(func=cmd_leaderboard)
+    _model_bench_args(sub.add_parser("llm-bench"))
+
+    args = p.parse_args(_with_default_verb(list(argv) if argv is not None else sys.argv[1:]))
     return args.func(args)
 
 

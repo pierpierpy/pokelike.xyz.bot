@@ -9,10 +9,10 @@ moves everything at once cannot tell you which move mattered.
 export FW_ENDPOINT="https://..."   # base URL, no /v1
 export FW_TOKEN="..."
 export MODEL_ID="..."
-uv run pokelike bot --bot llm-example --runs 1 -d
+uv run pokelike bot run --bot llm-example --runs 1 -d
 
 # or pass the three as flags, which override the environment
-uv run pokelike bot --bot llm-example --runs 1 -d \
+uv run pokelike bot run --bot llm-example --runs 1 -d \
   --endpoint https://... --api-key @~/.key --model gpt-4o-mini
 ```
 

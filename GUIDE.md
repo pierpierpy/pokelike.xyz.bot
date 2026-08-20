@@ -63,7 +63,7 @@ It is worth watching a trained bot play before you write
 anything. Pick whichever is leading from [the standings](bots/README.md):
 
 ```bash
-uv run pokelike bot --bot sarsa-v2 --seed 40003 --runs 1 -g -dd
+uv run pokelike bot run --bot sarsa-v2 --seed 40003 --runs 1 -g -dd
 ```
 
 `-g` draws the map beside each decision, `-dd` prints the value it gave every
@@ -72,7 +72,7 @@ option before choosing.
 ## 3. Create it
 
 ```bash
-uv run pokelike new-bot mine
+uv run pokelike bot new mine
 ```
 
 That writes a folder, and the folder **is** the bot:
@@ -93,7 +93,7 @@ guess.
 from the shared harness instead of an empty `choose`:
 
 ```bash
-uv run pokelike new-bot my-prompt --llm
+uv run pokelike bot new my-prompt --llm
 ```
 
 You then write nothing but the prompt. The tools, the agentic loop, the state
@@ -113,8 +113,8 @@ before you change a line, and when the number moves later you know it moved
 because of you.
 
 ```bash
-uv run pokelike bot --bot mine --runs 5 -d
-uv run pokelike bench --bot mine --dry-run     # the real 50 seeds, recorded nowhere
+uv run pokelike bot run --bot mine --runs 5 -d
+uv run pokelike bot bench --bot mine --dry-run     # the real 50 seeds, recorded nowhere
 ```
 
 ## 4. Write it
@@ -160,15 +160,15 @@ a hand-picked seed set mostly measures who drew the nicer maps, and the same
 weights can score 1.60 on one set and 1.10 on the official 50.
 
 ```bash
-uv run pokelike bench --bot mine --dry-run                       # nothing recorded
-uv run pokelike bench --bot mine --author YOUR-HANDLE --category rules
+uv run pokelike bot bench --bot mine --dry-run                       # nothing recorded
+uv run pokelike bot bench --bot mine --author YOUR-HANDLE --category rules
 ```
 
 If yours calls a model, the credentials can come from flags instead of exports.
 `--api-key @path` reads a file, so the key never reaches your shell history:
 
 ```bash
-uv run pokelike bench --bot mine --dry-run \
+uv run pokelike bot bench --bot mine --dry-run \
   --endpoint https://openrouter.ai/api --api-key @~/.key --model openai/gpt-4o-mini
 ```
 
@@ -341,7 +341,7 @@ This works by path, so it works from an experiment folder too, before the bot ha
 earned a place in `bots/`:
 
 ```bash
-uv run pokelike bench --bot experiments/mine --dry-run
+uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 picks up `experiments/mine/artifacts/bridge.js` the same way.
@@ -420,7 +420,7 @@ And you measure a candidate right where it lives. Write a `bot.py` in your
 experiment folder and point the benchmark at it:
 
 ```bash
-uv run pokelike bench --bot experiments/mine --dry-run
+uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 Measured by path, never recorded. When it earns its place, bring it into

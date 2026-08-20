@@ -11,7 +11,7 @@
 # command line is readable by every other user of the machine in `ps`, and your
 # shell saves it in history.
 #
-# Anything after the model is passed straight through to `pokelike llm-bench`,
+# Anything after the model is passed straight through to `pokelike model bench`,
 # so every flag that command has works here too.
 
 set -euo pipefail

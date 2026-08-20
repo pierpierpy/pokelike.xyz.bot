@@ -207,7 +207,7 @@ def format_summary(rows: list[dict[str, Any]], explain: bool = False) -> str:
     # Read as a ranking it invents differences that do not exist.
     out = ["PRACTICE RUNS ON THIS MACHINE — whatever seeds you happened to play, "
            "so NOT comparable between bots.",
-           "For the table everyone is scored on:  pokelike leaderboard", "",
+           "For the table everyone is scored on:  pokelike bot board", "",
            head, "-" * len(head)]
     for r in rows:
         cells = [f"{str(r.get('bot', '')):<{COLUMNS[0][2]}}"]

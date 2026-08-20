@@ -32,7 +32,7 @@ said. If you spot that, say so even if you are not sure.
 What helps in an issue:
 
 - what you expected the model or the CLI to receive, and what it received
-- a seed and a step, if you have one. `pokelike bot --bot random --runs 1 -d` prints
+- a seed and a step, if you have one. `pokelike bot run --bot random --runs 1 -d` prints
   every decision with the screen it was made on
 - whether you have a fix. If you do, say so and it will usually be taken as a patch
 
