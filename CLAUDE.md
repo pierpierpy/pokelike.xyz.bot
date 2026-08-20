@@ -42,7 +42,7 @@ uv run pokelike play --seed 42   # interactive run
 uv run pokelike schema           # what a bot receives (--markdown regenerates STATE.md)
 uv run pokelike history -d       # what you played here, columns explained
 uv run pytest                    # full suite, ~1 minute, needs the game on disk
-uv run pytest -m "not slow"      # 133 tests in 2 s, no browser. What CI runs
+uv run pytest -m "not slow"      # 148 tests in 5 s, no browser. What CI runs
 
 # THE COMPETITION: your code is the entry, the game is fixed
 uv run pokelike bot new mine                        # a folder that already plays
@@ -55,12 +55,13 @@ uv run pokelike bot board                           # the standings, from disk
 
 # THE INSTRUMENT: the scaffold is frozen, the model is the entry
 uv run pokelike model bench --harness v3 --model a/b
-uv run pokelike model board                         # every version's table
-# --harness is REQUIRED: a version is the question a row answers
+uv run pokelike model board --harness v3            # that version's table
+# --harness is REQUIRED on both: a version is the question a row answers
 # credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
 # (--api-key @path reads a file, keeping the key out of ps and shell history)
 #
-# `bench`, `leaderboard`, `llm-bench` and `new-bot` still work as unlisted aliases.
+# The flat names `bench`, `leaderboard`, `llm-bench` and `new-bot` were removed,
+# not aliased, and there is no implicit verb: `pokelike bot` alone is an error.
 
 uv run python -m experiments.example.train --episodes 20     # the shape of one
 uv run python -m experiments.sarsa.train --episodes 300      # the real thing

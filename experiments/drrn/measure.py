@@ -29,7 +29,7 @@ import statistics
 from pathlib import Path
 
 from pokelike.assets import AssetServer
-from pokelike.bench import STANDARD_SEEDS, format_result, run_benchmark
+from pokelike.competition.bench import STANDARD_SEEDS, format_result, run_benchmark
 from pokelike.bot import create
 from pokelike.core.game import Game
 

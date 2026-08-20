@@ -269,9 +269,10 @@ uv run pokelike bot bench --bot experiments/mine --dry-run
 
 A bot measured by path is never recorded. The run prints its numbers on the
 official 50 seeds and that is all. Compare them with `pokelike bot board`.
-When it earns its place, bring it into `bots/` the standard way, either `new-bot` or
-copying your `bot.py` and artifacts into a folder of its own, and bench it there,
-under its own name. A candidate is never measured under another bot's name.
+When it earns its place, bring it into `bots/` the standard way, with
+`pokelike bot new` or by copying your `bot.py` and artifacts into a folder of its
+own, and bench it there under its own name. A candidate is never measured under
+another bot's name.
 
 ## You can read what it learned
 

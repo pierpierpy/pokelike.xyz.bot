@@ -428,7 +428,7 @@ def ending_view(final: dict[str, Any], alive: dict[str, Any] | None,
     run = (alive or {}).get("run") or {}
     out = ["", f"  === run over: {ended} ==="]
     out.append(f"      | {'the League is beaten' if won else 'the run ended here'}"
-               f"  —  badges {run.get('badges', 0)}, map {run.get('map', 0)}")
+               f":  badges {run.get('badges', 0)}, map {run.get('map', 0)}")
 
     # NOT the final team. At game over the engine wipes `state`, so this is the
     # last snapshot taken while it was still populated — which is from BEFORE

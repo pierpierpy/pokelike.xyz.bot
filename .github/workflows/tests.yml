@@ -1,10 +1,10 @@
 # The tests that can run anywhere.
 #
-# `-m "not slow"` is 133 tests in about two seconds, with no browser and no copy of
+# `-m "not slow"` is 148 tests in about five seconds, with no browser and no copy of
 # the game: the fingerprint logic, the tables, the schema, the leaderboard, name
 # resolution, the harness loading.
 #
-# The other 27 drive a real browser against the local copy of the game, and they do
+# The other 22 drive a real browser against the local copy of the game, and they do
 # not belong here. `pokelike setup` downloads about 2100 files from pokelike.xyz,
 # which takes four minutes and gets throttled: the site drops requests without
 # saying so, and an incomplete copy does not fail loudly. It changes which options

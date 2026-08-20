@@ -69,7 +69,7 @@ and commits to one move with a reason.*
 
 ![The map, and where the bot is on it](img/llm_battle.gif)
 
-*`pokelike bot -g` draws the map beside each decision: where you are, where you
+*`pokelike bot run -g` draws the map beside each decision: where you are, where you
 may still go, and where you have already been. Choosing a node closes every
 other one on its layer forever.*
 
@@ -372,9 +372,9 @@ but everything needed to *play* is in all three.
 | see the screen | `--shots`, `--watch` | `GET /screenshot` | `game.screenshot(path)` |
 | draw the map | `-g` | n/a | `render.graph_view` |
 | what the state contains | `pokelike schema` | `GET /schema` | `pokelike.schema.describe` |
-| run a bot over many seeds | `pokelike bot` | n/a | `evaluate`, `compare` |
+| run a bot over many seeds | `pokelike bot run` | n/a | `evaluate`, `compare` |
 | benchmark and submit | `pokelike bot bench` | n/a | `bench.run_benchmark` |
-| history and leaderboard | `pokelike history`, `leaderboard` | n/a | `stats`, `leaderboard` |
+| history and standings | `pokelike history`, `pokelike bot board` | n/a | `stats`, `leaderboard` |
 | install and mirror | `pokelike setup`, `mirror` | n/a | `assets.mirror.build` |
 
 The missing HTTP rows are batch and installation jobs, not ways of playing a
@@ -429,7 +429,7 @@ folder being there is what makes the name work, so someone can hand you a bot by
 handing you a directory. A bot is loaded only when asked for, so one that pulls
 in torch does not slow down anyone else.
 
-What `new-bot` writes already plays, which matters more than it sounds: you can
+What `pokelike bot new` writes already plays, which matters more than it sounds: you can
 measure it before changing a line, and know later that the number moved because
 of you.
 
@@ -578,8 +578,8 @@ the model.
 
 Authentication failures are the exception and stop the run instead. A 401 will
 fail identically forever, and falling back on it would play the whole run on the
-backup heuristic while reporting it as an LLM result, which through `bench`
-would put an entry on the leaderboard that no model ever played.
+backup heuristic while reporting it as an LLM result, which through `bot bench`
+would put an entry on the standings that no model ever played.
 
 Your own prompt is one command away, and you write nothing but the prompt:
 
@@ -638,7 +638,7 @@ where everything else is in the tens, so it would drown out the rest.
 
 ## Statistics
 
-Every `pokelike bot` run lands in `stats/runs.db`, a SQLite file you can query
+Every `pokelike bot run` lands in `stats/runs.db`, a SQLite file you can query
 with plain SQL. `--no-history` skips it.
 
 ```bash
@@ -721,13 +721,13 @@ rather than about who tuned their scaffold hardest.
 ```bash
 uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini \
   --endpoint https://openrouter.ai/api --api-key @~/.key
-uv run pokelike model board          # what has been measured, per harness
+uv run pokelike model board --harness v0   # what has been measured there
 ```
 
 Credentials come from `$FW_ENDPOINT` / `$FW_TOKEN` / `$MODEL_ID` or from
 `--endpoint` / `--api-key` / `--model`, which override them. `--api-key @path`
 reads a file, so the key stays out of `ps` and out of your shell history. The same
-three flags work on `bot` and `bench`.
+three flags work on `bot run` and `bot bench`.
 
 There are four harness versions and they are **never ranked against each other**,
 because two models asked different questions were not compared. `v0` is one call a
@@ -768,17 +768,18 @@ make them pass or fail spuriously.
 | command | what it does |
 |---|---|
 | `setup` | browser + offline copy. Run once |
-| `play` | interactive run in the terminal |
-| `bot` | runs a bot (`--bot`, `--runs`, `--seed`; `--endpoint`, `--api-key`, `--model` for an LLM bot) |
-| `new-bot` | creates `bots/<name>/`, ready to play (`--llm` for a prompt bot) |
-| `bench` | run the 50-seed benchmark and record the result (`--dry-run` to record nothing) |
-| `llm-bench` | run a model against a frozen harness (`--harness`, `--models`, `--repeat`, `--table`) |
-| `leaderboard` | rebuild the standings from what is measured on disk |
-| `schema` | what a bot receives, printed from a live game |
-| `api` | HTTP JSON server |
-| `stats` | summary of recorded runs (`-d` explains the columns) |
-| `mirror --phase verify` | check the local copy is not missing anything |
 | `mirror` | rebuild the offline copy (after a game update) |
+| `mirror --phase verify` | check the local copy is not missing anything |
+| `play` | interactive run in the terminal |
+| `api` | HTTP JSON server |
+| `bot new` | creates `bots/<name>/`, ready to play (`--llm` for a prompt bot) |
+| `bot run` | plays a bot (`--bot`, `--runs`, `--seed`; `--endpoint`, `--api-key`, `--model` for an LLM bot) |
+| `bot bench` | the 50 standard seeds, records the result (`--dry-run` to record nothing) |
+| `bot board` | rebuild the standings from what is measured on disk |
+| `model bench` | a model against one frozen harness (`--harness`, `--models`, `--repeat`) |
+| `model board` | the table for that harness (`--harness`) |
+| `schema` | what a bot receives, printed from a live game |
+| `history` | the runs on this machine (`-d` explains the columns) |
 
 ---
 

@@ -205,10 +205,9 @@ def format_summary(rows: list[dict[str, Any]], explain: bool = False) -> str:
     # named like the leaderboard's and are not the same thing: arbitrary seeds,
     # any number of runs, practice bots and abandoned names all mixed together.
     # Read as a ranking it invents differences that do not exist.
-    out = ["PRACTICE RUNS ON THIS MACHINE — whatever seeds you happened to play, "
-           "so NOT comparable between bots.",
-           "For the table everyone is scored on:  pokelike bot board", "",
-           head, "-" * len(head)]
+    out = ["practice runs on this machine, on whatever seeds you played, so not "
+           "comparable between bots.",
+           "", head, "-" * len(head)]
     for r in rows:
         cells = [f"{str(r.get('bot', '')):<{COLUMNS[0][2]}}"]
         for key, _, width in COLUMNS[1:]:

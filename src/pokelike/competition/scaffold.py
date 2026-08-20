@@ -18,7 +18,7 @@ def fill(template: str, **fields: str) -> str:
     `format` would treat every brace in a template as a field, and a template for
     an LLM bot is full of JSON: the tool schemas are literal `{...}`. Using it
     here meant that adding a commented-out tool example to the template broke
-    `new-bot` with a KeyError about a JSON key. Plain replacement cannot.
+    `bot new` with a KeyError about a JSON key. Plain replacement cannot.
     """
     for key, value in fields.items():
         template = template.replace("{" + key + "}", value)

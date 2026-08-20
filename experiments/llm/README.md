@@ -59,5 +59,5 @@ uv run pokelike bot run --bot llm-survivor \
 
 A 401 or a model-not-found **stops the run** rather than falling back. A bad
 token would otherwise produce a whole run of fallback moves that looks exactly
-like a model playing badly, and `bench` would file it on the leaderboard as an
+like a model playing badly, and `bot bench` would file it on the standings as an
 `llm` entry no model ever played.

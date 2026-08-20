@@ -260,7 +260,7 @@ def cmd_setup(args) -> int:
     print("      ok")
 
     if (SITE_ROOT / "index.html").is_file() and not args.force:
-        print(f"[3/3] offline copy already in {SITE_ROOT} — skipping")
+        print(f"[3/3] offline copy already in {SITE_ROOT}, skipping")
         print("      (use --force to rebuild it)")
     else:
         print("[3/3] downloading the game for offline use (~130 MB, a few minutes)")
@@ -279,7 +279,7 @@ def cmd_play(args) -> int:
     server, game = _server_and_game(args)
     try:
         obs = game.reset(seed=args.seed)
-        print(f"\nnew run — seed {args.seed}")
+        print(f"\nnew run, seed {args.seed}")
         if args.shots:
             print(f"images in {args.shots}/")
         print(REPL_HELP)
@@ -305,7 +305,7 @@ def cmd_play(args) -> int:
             if line == "n":
                 args.seed += 1
                 obs = game.reset(seed=args.seed)
-                print(f"\nnew run — seed {args.seed}")
+                print(f"\nnew run, seed {args.seed}")
                 continue
             if line == "s":
                 print()
@@ -332,7 +332,7 @@ def cmd_play(args) -> int:
                 print(REPL_HELP)
                 continue
             if not line.isdigit():
-                print("did not understand — type a number, or '?' for help")
+                print("did not understand: type a number, or '?' for help")
                 continue
 
             try:
@@ -433,7 +433,7 @@ def cmd_new_bot(args) -> int:
         print("  bot.py        a prompt on the shared LLM harness. Rewrite PROMPT.")
     else:
         print("  bot.py        a bot that already plays. Replace what it does.")
-    print("  artifacts/    weights, prompts, tables — whatever yours needs")
+    print("  artifacts/    weights, prompts, tables, whatever yours needs")
     print("  README.md     one line on how it decides\n")
     if args.llm:
         print("Point it at a model, then measure it:\n")
@@ -450,7 +450,7 @@ def cmd_new_bot(args) -> int:
 
 def cmd_bench(args) -> int:
     """Runs the standard benchmark and writes a submittable result file."""
-    from ...bot import create
+    from ...bot import LLMBot, create
 
     try:
         bot = create(args.bot, seed=0, **llm_settings(args))
@@ -471,13 +471,25 @@ def cmd_bench(args) -> int:
 
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
 
+    # Whether this ends in a recorded entry is decided here, before the runs, so
+    # the notes below can say what will happen instead of what usually happens.
+    partial = len(seeds) < len(STANDARD_SEEDS)
+    records = not (args.dry_run or partial or from_path)
+
     # The one place the two benchmarks get mixed up. Both end up as "an LLM playing
     # the game", and nothing on screen said which question was being answered.
-    if args.category == "llm":
-        print("note: this records an entry in the BOT competition, where the model is\n"
-              "  not controlled: your prompt, view and tools are the submission, and\n"
-              "  the model is whatever $MODEL_ID names. To measure a MODEL with the\n"
-              "  scaffold held still, that is `pokelike model bench --harness <v>`.\n")
+    #
+    # Asked of the bot, not of --category. Keyed on the category, the note reached
+    # only those who had already understood the difference well enough to pass
+    # --category llm. Whoever needs it passes nothing and lands in the default.
+    if isinstance(bot, LLMBot):
+        print("note: this is the BOT competition, where the model is not held\n"
+              "  still: your prompt, view and tools are the submission, and the\n"
+              "  model is whatever --model or $MODEL_ID names. To measure a MODEL\n"
+              "  against a fixed scaffold, that is `pokelike model bench`.\n")
+        if records and args.category != "llm":
+            print(f"  it would be recorded under category {args.category!r}, which\n"
+                  "  is wrong for a bot that calls a model. Add `--category llm`.\n")
 
     server, game = _server_and_game(args)
     try:
@@ -491,19 +503,20 @@ def cmd_bench(args) -> int:
 
     print(format_result(result))
 
-    # A PARTIAL run does not produce an entry, and neither does --dry-run.
+    # A PARTIAL run does not produce an entry, and neither does --dry-run, which
+    # is what `records` above already worked out.
     #
     # This used to write one whatever happened, so a `--runs 5` sanity check left
     # a real submission on disk that the next `git add` would pick up. Refusing
     # is not caution, it is the same rule the leaderboard already states: a score
     # over 5 seeds is not comparable to one over 50, so it is not a submission,
     # and something that is not a submission should not be written as one.
-    partial = len(seeds) < len(STANDARD_SEEDS)
-    if args.dry_run or partial or from_path:
+    if not records:
         if from_path:
             print(f"\n  nothing recorded (measured from {args.bot}).")
-            print("  When it earns its place: bring it into bots/ the standard way —")
-            print("  new-bot, or copy your bot.py and artifacts — then bench it there.")
+            print("  When it earns its place, bring it into bots/ the standard")
+            print("  way: `pokelike bot new`, or copy your bot.py and artifacts.")
+            print("  Then bench it there.")
             return 0
         why = ("--dry-run" if args.dry_run
                else f"only {len(seeds)} of the {len(STANDARD_SEEDS)} standard seeds")
@@ -515,6 +528,11 @@ def cmd_bench(args) -> int:
     # Recorded INTO the bot's own folder, next to the code that earned it, along
     # with whatever it declared in artifacts() and a fingerprint over both. A
     # score and the thing that produced it cannot then drift apart unnoticed.
+    if not args.author:
+        # The standings have a column for it. Left empty here, it is empty there,
+        # and the fix afterwards is another fifty runs.
+        print("note: no --author, so the entry will carry an empty one.\n")
+
     try:
         d = record_result(args.bot, result, bot, BOTS)
     except Exception as e:  # noqa: BLE001 — the runs are the expensive part
@@ -536,14 +554,14 @@ def cmd_bench(args) -> int:
     for f in sorted(d.rglob("*")):
         if f.is_file() and "__pycache__" not in f.parts:
             print(f"    {f.relative_to(d)}")
-    print("\n  to submit — origin is your fork, so:")
+    print("\n  to submit, with origin your fork:")
     print(f"    git checkout -b {result['bot']}")
     print(f"    git add {rel}")
     print(f"    git commit -m 'Add {result['bot']}'")
     print(f"    git push origin {result['bot']}")
     print("    then open the pull request GitHub offers you")
     print("\n  (if you cloned this repo instead of your own fork, origin is not")
-    print("   yours to push to — fork it and add that remote first. See GUIDE.md.)")
+    print("   yours to push to: fork it and add that remote first. See GUIDE.md.)")
     return 0
 
 
@@ -551,24 +569,33 @@ def cmd_llm_bench(args) -> int:
     """Runs one or more models against a frozen harness version."""
     from ...instrument import llmbench
 
+    # Asked of both verbs. A version IS the question a row answers, so neither
+    # running nor reading can be done without naming one.
+    known = llmbench.versions()
+    if not args.harness:
+        print("--harness is required: it decides which frozen scaffold the model is\n"
+              "asked to play, and rows are never compared across versions.\n"
+              f"  on disk: {', '.join(known) or 'none'}",
+              file=sys.stderr)
+        return 2
+    if args.harness not in known:
+        print(f"no harness {args.harness} here. On disk: "
+              f"{', '.join(known) or 'none'}", file=sys.stderr)
+        return 2
+
     if args.table:
         # Fetched now, not stored: prices are somebody else's changing fact, and a
         # cost written into a result would be a claim about today made months ago.
         price = llmbench.prices()
         if not price:
             print("  (no price list: offline, so no cost column)", file=sys.stderr)
-        for v in reversed(llmbench.versions()):
-            print()
-            print(llmbench.format_table(v, price))
-        print(f"\n  table written to {llmbench.write_readme(price)}")
+        # The version asked for, and no other. Printing every version on disk put
+        # the table you wanted between tables you did not ask about.
+        table = llmbench.format_table(args.harness, price)
+        print()
+        print(table or f"  nothing measured yet on harness {args.harness}")
+        print(f"\n  all versions: {llmbench.write_readme(price)}")
         return 0
-
-    if not args.harness:
-        print("--harness is required: it decides which frozen scaffold the model is\n"
-              f"asked to play, and rows are never compared across versions.\n"
-              f"  on disk: {', '.join(llmbench.versions()) or 'none'}",
-              file=sys.stderr)
-        return 2
 
     # Only the endpoint and the key: here the model is not a setting for one bot,
     # it is the thing being measured, and it arrives per model in the loop below.
@@ -632,7 +659,7 @@ def cmd_llm_bench(args) -> int:
                       f"{p['tokens_in']}+{p['tokens_out']} tokens)")
                 alive.append(model)
             else:
-                print(f"  {model}: SKIPPED — {p.get('why', 'unknown')}",
+                print(f"  {model}: SKIPPED ({p.get('why', 'unknown')})",
                       file=sys.stderr)
         if not alive:
             print("\nno model passed the pre-flight; nothing to benchmark",
@@ -739,7 +766,9 @@ def cmd_llm_bench(args) -> int:
         # which it did, three times, before anyone noticed the two paths disagreed.
         money = llmbench.prices()
         llmbench.write_readme(money)
-        print(f"\n{llmbench.format_table(args.harness, money)}")
+        table = llmbench.format_table(args.harness, money)
+    if table:
+        print(f"\n{table}")
     return 0
 
 
@@ -805,7 +834,8 @@ def cmd_api(args) -> int:
         # right away without having to POST /new first.
         game.reset(seed=args.seed)
         print(f"API on http://127.0.0.1:{args.api_port}/   (ctrl-c to stop)")
-        print(f"run ready with seed {args.seed} — try: curl 127.0.0.1:{args.api_port}/state")
+        print(f"run ready with seed {args.seed}."
+              f"  Try:  curl 127.0.0.1:{args.api_port}/state")
         serve(game, port=args.api_port)
         return 0
     finally:
@@ -953,39 +983,6 @@ def groups_epilog() -> str:
     return cap.get()
 
 
-# `pokelike bot --bot mine` means `pokelike bot run --bot mine`, and `pokelike model
-# --table` means `pokelike model board`. Without this, adding the verb would break
-# every command already written down.
-FAMILY_DEFAULT = {"bot": "run", "model": "bench"}
-
-
-def _with_default_verb(argv: list[str]) -> list[str]:
-    """Inserts the family's default verb when only flags follow it.
-
-    Walks past the global flags rather than looking at `argv[0]`, and stops at the
-    first bare word, so `--bot bot` cannot be mistaken for the family name.
-    """
-    i = 0
-    while i < len(argv):
-        a = argv[i]
-        if a == "--port":
-            i += 2
-            continue
-        if a.startswith("-"):
-            i += 1
-            continue
-        break
-    if i < len(argv) and argv[i] in FAMILY_DEFAULT:
-        nxt = argv[i + 1] if i + 1 < len(argv) else None
-        # `--help` after a family means the family, not its default verb: someone
-        # asking what `bot` can do should not be handed the flags of `bot run`.
-        if nxt in ("-h", "--help"):
-            return list(argv)
-        if nxt is None or nxt.startswith("-"):
-            return argv[:i + 1] + [FAMILY_DEFAULT[argv[i]]] + argv[i + 1:]
-    return list(argv)
-
-
 def _bot_run_args(s) -> None:
     s.add_argument("--bot", default="random", help="which bot to play: a folder under bots/")
     s.add_argument("--seed", type=seed_arg, default=1)
@@ -1068,7 +1065,11 @@ def _model_bench_args(s) -> None:
 
 
 def _model_board_args(s) -> None:
-    s.set_defaults(func=cmd_llm_bench, table=True, harness=None)
+    from ...instrument import llmbench as _lbv
+    s.add_argument("--harness", default=None,
+                   help="harness version, one of: "
+                        f"{', '.join(_lbv.versions()) or 'none on disk'}. Required")
+    s.set_defaults(func=cmd_llm_bench, table=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1155,7 +1156,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bot", default=None, help="filter the recent list by bot")
     s.set_defaults(func=cmd_stats)
 
-    args = p.parse_args(_with_default_verb(list(argv) if argv is not None else sys.argv[1:]))
+    args = p.parse_args(list(argv) if argv is not None else sys.argv[1:])
     return args.func(args)
 
 

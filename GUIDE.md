@@ -440,7 +440,7 @@ though it had been asked the same question.
 
 `bots/` is flat, so two submissions cannot share a folder name. Git will say so
 on your pull request and one of you renames. A plain conflict, visible, nothing
-auto-resolved. The `--author` you pass to `bench` is what tells people apart in
+auto-resolved. The `--author` you pass to `bot bench` is what tells people apart in
 the standings. The fingerprint is not a name and is deliberately not used as one:
 it comes from the content, so it would change every time you retrained.
 

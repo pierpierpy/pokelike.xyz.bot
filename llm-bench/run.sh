@@ -28,7 +28,7 @@ fi
 MODELS="$1"; shift
 
 if [ ! -f "$ROOT/.env" ]; then
-    echo "no .env at $ROOT — it needs FW_ENDPOINT and FW_TOKEN" >&2
+    echo "no .env at $ROOT: it needs FW_ENDPOINT and FW_TOKEN" >&2
     exit 2
 fi
 
@@ -58,10 +58,18 @@ fi
 # no independent runs to hand out and REFUSES more than one, so asking it for four
 # would fail every launch. Asked of the package rather than hardcoded by version.
 if case " $* " in *" --workers "*) false ;; *) true ;; esac; then
-    if uv run python -c "
-import sys
-from pokelike.llmbench import cross_run_memory
-sys.exit(0 if cross_run_memory('$HARNESS') else 1)" 2>/dev/null; then
+    # Errors are NOT swallowed here. This used to end in `2>/dev/null`, so when
+    # the module moved the import failed silently, the else branch ran, and a
+    # harness that keeps notes was launched with the four workers it refuses.
+    if ! MEMORY="$(PK_HARNESS="$HARNESS" uv run python -c "
+import os
+from pokelike.instrument.llmbench import cross_run_memory
+print(1 if cross_run_memory(os.environ['PK_HARNESS']) else 0)")"; then
+        echo "cannot tell whether harness $HARNESS keeps notes, so not guessing" >&2
+        echo "  the line above is the real error" >&2
+        exit 1
+    fi
+    if [ "$MEMORY" = 1 ]; then
         WORKERS=(--workers 1)
         echo "note: harness $HARNESS keeps notes between runs, so it runs sequentially."
     else
@@ -76,7 +84,7 @@ fi
 # next thing that has to rewrite one, such as re-fingerprinting a recorded pass,
 # fails with EACCES on a repo the user owns.
 CMD=(docker compose -f "$COMPOSE" run -d --rm --user "$(id -u):$(id -g)" --name "$NAME" bench
-     "${@:1:0}" "${WORKERS[@]}" --models "$MODELS" "$@")
+     "${WORKERS[@]}" --models "$MODELS" "$@")
 
 if [ -n "${ECHO_ONLY:-}" ]; then printf '%q ' "${CMD[@]}"; echo; exit 0; fi
 
@@ -87,7 +95,7 @@ docker compose -f "$COMPOSE" build --quiet
 echo "started   $NAME   ($MODELS)"
 echo
 echo "  docker logs -f $NAME"
-echo "  tail -f $ROOT/llm-bench/v0/logs/\$(ls -t $ROOT/llm-bench/v0/logs | head -1)/*.log"
+echo "  tail -f $ROOT/llm-bench/$HARNESS/logs/\$(ls -t $ROOT/llm-bench/$HARNESS/logs | head -1)/*.log"
 echo
 echo "It removes itself when it finishes. The log, the decisions and the result"
-echo "stay on disk under llm-bench/v0/."
+echo "stay on disk under llm-bench/$HARNESS/."

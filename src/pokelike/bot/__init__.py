@@ -72,7 +72,7 @@ def resolve(name: str) -> str:
             f"Name the one you mean."
         )
     raise KeyError(
-        f"unknown bot '{name}' — available: {', '.join(sorted(names))}\n"
+        f"unknown bot '{name}'. Available: {', '.join(sorted(names))}\n"
         f"Start a new one with:  uv run pokelike bot new {slug}"
     )
 

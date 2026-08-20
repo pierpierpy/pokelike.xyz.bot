@@ -60,11 +60,17 @@ def test_the_flat_names_are_gone(gone):
     assert code != 0, f"{gone} still resolves"
 
 
-def test_a_family_with_only_flags_still_works():
-    """`pokelike bot --bot mine` means `bot run`, so the verb is optional there."""
+def test_a_family_shows_its_verbs():
     code, text = _cli("bot", "--help")
     assert code == 0
-    assert "board" in text, "a bare family must show the family, not its default verb"
+    assert "board" in text
+
+
+@pytest.mark.parametrize("family", ["bot", "model"])
+def test_a_family_needs_a_verb(family):
+    """No implicit verb. `pokelike bot --bot mine` used to mean `bot run`."""
+    code, _ = _cli(family, "--bot", "random")
+    assert code != 0, f"{family} still runs without a verb"
 
 
 def test_no_command_exits_with_an_error():
@@ -73,7 +79,7 @@ def test_no_command_exits_with_an_error():
 
 
 def test_unknown_bot_exits_with_a_readable_error():
-    code, text = _cli("bot", "--bot", "nonexistent")
+    code, text = _cli("bot", "run", "--bot", "nonexistent")
     assert code != 0
     assert "random" in text
 

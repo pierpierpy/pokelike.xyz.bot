@@ -97,9 +97,9 @@ uv run pokelike bot run --bot mine --runs 5 -d
 uv run pokelike bot bench --bot mine --dry-run
 ```
 
-`new-bot` writes a bot that already plays, so you can measure it before changing
-a line and know the number moved because of you. The full walk-through, and how
-to open the pull request, is in [GUIDE.md](../GUIDE.md).
+`pokelike bot new` writes a bot that already plays, so you can measure it before
+changing a line and know the number moved because of you. The full walk-through,
+and how to open the pull request, is in [GUIDE.md](../GUIDE.md).
 
 **If your bot is a prompt**, `--llm` starts it from the shared harness instead
 and you write nothing but the prompt:
@@ -114,11 +114,11 @@ uv run pokelike bot new my-prompt --llm
 one. Git will say so on your pull request, a plain conflict, and one of you
 renames. Nothing is hidden and nothing is auto-resolved, which is the point.
 
-The `--author` you pass to `bench` is what distinguishes people in the standings;
-the fingerprint in `result.json` is a different mechanism answering a different
-question, and is deliberately **not** used as a name, because it is derived from the
-content, so it would change every time you retrained and take every link to your
-bot with it.
+The `--author` you pass to `bot bench` is what distinguishes people in the
+standings; the fingerprint in `result.json` is a different mechanism answering a
+different question, and is deliberately **not** used as a name, because it is
+derived from the content, so it would change every time you retrained and take
+every link to your bot with it.
 
 ## What makes results comparable
 

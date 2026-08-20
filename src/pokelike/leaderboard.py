@@ -319,17 +319,15 @@ def format_table(index: dict[str, Any]) -> str:
         return "no bots measured yet"
     head = (f"{'bot':<20}{'category':>10}{'runs':>6}{'badge~':>8}{'badge+':>8}"
             f"{'score~':>9}{'stdev':>8}{'best':>7}{'done':>6}")
-    # Said above the table, because this one and `pokelike history` print columns
-    # with the same names and mean entirely different things. One is the fixed 50
-    # seeds everybody is scored on; the other is whatever you happened to play on
-    # this machine. Confusing them is not hypothetical, since the same weights scored
-    # 1.60 on 25 seeds picked during development and 1.10 on the official 50.
-    # Says what varies, because the model benchmark prints a table with the same
-    # `badges~` column and a reader who was handed one of them cannot otherwise
-    # tell which question it answers.
-    out = ["THE BOT COMPETITION. Ranks IDEAS: the scaffold is whatever each author",
-           "wrote, and the same 50 seeds are played by everyone.",
-           "For a MODEL with the scaffold held still: pokelike model board",
+    # One line above the table, because it is read every time. It has to name what
+    # it ranks and over what: `pokelike history` prints columns with these names for
+    # whatever you happened to play on this machine, and `pokelike model board` has
+    # a `badges~` column for a different question. Someone handed one of the three
+    # cannot otherwise tell them apart, and the confusion is not hypothetical: the
+    # same weights scored 1.60 on 25 seeds picked during development and 1.10 on the
+    # official 50.
+    out = ["bots on the standard 50 seeds. Each scaffold is its author's, so this "
+           "ranks ideas.",
            "", head, "-" * len(head)]
     for r in rows:
         v = lambda k: r[k] if r.get(k) is not None else "-"  # noqa: E731

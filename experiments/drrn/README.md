@@ -127,8 +127,9 @@ uv run pokelike bot bench --bot experiments/drrn
 ```
 
 Every command is run from the repository root, including the `cp`: `-m` needs it,
-so the paths are written out in full rather than relative to this folder. `bench`
-needs no `--dry-run` here, since a bot measured by path records nothing either way.
+so the paths are written out in full rather than relative to this folder.
+`bot bench` needs no `--dry-run` here, since a bot measured by path records
+nothing either way.
 
 | flag | meaning | default |
 |---|---|---|

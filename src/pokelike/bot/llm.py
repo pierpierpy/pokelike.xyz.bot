@@ -793,7 +793,7 @@ class LLMBot(Bot):
                 if e.code in (401, 403):
                     raise LLMConfigError(
                         f"HTTP {e.code} from {self.endpoint}: the endpoint rejected the "
-                        f"token.\n  Check FW_TOKEN — a placeholder left in place looks "
+                        f"token.\n  Check FW_TOKEN: a placeholder left in place looks "
                         f"exactly like this.\n  {detail}"
                     ) from e
                 if e.code == 404:
