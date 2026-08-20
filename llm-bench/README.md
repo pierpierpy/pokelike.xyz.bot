@@ -33,9 +33,10 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 
 | # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | -0.10 | 1 | 113233 | 17709 | 0.032 | 1.04 | 0.0208 |
-| 2 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.48 | 0.0096 |
-| 3 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
+| 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
+| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | -0.10 | 1 | 113233 | 17709 | 0.032 | 1.04 | 0.0208 |
+| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.48 | 0.0096 |
+| 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
