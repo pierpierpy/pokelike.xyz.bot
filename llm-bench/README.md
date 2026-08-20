@@ -217,6 +217,11 @@ With more than one pass running it asks which. `--stamp 20260820-153310` or
 Once it is following one it stays on it: the newest write alternates between two
 live passes, so following that would flip the view every couple of seconds.
 
+What counts as running is asked of docker, since docker is the only thing that knows.
+`run.sh` names each container after the model it plays, so three containers up means
+three passes to choose from. With nothing containerised, or no docker, the clock
+decides instead, which is what a pass played on the host looks like.
+
 `run.sh` builds, runs detached, names the container after the model, picks the worker
 count the harness allows, and removes it when done. Credentials come from `.env`.
 

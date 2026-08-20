@@ -163,8 +163,10 @@ def test_a_pass_can_be_chosen_by_stamp_or_by_model(bench):
     assert watch.pick(stamp="nothing-like-this") is None
 
 
-def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(bench, capsys):
+def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(
+        bench, capsys, monkeypatch):
     """The alternative is a number read as the other pass."""
+    monkeypatch.setattr(watch, "_containers", lambda: [])
     a = bench / "v9" / "logs" / "20260820-160000"
     b = bench / "v9" / "logs" / "20260820-170000"
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
@@ -175,7 +177,51 @@ def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(bench, capsys)
     assert "2 passes going" in capsys.readouterr().out
 
 
-def test_a_finished_pass_is_not_offered_as_a_choice(bench):
+def test_the_containers_decide_what_is_live(bench, monkeypatch):
+    """Three containers up means three passes to choose from, whatever the clock says.
+
+    Deciding from the clock alone was wrong both ways: a pass killed a minute ago still
+    looked alive, and one whose turn was taking six minutes looked dead.
+    """
+    dead = bench / "v9" / "logs" / "20260820-150000"
+    alive = bench / "v9" / "logs" / "20260820-170000"
+    other = bench / "v9" / "logs" / "20260820-170100"
+    _trace(dead, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T15:00:00")])
+    _trace(alive, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")])
+    _trace(other, "google/gemma-4-31b-it", [_row(10000, 0, "2026-08-20T17:01:00")])
+    import os
+
+    old = time.time() - 120
+    for f in dead.glob("*.jsonl"):
+        os.utime(f, (old, old))
+
+    monkeypatch.setattr(watch, "_containers", lambda: [
+        "qwen-qwen3-7-flash-180247", "google-gemma-4-31b-it-180235"])
+    names = {d.name for d in watch.live()}
+    assert names == {alive.name, other.name}, "the killed pass is still being offered"
+
+
+def test_a_model_with_no_container_of_its_own_is_dropped(bench, monkeypatch):
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "deepseek/deepseek-v4-flash-0731", [_row(10000, 0, "2026-08-20T17:00:00")])
+    import os
+
+    old = time.time() - 120
+    for f in d.glob("*.jsonl"):
+        os.utime(f, (old, old))
+    monkeypatch.setattr(watch, "_containers", lambda: ["qwen-qwen3-7-flash-1"])
+    assert watch.live() == []
+
+
+def test_without_docker_the_clock_decides(bench, monkeypatch):
+    """A pass played on the host has no container to be found in."""
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    monkeypatch.setattr(watch, "_containers", lambda: [])
+    assert [x.name for x in watch.live()] == [d.name]
+
+
+def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
     """A dry run that ended three seconds ago is not something to follow.
 
     It was, and being offered it was the confusing part: a one-run pass, `done`, top of
@@ -186,12 +232,13 @@ def test_a_finished_pass_is_not_offered_as_a_choice(bench):
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     (b / "c--d-pass1.log").write_text("header\ndone  1 runs\n", encoding="utf-8")
+    monkeypatch.setattr(watch, "_containers", lambda: [])
     assert [d.name for d in watch.live()] == [a.name]
     # And with one left there is nothing to ask about.
     assert watch.pick() == a
 
 
-def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench):
+def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench, monkeypatch):
     import os
 
     d = bench / "v9" / "logs" / "20260820-170000"
@@ -199,8 +246,10 @@ def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench):
     old = time.time() - 600
     os.utime(d / "a--b-pass1.jsonl", (old, old))
     assert watch.read(d).state == "stalled"
-    # Still offered, because five minutes of silence is not proof under a harness
-    # whose turns are this big. The state says so in the list.
+    # Still offered with nothing containerised, because five minutes of silence is
+    # not proof under a harness whose turns are this big. The state says so in the
+    # list, and a container list is what settles it when there is one.
+    monkeypatch.setattr(watch, "_containers", lambda: [])
     assert [x.name for x in watch.live()] == [d.name]
 
 

@@ -106,27 +106,64 @@ def _touched(folder: Path) -> float:
     return max((f.stat().st_mtime for f in folder.glob("*.jsonl")), default=0.0)
 
 
-def live(version: str | None = None, within: float = 900.0) -> list[Path]:
-    """The passes something might still be writing to.
+def _slug(model: str) -> str:
+    """A model id as `run.sh` turns it into a container name.
 
-    A pass that has said `done` or `FAILED` in its log is not one of them however
-    recently it wrote, which is what a finished dry run looked like before: offered as
-    a choice, three seconds old, with nothing behind it.
-
-    The clock window is deliberately looser than the five minutes that marks a pass
-    stalled. One turn of a memory harness sends tens of thousands of tokens, can spend
-    six tool rounds, and gets retried when the provider is busy, so five minutes of
-    silence is not enough to conclude a pass is over. The state column still says
-    `stalled` after five; this only decides what is worth offering as a choice.
+    `tr -c 'a-zA-Z0-9' '-' | tr -s '-'` and the ends trimmed, which is how the script
+    builds `qwen-qwen3-7-flash-180247` out of `qwen/qwen3.7-flash`.
     """
+    out = "".join(c if c.isalnum() else "-" for c in model)
+    while "--" in out:
+        out = out.replace("--", "-")
+    return out.strip("-")
+
+
+def live(version: str | None = None, within: float = 900.0) -> list[Path]:
+    """The passes that are actually going.
+
+    ASKED OF DOCKER FIRST, because docker is the only thing that knows. Deciding this
+    from the clock alone was wrong in both directions: a pass killed a minute ago still
+    looked alive, and a pass whose turn was taking six minutes looked dead. With three
+    containers up you should be offered three passes, and that is what a container list
+    says without any guessing.
+
+    `run.sh` names each container after the model it plays, so the match is by model. If
+    two passes of one model are on disk and one container is up for it, the one still
+    being written to is the one that container is writing.
+
+    Nothing running under docker at all, or no docker: the clock is the fallback, with a
+    minute's window, which is what a pass being played on the host looks like.
+
+    A pass that has said `done` or `FAILED` in its log is never live however recently it
+    wrote. That was a finished dry run offered as a choice, three seconds old, at the top
+    of the list because it had written last.
+    """
+    up = {n.rsplit("-", 1)[0] for n in _containers()}
     now = time.time()
-    out = []
+    out: list[Path] = []
+    claimed: set[str] = set()
     for d in folders(version):
-        if now - _touched(d) >= within:
+        age = now - _touched(d)
+        if age >= within:
             continue
         p = read(d)
-        if p is not None and p.state not in ("done", "FAILED"):
-            out.append(d)
+        if p is None or p.state in ("done", "FAILED"):
+            continue
+        slug = _slug(p.model)
+        if slug in up:
+            # One container, one pass. Folders come newest first, so the first match
+            # is the one that container is writing to.
+            if slug in claimed:
+                continue
+            claimed.add(slug)
+        elif not (up and age > 60):
+            # No container for this model. Either nothing is containerised at all, in
+            # which case the clock decides, or this pass is being played on the host
+            # right now and is writing as we look.
+            pass
+        else:
+            continue
+        out.append(d)
     return out
 
 
