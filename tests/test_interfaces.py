@@ -24,7 +24,7 @@ def _cli(*argv) -> tuple[int, str]:
 
 COMMANDS = ("setup", "mirror", "play", "api", "schema", "history", "bot", "model")
 VERBS = (("bot", "new"), ("bot", "run"), ("bot", "bench"), ("bot", "board"),
-         ("model", "bench"), ("model", "board"))
+         ("model", "bench"), ("model", "board"), ("model", "watch"))
 
 
 def test_help_lists_every_command():
@@ -71,6 +71,18 @@ def test_a_family_needs_a_verb(family):
     """No implicit verb. `pokelike bot --bot mine` used to mean `bot run`."""
     code, _ = _cli(family, "--bot", "random")
     assert code != 0, f"{family} still runs without a verb"
+
+
+@pytest.mark.parametrize("verb", ["board", "watch"])
+def test_the_read_only_model_verbs_run(verb):
+    """They share a function with `bench`, and shared functions read shared flags.
+
+    `board` reached `args.notes`, which only `bench` defines, and died with an
+    AttributeError while doing nothing but printing a table.
+    """
+    code, text = _cli("model", verb, "--harness", "v0")
+    assert code == 0, text
+    assert "Traceback" not in text
 
 
 def test_no_command_exits_with_an_error():

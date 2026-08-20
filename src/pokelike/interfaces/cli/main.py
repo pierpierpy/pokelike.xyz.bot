@@ -591,23 +591,6 @@ def cmd_llm_bench(args) -> int:
         print(f"no harness {args.harness} here. On disk: "
               f"{', '.join(known) or 'none'}", file=sys.stderr)
         return 2
-    if args.notes:
-        # Checked here, against the harness itself, because the alternative is
-        # finding out after the browser is up and the pre-flight has been paid for.
-        # Older harnesses declare NOTES_MAX and do not accept it as a setting, so
-        # asking the constructor is the only answer that cannot be wrong.
-        from ...bot.catalogue import load_class
-
-        try:
-            load_class(llmbench.harness_path(args.harness))(
-                seed=0, model="x", endpoint="http://x", token="x", notes=args.notes)
-        except TypeError:
-            print(f"--notes: harness {args.harness} does not let the notebook be "
-                  f"capped from outside.\n  It arrived in v4; before that the number "
-                  f"is part of what the version froze.", file=sys.stderr)
-            return 2
-        except Exception:  # noqa: BLE001, anything else is not this flag's business
-            pass
 
     if args.table:
         # Fetched now, not stored: prices are somebody else's changing fact, and a
@@ -627,6 +610,27 @@ def cmd_llm_bench(args) -> int:
     # it is the thing being measured, and it arrives per model in the loop below.
     creds = llm_settings(args)
     creds.pop("model", None)
+
+    if args.notes:
+        # Asked of the harness before the browser is up and the pre-flight is paid
+        # for. Below the `--table` branch and not above it, because `board` has no
+        # such flag at all: reading it there raised AttributeError on a command that
+        # was only printing a table.
+        #
+        # The constructor is what decides. Harnesses before v4 declare `NOTES_MAX`
+        # and refuse it as a setting, so nothing shorter than asking is correct.
+        from ...bot.catalogue import load_class
+
+        try:
+            load_class(llmbench.harness_path(args.harness))(
+                seed=0, model="x", endpoint="http://x", token="x", notes=args.notes)
+        except TypeError:
+            print(f"--notes: harness {args.harness} does not let the notebook be "
+                  f"capped from outside.\n  It arrived in v4; before that the number "
+                  f"is part of what the version froze.", file=sys.stderr)
+            return 2
+        except Exception:  # noqa: BLE001, anything else is not this flag's business
+            pass
 
     models = [m.strip() for m in (args.models or args.model or "").split(",") if m.strip()]
     if not models:
