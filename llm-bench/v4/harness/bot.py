@@ -1,54 +1,86 @@
 """The frozen harness for the model benchmark, v4: memory the model runs itself.
 
-WHAT THIS IS. v3's loop and v3's eyes, with the notebook turned from something the
-model was told to fill in at the end into something it manages while it plays, and
-with every tool call it makes written into the record. Every model measured under v4
+WHAT THIS IS. v2's agent loop, with three corrections to what the model can see and
+one change to what it is asked to do with its memory. Every model measured under v4
 was asked exactly the questions this file asks.
 
-WHY IT IS A VERSION AND NOT A FIX. The tools did not change. `remember`, `revise` and
-`forget` were callable on any turn under v1, v2 and v3 too. What changed is what the
-model is TOLD about them, and being told is the whole of it: v3's prompt said to write
-"a lesson you want to have in the NEXT run, not a reminder for later this turn", which
-is an instruction not to use the notebook while playing. A model that followed it held
-nothing within a run beyond the three turns of scratchpad.
+WHY IT IS A VERSION AND NOT A FIX. Every change here alters what the model reads, so a
+v2 row and a v4 row are answers to different questions, and the only honest way to hold
+both is a separate directory. v2's four rows stay valid under v2.
 
-WHAT CHANGED FROM v3, AND WHY EACH.
+WHAT HAPPENED TO v1 AND v3. Deleted, both unmeasured. v1 introduced the notebook and no
+model ever played it; v3 introduced the tooltips, the tutor gate and the journal, all
+three of which are in this file, and its one pass was abandoned unfinished. A version
+directory exists to keep recorded rows meaningful, and a version with no rows keeps
+nothing: it is a copy of the code with a number on it. The numbering is not compacted,
+because `HARNESS` is written into every result and 3 and 4 were real for a while.
 
-  1. THE NOTES ARE FOR NOW AS WELL AS FOR NEXT TIME. The prompt says the notebook can
-     be written on any turn, names the two cases worth writing (something worked out
-     about the map, which the scratchpad drops in three turns, and something about the
-     game, which should outlive the run) and no longer tells the model to save it up.
+WHAT CHANGED FROM v2, AND WHY EACH.
 
-     There is no end-of-run hook it could have used instead. There never was, and that
-     is the point: a run stops the moment the team is wiped out, so a lesson held back
-     for the end is a lesson thrown away.
+  1. THE MODEL IS TOLD TO USE ITS MEMORY, AND SHOWN HOW. `remember`, `revise` and
+     `forget` were callable on any turn under v1, v2 and v3 too, and were barely
+     called: two of the four models measured under v2 called `remember` ZERO times in
+     fifty runs. v2's prompt said to write "a lesson you want to have in the NEXT run,
+     not a reminder for later this turn", which is an instruction not to use the
+     notebook while playing, and there is no end-of-run hook it could have used
+     instead. A run stops the moment the team is wiped out, so a lesson held back for
+     the end is a lesson thrown away.
 
-  2. THE CAP IS A PARAMETER. `NOTES_MAX` is still 12, and is now settable per pass, so
-     how much memory helps becomes a question the instrument can ask rather than a
-     constant nobody chose deliberately. The prompt carries the real number instead of
-     the word "twelve", so what the model is told and what the tool enforces cannot
-     drift apart.
+     Here the prompt says the notebook is part of playing, asks for at least one note
+     per run and a plan on every map, gives five examples of a note worth keeping and
+     four of a note that wastes the space, and lists when to write. The closing lines
+     ask for both before the turn is played if neither has happened yet.
 
-  3. EVERY TOOL CALL IS IN THE RECORD, IN ORDER. Each decision in the trace carries
+     WHAT THAT COSTS, SAID PLAINLY. A prompt that tells a model to call a tool measures
+     how well it follows that instruction as much as how well it plays. The reason to
+     take it anyway is that the silent version could only ever produce one of the two
+     findings: "memory does not help" and "the models never touched the memory" are
+     different results, and v0 to v3 could not tell them apart. This can.
+
+  2. THE NODE TOOLTIPS, from v3. The game puts text under the pointer on every map
+     node: the trainer's archetype and which types they use, a gym leader's roster with
+     levels, what a trade does. `Officer — +2 Levels — Fire Pokemon`.
+     `Brock — Rock Gym | Geodude Lv12 | Onix Lv14`. Under v0 to v2 none of it was in
+     the state at all, so the benchmark measured how well a model plays half blind.
+     Read by calling the engine's own `getNodeLabel`, so it cannot drift from what is
+     displayed, and unrevealed nodes are skipped.
+
+  3. THE MOVE TUTOR BLOCK, ONLY AT THE TUTOR, from v3. Under v0 to v2 it was printed
+     every turn, because the bridge fills `offered_moves` unconditionally and nothing
+     gated on the screen. On seed 10000 it was on 11 of the first 13 turns and not one
+     of them was a tutor: 187 characters a turn describing an exchange not on offer.
+
+  4. THE JOURNAL SEPARATES WHAT WAS DONE FROM WHAT WAS SAID, from v3. v0 to v2 recorded
+     the model's own sentence under a heading reading YOUR RECENT MOVES, so a plan came
+     back as a record of events one turn later with nothing to tell the two apart. It
+     matters more here than it would have under v0, because v2 also carries the last
+     three turns verbatim: two channels for the model's reasoning, one labelled as fact.
+
+  5. THE CAP IS A SETTING. `NOTES_MAX` is still 12, and is now settable per pass with
+     `--set notes=N`, so how much memory helps becomes a question the instrument can
+     ask rather than a constant nobody chose deliberately. The prompt carries the real
+     number instead of the word "twelve", so what the model is told and what the tool
+     enforces cannot drift apart.
+
+  6. EVERY TOOL CALL IS IN THE RECORD, IN ORDER. Each decision in the trace carries
      the calls the model made to reach it: which tools, and for the ones that change
-     something, what they changed. Under v0 to v3 a pass recorded that a turn had
-     happened and what it chose, and the eight tools were invisible: a model that
-     never once asked what was ahead looked identical to one that asked every turn.
-     The notebook was saved once per run on top of that, so a note added and dropped
-     inside one run left no trace at all.
+     something, what they changed, refusals included. Under v0 to v3 a pass recorded
+     that a turn had happened and what it chose, and the eight tools were invisible: a
+     model that never once asked what was ahead looked identical to one that asked
+     every turn. The notebook was saved once per run on top of that, so a note added
+     and dropped inside one run left no trace at all.
 
-  4. THE PLAY CALL IS ANSWERED. v2 and v3 stored the exchange that ended the turn with
-     the `play` call in it and no reply to that call, because the turn returns the
-     moment it is seen. From the second turn on, every request carried an assistant
-     message with an unanswered `tool_call_id`. Providers that do not check the pairing
-     accept it; OpenAI's API refuses the whole request, so no model served by OpenAI
-     could be measured under v2 or v3 at all. `openai/gpt-4o-mini` fell back on 12 of
-     13 turns, each one an HTTP 400. Here every call in the exchange is answered before
-     it is stored.
+  7. THE PLAY CALL IS ANSWERED. v2 stored the exchange that ended the turn with the
+     `play` call in it and no reply to that call, because the turn returns the moment
+     it is seen. From the second turn on, every request carried an assistant message
+     with an unanswered `tool_call_id`. Providers that do not check the pairing accept
+     it; OpenAI's API refuses the whole request, so no model served by OpenAI could be
+     measured under v2 at all. `openai/gpt-4o-mini` fell back on 12 of 13 turns, each
+     one an HTTP 400. Here every call in the exchange is answered before it is stored.
 
-WHAT DID NOT CHANGE. The eight tools themselves, the scratchpad of three turns, six
-tool rounds, 4000 tokens an answer, temperature 0, the node tooltips, the tutor gate,
-the journal. Everything v2 and v3 said about why those are what they are still stands.
+WHAT DID NOT CHANGE FROM v2. The eight tools themselves, the scratchpad of three turns,
+six tool rounds, 4000 tokens an answer, temperature 0. Everything v2 said about why
+those are what they are still stands.
 
 WHAT DELIBERATELY DID NOT CHANGE, THOUGH IT COULD HAVE. `team_details` still shows a
 move by name and power and not by TYPE, and shows no base stats, so the special-attack
@@ -57,22 +89,24 @@ is a fair thing to fix and it is not in this version: v4 moves what the model do
 its memory, and adding a change to what it can see would put two variables in one
 table. That one is v5.
 
-SO WHAT DOES A v4 ROW MEAN. "How well does this model play when told the rules, how to
-use the loop, and that its memory is its own to run while it plays."
+SO WHAT DOES A v4 ROW MEAN. "How well does this model play when it sees what a person
+sees, is told how to use the loop, and is told to run its own memory while it plays."
 
-WHAT TO EXPECT, WRITTEN DOWN FIRST SO IT CANNOT BE ADJUSTED AFTERWARDS. More notes
-written per run than under v3, and `learn` no larger. The reason to expect that gap:
-telling a model it may write does not make what it writes worth reading, and under v2
-two of the four models measured called `remember` zero times even after being told what
-it was for. If `learn` does move, the number to read is not the badges, it is how many
-operations a run it took to get there.
+WHAT TO EXPECT, WRITTEN DOWN FIRST SO IT CANNOT BE ADJUSTED AFTERWARDS. Notes written
+in most runs, where v2 had two models out of four writing none at all, and `learn` not
+much larger. The reason to expect that gap: being told to write does not make what is
+written worth reading. If `learn` does move, the number to read is not the badges, it is
+how many operations a run it took to get there, which the trace now carries.
 
-THIS IS AN EXPERIMENT, NOT AN IMPROVEMENT. v3's rows stay valid under v3.
+THIS IS AN EXPERIMENT, NOT AN IMPROVEMENT. v2's rows stay valid under v2.
 
 **DO NOT EDIT THIS FILE.** Once a result exists under `../results/`, editing it makes
 every one of those rows a claim about code that no longer exists. The next idea is
 `llm-bench/v5/harness/bot.py`, a fresh directory, and these rows stay valid under v4
 where they were earned. That is why the version is in the path and not in a variable.
+
+The counterpart of that rule: a version that never recorded a row is keeping nothing,
+and v1 and v3 were deleted rather than kept as directories nobody could compare with.
 
 WHY IT IS A COPY AND NOT AN IMPORT. The shared harness in `src/pokelike/bot/llm.py`
 is meant to evolve -- it serves the submissions in `bots/`, and a good idea found
@@ -144,11 +178,14 @@ _spec.loader.exec_module(render)
 #      six tool rounds instead of four
 #   3  the above plus a scratchpad of the last few turns carried within a run,
 #      a `plan` tool for the route through the map, and 4000 tokens an answer
-#   4  the above, with the node tooltips a person can read, and a journal that
-#      separates what was done from what the model said about it
-#   5  the above, with the notebook presented as memory to run during the game,
-#      a settable cap on it, every tool call recorded per decision, and the
-#      `play` call answered so the stored exchange is a valid conversation
+#   4  the above, with the node tooltips a person can read, the tutor block only
+#      at the tutor, and a journal that separates what was done from what was
+#      said about it. Was v3, which is deleted; the number is kept because it is
+#      written into results that were recorded while it existed
+#   5  the above, with the model TOLD to run its memory rather than merely
+#      allowed to, a settable cap on it, every tool call recorded per decision,
+#      and the `play` call answered so the stored exchange is a valid
+#      conversation any provider accepts
 HARNESS = 5
 
 
@@ -212,27 +249,45 @@ most of playing this well.
   4. YOUR NOTES, which OUTLIVE THE RUN. This is the only thing that crosses from
      one game into the next. Everything else is gone when your team is wiped out.
 
-HOW TO USE YOUR NOTES -- READ THIS, MOST PLAYERS IGNORE IT
+YOUR MEMORY IS PART OF PLAYING, NOT AN EXTRA. USE IT.
 You get %NOTES% notes of 160 characters. They are shown to you every single turn,
 numbered, so you never need to ask for them. You can write, sharpen or drop one on ANY
 turn, this one included, and the change is in front of you from the next turn on.
 
-  `remember` -- write something you will want later. Two kinds are worth the space.
-      About THIS MAP: what you have worked out that you will still need in ten turns,
-      since your own words survive only three. About THE GAME: a lesson that should
-      outlive the run. Good: "trainer nodes on map 0 are safe with a level 8 lead".
-      "Skipping the pokecenter before a boss lost me the run three times." Useless:
-      "I am on map 1", which will be false in a minute.
-  `revise`   -- sharpen one when you learn it was nearly right. Notes are worth more
-      when they are specific: a number in a note beats an adjective.
-  `forget`   -- delete one that was wrong, or make room for a better one.
+WRITE AT LEAST ONE NOTE IN EVERY RUN. A run that ends with the notebook untouched is a
+run you learned nothing from, and the notes are the only thing that survives your team
+being wiped out. Everything else -- your reasoning, your plan, what you saw -- is gone.
 
-Write when you learn something, not at the end. There is no end to write at: the run
-stops the moment your team is wiped out, and whatever you were saving up goes with it.
+  `remember` -- a rule you want to be holding next time. Write it the moment you learn
+      it, not at the end: there is no end to write at, the run stops the instant your
+      last Pokemon faints.
+  `revise`   -- when a note turns out to be nearly right, sharpen THAT note. Two vague
+      notes about one thing are worth less than one exact note.
+  `forget`   -- when a note was wrong, or when you have something better and no room.
 
-The cap is the point. Once you hold %NOTES%, the only way to record something better
-is to improve or drop an old one, so treat them as your %NOTES% most valuable beliefs
-about this game rather than a diary. When you die, the notes are all you keep.
+Full notebook is not a reason to stop writing. Once you hold %NOTES%, `forget` your
+weakest note and `remember` the better one. The cap is there to make you choose, so
+treat them as your %NOTES% most valuable beliefs about this game rather than a diary.
+
+NOTES THAT ARE WORTH THE SPACE. Each is a rule for the next run, and each carries a
+number or a name:
+  "map 0 trainers are safe with a level 8 lead; map 1 trainers carry 2 Pokemon"
+  "skipping the pokecenter before the gym lost me 3 runs at exactly 1 badge"
+  "Brock leads Geodude Lv12 and Onix Lv14, both Rock: a Water lead walks it"
+  "catching at layer 1 costs one turn and pays for itself by the second gym"
+  "a level 14 lead loses to Rocket Grunts on map 2; arrive at 17"
+
+NOTES THAT WASTE IT:
+  "I am on map 1"            -- false in a minute
+  "be careful with trainers" -- no number, so no decision changes
+  "I chose the trainer node" -- the journal already tells you that
+  "Pokemon have types"       -- you knew that before the run started
+
+WHEN TO WRITE, CONCRETELY:
+  * a fight went worse than you expected: write what you had and what beat it
+  * your team is nearly gone: write what killed you, NOW, while you still have a turn
+  * something you believed turned out wrong: `revise` that note, do not add a second
+  * you found something that worked: write the number that made it work
 
 HOW TO PLAY WELL
 Nobody has told you the optimal strategy, because nobody knows it. What follows is
@@ -242,6 +297,14 @@ sound reasoning from the rules above, and your notes are how you improve on it.
     layer forever AND decides what you can reach next, so call `what_lies_ahead`
     before choosing on the map. A node that looks worse but keeps two paths open is
     often better than a slightly better node that funnels you into one.
+  - WRITE A PLAN ON EVERY MAP, BEFORE YOUR FIRST CHOICE THERE. Name the nodes and say
+    what each is for, so that when a fight goes badly you can see which assumption
+    broke. A plan is worth having wrong; it is not worth skipping.
+      A plan that helps: "n1_0 catch for a second body, n2_1 trainer for levels,
+      skip the item at n3_2, pokecenter n7_0 before the gym"
+      A plan that does nothing: "level up and beat the gym"
+    Replace it with `plan` the moment the route stops making sense. It is yours, and
+    it is shown back to you every turn until you change it.
   - DECIDE THE ROUTE EARLY. Write a `plan` before your first choice on a map, while
     every option is still open. Losing usually traces back to a choice made many
     turns before the turn where you died.
@@ -259,10 +322,16 @@ sound reasoning from the rules above, and your notes are how you improve on it.
 
 CLOSING = """
 Before you decide: read your notes above, read what you said in your last turns, and
-check your plan. Use `remember` the moment this run teaches you something, whether it
-is about this map or about the game: your notes are the only thing you keep.
+check your plan.
 
-Think briefly, then call `play` with your chosen index. Always call `play`."""
+Two things to have done before this run ends, and you cannot know which turn is the
+last one:
+  1. a `plan` for the map you are on, naming its nodes
+  2. at least one `remember`, or a `revise` of a note this run proved wrong
+
+If neither has happened yet this run, do it in this turn, before you play.
+
+Then call `play` with your chosen index. Always call `play`."""
 
 
 # ---------------------------------------------------------------------- tools

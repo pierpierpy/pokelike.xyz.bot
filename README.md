@@ -729,15 +729,14 @@ Credentials come from `$FW_ENDPOINT` / `$FW_TOKEN` / `$MODEL_ID` or from
 reads a file, so the key stays out of `ps` and out of your shell history. The same
 three flags work on `bot run` and `bot bench`.
 
-There are four harness versions and they are **never ranked against each other**,
+There are three harness versions and they are **never ranked against each other**,
 because two models asked different questions were not compared. `v0` is one call a
-turn with four tools. `v1` adds a notebook the model writes with
-`remember` / `revise` / `forget` and keeps *between* runs, to ask whether a model
-gets better at the game while it plays, which costs seed independence, so it refuses
-to run in parallel and reports a learning column instead of trusting its mean. `v2`
-adds a real agent loop: the last few turns travel with it and it plans a route
-through the map. `v3` gives it what a person sees, the text the game shows under the
-pointer on each map node.
+turn with four tools. `v2` adds a real agent loop: the last few turns travel with
+it, it plans a route through the map, and it keeps a notebook *between* runs, which
+costs seed independence, so it refuses to run in parallel and reports a learning
+column instead of trusting its mean. `v4` tells the model to use that notebook
+rather than merely allowing it, and gives it what a person sees: the text the game
+shows under the pointer on each map node.
 
 Each version freezes four files, so nothing outside its own directory can change what
 a recorded row means: the loop, the text the model reads, the bridge that decides what

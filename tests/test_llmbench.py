@@ -32,9 +32,14 @@ OFFLINE = {"endpoint": "https://example.invalid", "token": "not-a-real-token"}
 
 
 @pytest.fixture()
-def harness_v1():
-    """The frozen v1 class, constructed offline."""
-    cls = load_class(L.harness_path("v1"))
+def memory_harness():
+    """The frozen class of the harness that keeps notes, constructed offline.
+
+    v4 today. Named for what it is rather than for its number: v1 introduced the
+    notebook and was deleted without ever being measured, and a fixture called
+    `memory_harness` then had to be read twice to see which claim it was making.
+    """
+    cls = load_class(L.harness_path("v4"))
     return cls(seed=0, model="test-model", **OFFLINE)
 
 
@@ -236,10 +241,10 @@ def test_command_json_keeps_the_endpoint(tmp_path):
     assert json.loads(p.read_text())["endpoint"] == "https://openrouter.ai/api"
 
 
-def test_the_token_never_reaches_a_result_or_a_note(harness_v1):
+def test_the_token_never_reaches_a_result_or_a_note(memory_harness):
     """It has exactly one destination: the Authorization header."""
-    blob = json.dumps(harness_v1.notes()) + json.dumps(
-        [a.data for a in harness_v1.artifacts() if a.data]
+    blob = json.dumps(memory_harness.notes()) + json.dumps(
+        [a.data for a in memory_harness.artifacts() if a.data]
     )
     assert OFFLINE["token"] not in blob
 
@@ -247,41 +252,41 @@ def test_the_token_never_reaches_a_result_or_a_note(harness_v1):
 # ------------------------------------------------------- cross-run memory (v1)
 
 
-def test_v0_has_no_cross_run_memory_and_v1_does():
+def test_v0_has_no_cross_run_memory_and_v4_does():
     assert L.cross_run_memory("v0") is False
-    assert L.cross_run_memory("v1") is True
+    assert L.cross_run_memory("v4") is True
 
 
 def test_a_memory_harness_refuses_to_be_split_across_workers():
     """Eight workers would mean eight notebooks over a fifth of the pass each, and
     a row that depends on how the seeds were dealt out."""
     with pytest.raises(RuntimeError, match="not independent"):
-        L.fan_out("v1", "m", list(STANDARD_SEEDS), 8, Path("site"))
+        L.fan_out("v4", "m", list(STANDARD_SEEDS), 8, Path("site"))
 
 
-def test_the_notes_survive_the_end_of_a_run(harness_v1):
+def test_the_notes_survive_the_end_of_a_run(memory_harness):
     """One line is the whole feature: `on_start` must not clear them."""
-    harness_v1._remember("remember", {"note": "trainer nodes pay off early"})
-    kept = list(harness_v1.notebook)
-    harness_v1.journal = ["step 3: [0] something"]
+    memory_harness._remember("remember", {"note": "trainer nodes pay off early"})
+    kept = list(memory_harness.notebook)
+    memory_harness.journal = ["step 3: [0] something"]
 
-    harness_v1.on_start(seed=12345)
+    memory_harness.on_start(seed=12345)
 
-    assert harness_v1.notebook == kept, "the notes are the point of v1"
-    assert harness_v1.journal == [], "the journal is per-run and must be cleared"
+    assert memory_harness.notebook == kept, "the notes are the point of this harness"
+    assert memory_harness.journal == [], "the journal is per-run and must be cleared"
 
 
-def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(harness_v1):
+def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(memory_harness):
     """The bug that nearly shipped: the notes took the name of the journal-trim
     size, and `_commit` slices the journal with it."""
-    assert isinstance(harness_v1.memory, int)
-    assert harness_v1.memory == harness_v1.MEMORY
-    assert isinstance(harness_v1.notebook, list)
+    assert isinstance(memory_harness.memory, int)
+    assert memory_harness.memory == memory_harness.MEMORY
+    assert isinstance(memory_harness.notebook, list)
 
     state = {"actions": [{"kind": "menu", "label": "FIGHT"}], "team": None, "steps": 0}
-    for k in range(harness_v1.MEMORY + 4):
-        harness_v1._commit(dict(state, steps=k), 0, f"reason {k}")
-    assert len(harness_v1.journal) == harness_v1.MEMORY
+    for k in range(memory_harness.MEMORY + 4):
+        memory_harness._commit(dict(state, steps=k), 0, f"reason {k}")
+    assert len(memory_harness.journal) == memory_harness.MEMORY
 
 
 @pytest.mark.parametrize(
@@ -294,55 +299,57 @@ def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(harness_v1):
         ("forget", {"id": 0}, "there is no note [0]"),
     ],
 )
-def test_the_memory_verbs_answer_instead_of_raising(harness_v1, verb, args, expect):
+def test_the_memory_verbs_answer_instead_of_raising(memory_harness, verb, args, expect):
     """A model that gets an exception loses the turn to the fallback; a model that
     gets a sentence carries on."""
-    assert expect in harness_v1._remember(verb, args)
+    assert expect in memory_harness._remember(verb, args)
 
 
-def test_a_note_is_truncated_rather_than_rejected(harness_v1):
-    harness_v1._remember("remember", {"note": "x" * 500})
-    assert len(harness_v1.notebook[0]) == harness_v1.NOTE_CHARS
+def test_a_note_is_truncated_rather_than_rejected(memory_harness):
+    memory_harness._remember("remember", {"note": "x" * 500})
+    assert len(memory_harness.notebook[0]) == memory_harness.NOTE_CHARS
 
 
-def test_notes_are_capped_and_the_model_is_told_how_to_make_room(harness_v1):
-    for i in range(harness_v1.NOTES_MAX):
-        harness_v1._remember("remember", {"note": f"lesson {i}"})
-    reply = harness_v1._remember("remember", {"note": "one more"})
-    assert len(harness_v1.notebook) == harness_v1.NOTES_MAX
+def test_notes_are_capped_and_the_model_is_told_how_to_make_room(memory_harness):
+    for i in range(memory_harness.NOTES_MAX):
+        memory_harness._remember("remember", {"note": f"lesson {i}"})
+    reply = memory_harness._remember("remember", {"note": "one more"})
+    assert len(memory_harness.notebook) == memory_harness.NOTES_MAX
     assert "revise" in reply and "forget" in reply
 
 
-def test_every_memory_reply_says_how_full_the_notebook_is(harness_v1):
+def test_every_memory_reply_says_how_full_the_notebook_is(memory_harness):
     """Without it a model keeps calling `remember`, is refused, and behaves as
     though the lesson were saved."""
-    cap = str(harness_v1.NOTES_MAX)
-    assert cap in harness_v1._remember("remember", {"note": "one"})
-    assert cap in harness_v1._remember("revise", {"id": 1, "note": "two"})
-    assert cap in harness_v1._remember("forget", {"id": 1})
+    cap = str(memory_harness.NOTES_MAX)
+    assert cap in memory_harness._remember("remember", {"note": "one"})
+    assert cap in memory_harness._remember("revise", {"id": 1, "note": "two"})
+    assert cap in memory_harness._remember("forget", {"id": 1})
 
 
-def test_the_notes_are_injected_above_the_journal(harness_v1):
+def test_the_notes_are_injected_above_the_journal(memory_harness):
     """What was learned across fifty runs outranks the last six turns of this one."""
-    harness_v1._remember("remember", {"note": "a lesson"})
-    harness_v1.journal = ["step 3: [0] whatever"]
-    text = harness_v1._situation({"actions": [{"kind": "menu", "label": "FIGHT"}],
+    memory_harness._remember("remember", {"note": "a lesson"})
+    memory_harness.journal = ["step 3: [0] whatever"]
+    text = memory_harness._situation({"actions": [{"kind": "menu", "label": "FIGHT"}],
                                   "team": None, "steps": 3})
-    assert 0 <= text.find("WHAT YOU HAVE LEARNED") < text.find("YOUR RECENT MOVES")
+    # The heading changed with the harness: v0 to v2 said YOUR RECENT MOVES over the
+    # model's own sentences, v4 separates what was done from what was said about it.
+    assert 0 <= text.find("WHAT YOU HAVE LEARNED") < text.find("WHAT YOU DID")
 
 
-def test_v1_offers_the_three_memory_tools_and_still_ends_a_turn_with_play(harness_v1):
-    names = harness_v1.tool_names()
+def test_v1_offers_the_three_memory_tools_and_still_ends_a_turn_with_play(memory_harness):
+    names = memory_harness.tool_names()
     assert {"remember", "revise", "forget"} <= set(names)
     assert "play" in names, "without it every turn falls back"
 
 
-def test_notes_reported_per_run_are_a_copy(harness_v1):
+def test_notes_reported_per_run_are_a_copy(memory_harness):
     """The row is a snapshot of what it believed then, not a live handle."""
-    harness_v1._remember("remember", {"note": "a lesson"})
-    reported = harness_v1.notes()["notebook"]
+    memory_harness._remember("remember", {"note": "a lesson"})
+    reported = memory_harness.notes()["notebook"]
     reported.append("mutated")
-    assert "mutated" not in harness_v1.notebook
+    assert "mutated" not in memory_harness.notebook
 
 
 def test_the_notes_and_the_plan_get_their_own_files(tmp_path, monkeypatch):
@@ -440,7 +447,7 @@ def test_the_learn_column_appears_only_for_a_harness_that_keeps_notes(monkeypatc
     for r in doc["passes"][0]["runs"]:
         r.update(tokens_in=1, tokens_out=1, turns=1, fallbacks=0, notes_kept=3)
     monkeypatch.setattr(L, "load", lambda v: [doc])
-    assert "learn" in L.format_table("v1")
+    assert "learn" in L.format_table("v4")
     assert "learn" not in L.format_table("v0")
 
 

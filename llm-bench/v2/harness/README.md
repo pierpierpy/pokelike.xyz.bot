@@ -111,7 +111,7 @@ and so has no history to malform, has three `openai/` rows and `v2` has none.
 
 This cannot be corrected here. Four rows under `../results/` were measured against
 this file exactly as it is, and editing it would make them claims about code that no
-longer exists.
+longer exists. It is fixed in [`v4`](../../v4/harness/README.md).
 
 ## What a result carries
 
@@ -158,7 +158,8 @@ the game bundle, taken before the first seed is played.
 > about code that no longer exists. This page is the current description.
 
 **Do not edit this directory.** An improvement is a fresh directory, and
-[`v3`](../../v3/harness/README.md) is the one that followed.
+[`v4`](../../v4/harness/README.md) is the one to compare against. v3 came between
+them and was deleted unmeasured; what it changed is in v4.
 
 ## Running it
 

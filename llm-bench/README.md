@@ -32,8 +32,6 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 
 _No models measured under harness `v4` yet._
 
-_No models measured under harness `v3` yet._
-
 ### Harness `v2`
 
 | # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
@@ -44,8 +42,6 @@ _No models measured under harness `v3` yet._
 | 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
-
-_No models measured under harness `v1` yet._
 
 ### Harness `v0`
 
@@ -106,18 +102,25 @@ uv run pokelike model board --harness v0
 
 | flag | what it does |
 |---|---|
-| `--harness v3` | which frozen harness. **Required**, there is no default: the version is the question a row answers, see [below](#the-harnesses) |
+| `--harness v4` | which frozen harness. **Required**, there is no default: the version is the question a row answers, see [below](#the-harnesses) |
 | `--model a/b` | one model id |
 | `--models a/b,c/d` | several, comma separated, played one after another |
 | `--endpoint URL` | OpenAI-compatible base URL, no `/v1`. Overrides `$FW_ENDPOINT` |
 | `--api-key KEY` | the key, or `@path` to read it from a file. Overrides `$FW_TOKEN` |
-| `--workers N` | play the seeds in N processes at once. Refused on `v1` |
+| `--workers N` | play the seeds in N processes at once. Refused by a harness that keeps notes between runs, since its runs are not independent |
 | `--repeat N` | N passes of each model, kept separately |
 | `--runs N` | only the first N seeds. **Records nothing** |
 | `--seeds 10010,10011` | pick the seeds. Also `10010-10019`. **Records nothing** |
 | `--dry-run` | play everything, print the result, record nothing |
 | `--no-preflight` | skip the one test call made before spending anything |
 | `--table` | print the standings and regenerate the table in this file |
+| `--set KEY=VALUE` | a setting this harness understands, repeatable. `--set notes=4` caps v4's notebook |
+
+Those are the flags every version needs. `--set` is the one that is not: it goes
+straight to the harness constructor, which refuses by name what it does not know, so a
+version's own knob is the version's business and nothing on the command line has to
+learn a word that means nothing to the others. It is recorded with the pass, because a
+pass with a different setting is answering a different question.
 
 Two rules hide in that list and are worth stating plainly:
 
@@ -159,22 +162,21 @@ across them.
 
 - **`v0`** — the plain loop. One call a turn, four tools, memory of the last six
   moves, 1500 tokens an answer. The rules and no strategy.
-- **`v1`** — plus a notebook the model keeps **between** runs: `remember`, `revise`,
-  `forget`, twelve notes. Sequential only.
 - **`v2`** — plus an actual agent loop: the last three turns travel with it, a `plan`
   tool for the route through the map, 4000 tokens an answer, and a prompt that
   explains all of it and how to play. Sequential only, and it cannot measure a model
   served by OpenAI: the history it sends carries a tool call that was never answered,
   which OpenAI's API refuses and other providers accept.
   [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
-- **`v3`** — the same loop, seeing what a person sees: the node tooltips the game
-  shows on hover, the move tutor block only at the tutor, and a journal that separates
-  what was done from what the model said about it. Sequential only, and it inherits
-  v2's limitation: no model served by OpenAI can be measured under it.
-- **`v4`** — the notebook as memory the model runs during the game rather than a
-  lesson for next time, a cap you can set with `--set notes=N`, every tool call in
-  the trace, and the `play` call answered so any provider accepts the conversation.
-  Sequential only.
+- **`v4`** — the model is TOLD to run its memory rather than merely allowed to, with
+  examples of a note and a plan worth writing, a cap you can set with
+  `--set notes=N`, the node tooltips a person can read, every tool call in the trace,
+  and the `play` call answered so any provider accepts the conversation. Sequential
+  only.
+
+`v1` and `v3` were deleted, both unmeasured. A version directory exists to keep
+recorded rows meaningful, and one with no rows keeps nothing. What v3 changed lives
+in v4. The numbers are not compacted, because `HARNESS` is written into every result.
 
 Each carries four frozen files, so nothing outside its directory can move under a
 recorded row: `bot.py` (the loop), `render.py` (the text the model reads), `bridge.js`
@@ -185,23 +187,20 @@ game and are hashed rather than copied.
 Each has its own README with exactly what it asks a model:
 
 - [v0](v0/harness/README.md)
-- [v1](v1/harness/README.md)
 - [v2](v2/harness/README.md)
-- [v3](v3/harness/README.md)
 - [v4](v4/harness/README.md)
 
 ## Where the files go
 
 One directory per command under `llm-bench/<version>/logs/<stamp>/`, holding
 `command.json`, a `.log` per pass (one line a game, tail-able), a `.jsonl` (one
-decision each, with the reason), and under any harness that keeps notes a
-`notebook.log` and a `plan.log`. Results live apart, one file per model with every pass inside. Layout and
+decision each, with the reason and the tools called), and under any harness that
+keeps notes a `notebook.log` and a `plan.log`. Results live apart, one file per model with every pass inside. Layout and
 rationale: [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
 
 ```bash
 uv run pokelike model watch                     # follow the running pass
 uv run pokelike model watch --all               # every pass on this machine
-bash llm-bench/status.sh                        # that, plus containers and memory
 ls -t llm-bench/v0/logs/                        # the directories, newest first
 bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
 ```

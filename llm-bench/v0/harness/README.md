@@ -3,8 +3,8 @@
 **The first one.** Every model measured under `v0` was asked exactly what
 `bot.py` in this directory asks, and nothing else. This file says what that is.
 
-There is no "what changed" section, because there is nothing before it. `v1` will
-have one.
+There is no "what changed" section, because there is nothing before it. The
+versions after it each have one.
 
 ---
 

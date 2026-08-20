@@ -60,6 +60,7 @@ uv run pokelike model bench --harness v4 --model a/b --set notes=4  # smaller no
 # know. Shared flags are the same for every version; a version's own knob is its own.
 uv run pokelike model board --harness v4            # that version's table
 uv run pokelike model watch                         # follow the running pass
+# `llm-bench/status.sh` is gone: `watch --all` is the same table, and better.
 uv run pokelike model watch --stamp 20260820-1533   # pick one, when several run
 uv run pokelike model watch --all                   # every pass on this machine
 # --harness is REQUIRED on both: a version is the question a row answers
@@ -125,7 +126,7 @@ llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
 │                        and the model is the only thing that varies
 ├── docker/                the container long runs happen in. Build context is
 │                          the REPO ROOT, and .dockerignore must stay there
-├── v0..v3/harness/        FOUR FROZEN FILES each, never edited once a result
+├── v0, v2, v4/harness/    FOUR FROZEN FILES each, never edited once a result
 │                          exists beside them: bot.py (the loop), render.py (the
 │                          text the model reads), bridge.js (what is in the state)
 │                          and init.js (the seeded RNG). See the rule below
@@ -520,9 +521,12 @@ that improving the shared code for `bots/` cannot change what a recorded score m
 | | loop | memory | sees | tokens |
 |---|---|---|---|---|
 | `v0` | one call a turn, 4 tools, 4 rounds | last 6 moves, within the run | the screen | 1500 |
-| `v1` | v0 | plus 12 notes surviving the run: `remember`/`revise`/`forget` | v0 | 1500 |
-| `v2` | plus the last 3 turns carried verbatim, a `plan` tool, 6 rounds | v1's notes | v0 | 4000 |
-| `v3` | v2 | v2 | plus the node tooltips a person reads on hover, and the tutor block only at a tutor | 4000 |
+| `v2` | plus the last 3 turns carried verbatim, a `plan` tool, 6 rounds | plus 12 notes surviving the run: `remember`/`revise`/`forget` | v0 | 4000 |
+| `v4` | v2 | v2's notes, and the prompt now ASKS for them with examples, cap settable with `--set notes=N` | plus the node tooltips a person reads on hover, and the tutor block only at a tutor | 4000 |
+
+`v1` (the notebook alone) and `v3` (the tooltips alone) were deleted, both
+unmeasured. What v3 changed is in v4. The numbers are not compacted: `HARNESS` is
+written into every result, and 3 and 4 were real while those directories existed.
 
 `v0`'s prompt holds facts and no strategy on purpose: advice in a prompt measures how
 well models follow OUR advice. `v2` breaks that deliberately, because measurement

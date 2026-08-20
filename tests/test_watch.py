@@ -44,7 +44,7 @@ def test_a_seed_that_has_moved_on_is_a_finished_run(bench):
     """Grouping by seed is what tells a finished run from the one in flight.
 
     Read from the trace rather than from the columns of the human log, which is what
-    `status.sh` used to parse with `grep -c` and a fixed-width `cut`.
+    the shell script this replaced parsed with `grep -c` and a fixed-width `cut`.
     """
     _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
