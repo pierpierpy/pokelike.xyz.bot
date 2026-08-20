@@ -1,7 +1,7 @@
 """A trained Dyna-Q policy, playing greedily.
 
-    pokelike bot --bot dyna-q --runs 5
-    pokelike bench --bot dyna-q --category rl
+    pokelike bot run --bot dyna-q --runs 5
+    pokelike bot bench --bot dyna-q --category rl
 
 This file is the EXAMPLE OF WHAT A SUBMISSION LOOKS LIKE, and it is deliberately
 self-contained: the state and action encoding is copied in here rather than

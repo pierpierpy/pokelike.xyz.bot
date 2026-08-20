@@ -7,7 +7,7 @@ the model does not figure out on its own.
     export FW_ENDPOINT="https://..."   # base URL, no /v1
     export FW_TOKEN="..."
     export MODEL_ID="..."              # whichever model you want to measure
-    uv run pokelike bot --bot llm-baseline --runs 3
+    uv run pokelike bot run --bot llm-baseline --runs 3
 
 The prompt below is the whole submission. Everything else — the tools, the loop,
 how the state is rendered, what happens on a timeout — is in

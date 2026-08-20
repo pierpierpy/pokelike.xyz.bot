@@ -1,7 +1,7 @@
 """A trained SARSA(lambda) policy with linear function approximation, playing greedily.
 
-    pokelike bot --bot sarsa-v1 --runs 5
-    pokelike bench --bot sarsa-v1 --category rl
+    pokelike bot run --bot sarsa-v1 --runs 5
+    pokelike bot bench --bot sarsa-v1 --category rl
 
     q̂(s, a, w) = wᵀ x(s, a)
 

@@ -3,7 +3,7 @@
     export FW_ENDPOINT="https://..."   # base URL, no /v1
     export FW_TOKEN="..."
     export MODEL_ID="..."
-    uv run pokelike bot --bot llm-example --runs 1 -d
+    uv run pokelike bot run --bot llm-example --runs 1 -d
 
 **A reference, not a contender.** The other `llm-*` bots each move one thing, so
 comparing them means something; this one moves everything at once, which is the

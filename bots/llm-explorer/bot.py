@@ -7,7 +7,7 @@ exactly zero. Worth having both measured rather than argued about.
     export FW_ENDPOINT="https://..."   # base URL, no /v1
     export FW_TOKEN="..."
     export MODEL_ID="..."              # whichever model you want to measure
-    uv run pokelike bot --bot llm-explorer --runs 3
+    uv run pokelike bot run --bot llm-explorer --runs 3
 
 The prompt below is the whole submission. Everything else — the tools, the loop,
 how the state is rendered, what happens on a timeout — is in

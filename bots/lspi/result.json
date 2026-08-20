@@ -583,7 +583,7 @@
   "n_folded": 7129,
   "decisions": 964
  },
- "fingerprint": "a05c4efbdf5b32afdf9ea7b7f435f0f7a4e98643816f1453a4956c27d6a66499",
+ "fingerprint": "4d09d3c5ebe7635f0f8ac04914dfb32ee5499f9fc05444ca40a8d972e9b1998f",
  "artifacts": [
   {
    "name": "weights.json",
@@ -598,6 +598,14 @@
    "description": "how the policy was trained",
    "bytes": 692,
    "sha256": "d7565528c59382dc22d49b9bb68ce320e096c59a087722246255f6811cd5677b"
+  }
+ ],
+ "refingerprinted": [
+  {
+   "was": "a05c4efbdf5b32afdf9ea7b7f435f0f7a4e98643816f1453a4956c27d6a66499",
+   "now": "4d09d3c5ebe7635f0f8ac04914dfb32ee5499f9fc05444ca40a8d972e9b1998f",
+   "at": "2026-08-20T14:54:20+00:00",
+   "why": "docstring only: `pokelike bot --bot X` and `pokelike bench` renamed to `pokelike bot run` and `pokelike bot bench`, the commands they became. No code path changed and no number was replayed."
   }
  ]
 }

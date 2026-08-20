@@ -1,8 +1,8 @@
 """A policy learned by LSTD-Q(lambda) + Least-Squares Policy Iteration,
 playing greedily.
 
-    uv run pokelike bot --bot lspi --seed 40003 --runs 1 -g -dd
-    uv run pokelike bench --bot lspi --dry-run
+    uv run pokelike bot run --bot lspi --seed 40003 --runs 1 -g -dd
+    uv run pokelike bot bench --bot lspi --dry-run
 
     q̂(s, a, w) = wᵀ x(s, a)
 

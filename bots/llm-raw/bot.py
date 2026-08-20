@@ -3,7 +3,7 @@
     export FW_ENDPOINT="https://..."   # base URL, no /v1
     export FW_TOKEN="..."
     export MODEL_ID="..."
-    uv run pokelike bot --bot llm-raw --runs 3 -d
+    uv run pokelike bot run --bot llm-raw --runs 3 -d
 
 THE EXPERIMENT
 Every other bot here reads `render.screen`, which is written for a person: HP as

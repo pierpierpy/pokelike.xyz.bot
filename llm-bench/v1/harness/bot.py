@@ -26,7 +26,7 @@ WHAT THIS COSTS, WHICH IS NOT SMALL. Runs stop being independent. Run three now
 depends on what the model wrote during runs one and two, and three things follow
 that the tooling has to respect rather than paper over:
 
-  * The pass cannot be parallelised. `llm-bench` refuses `--workers > 1` for this
+  * The pass cannot be parallelised. `model bench` refuses `--workers > 1` for this
     version instead of quietly producing a pass whose result depends on which
     worker finished first.
   * The order of the seeds is part of the harness, not an implementation detail.
