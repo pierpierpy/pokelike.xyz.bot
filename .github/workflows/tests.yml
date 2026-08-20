@@ -1,6 +1,6 @@
 # The tests that can run anywhere.
 #
-# `-m "not slow"` is 148 tests in about five seconds, with no browser and no copy of
+# `-m "not slow"` is 163 tests in about six seconds, with no browser and no copy of
 # the game: the fingerprint logic, the tables, the schema, the leaderboard, name
 # resolution, the harness loading.
 #

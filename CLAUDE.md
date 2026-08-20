@@ -42,7 +42,7 @@ uv run pokelike play --seed 42   # interactive run
 uv run pokelike schema           # what a bot receives (--markdown regenerates STATE.md)
 uv run pokelike history -d       # what you played here, columns explained
 uv run pytest                    # full suite, ~1 minute, needs the game on disk
-uv run pytest -m "not slow"      # 148 tests in 5 s, no browser. What CI runs
+uv run pytest -m "not slow"      # 163 tests in 6 s, no browser. What CI runs
 
 # THE COMPETITION: your code is the entry, the game is fixed
 uv run pokelike bot new mine                        # a folder that already plays

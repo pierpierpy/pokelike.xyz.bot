@@ -73,15 +73,26 @@ def test_a_family_needs_a_verb(family):
     assert code != 0, f"{family} still runs without a verb"
 
 
-@pytest.mark.parametrize("verb", ["board", "watch"])
-def test_the_read_only_model_verbs_run(verb):
-    """They share a function with `bench`, and shared functions read shared flags.
+def test_model_board_prints_a_table():
+    """It shares a function with `bench`, and shared functions read shared flags.
 
     `board` reached `args.notes`, which only `bench` defines, and died with an
     AttributeError while doing nothing but printing a table.
     """
-    code, text = _cli("model", verb, "--harness", "v0")
+    code, text = _cli("model", "board", "--harness", "v0")
     assert code == 0, text
+    assert "Traceback" not in text
+
+
+def test_model_watch_says_so_when_there_is_nothing_to_watch():
+    """Exit 1 with a sentence, not a traceback.
+
+    The logs are gitignored, so a fresh checkout has no trace at all and this is the
+    path CI takes. Anything about the drawing itself is tested in test_watch.py, in
+    process, against a trace built in a tmp directory.
+    """
+    code, text = _cli("model", "watch", "--harness", "v0", "--once")
+    assert code in (0, 1), text
     assert "Traceback" not in text
 
 

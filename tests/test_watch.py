@@ -1,0 +1,158 @@
+"""The dashboard's reader, against a trace built here.
+
+In process and with `BENCH` pointed at a tmp directory, because the real one is
+gitignored: on a fresh checkout there is no pass to read, which is exactly the state
+CI runs in. What is worth testing is the parsing, and that needs a file, not a run.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from pokelike.instrument import watch
+
+
+def _trace(folder, model: str, rows: list[dict]) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "command.json").write_text(json.dumps({
+        "at": "2026-08-20T17:00:00+02:00", "harness": folder.parent.parent.name,
+        "models": [model], "runs": 3, "seeds": [10000, 10001, 10002], "workers": 1,
+    }), encoding="utf-8")
+    name = model.replace("/", "--")
+    (folder / f"{name}-pass1.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def _row(seed: int, step: int, at: str, **kw) -> dict:
+    row = {"at": at, "seed": seed, "step": step, "screen": "map-screen", "map": 0,
+           "badges": 0, "chose": 0, "action": "catch#n1_0", "options": ["a", "b"],
+           "why": "because", "run_in": 1000, "run_out": 100}
+    row.update(kw)
+    return row
+
+
+@pytest.fixture
+def bench(tmp_path, monkeypatch):
+    monkeypatch.setattr(watch, "BENCH", tmp_path)
+    return tmp_path
+
+
+def test_a_seed_that_has_moved_on_is_a_finished_run(bench):
+    """Grouping by seed is what tells a finished run from the one in flight.
+
+    Read from the trace rather than from the columns of the human log, which is what
+    `status.sh` used to parse with `grep -c` and a fixed-width `cut`.
+    """
+    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00"),
+        _row(10000, 1, "2026-08-20T17:00:30", badges=2),
+        _row(10001, 0, "2026-08-20T17:01:00"),
+    ])
+    p = watch.read(bench / "v9" / "logs" / "20260820-170000")
+    assert p is not None
+    assert p.model == "a/b"
+    assert [r.seed for r in p.runs] == [10000, 10001]
+    # The last seed is being played, so it is not counted as done.
+    assert p.done == 1
+    assert p.current is not None and p.current.seed == 10001
+    first = p.runs[0]
+    assert first.badges == 2 and first.steps == 2 and first.secs == 30.0
+
+
+def test_a_fallback_is_counted_from_the_reason(bench):
+    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00", why="(fell back: LLMError: HTTP 400)"),
+        _row(10000, 1, "2026-08-20T17:00:01"),
+        _row(10001, 0, "2026-08-20T17:00:02"),
+    ])
+    p = watch.read(bench / "v9" / "logs" / "20260820-170000")
+    assert p.runs[0].fell == 1
+
+
+def test_a_half_written_line_is_skipped_not_fatal(bench):
+    """The last line is being written while this reads. It arrives whole a moment later."""
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    f = d / "a--b-pass1.jsonl"
+    f.write_text(f.read_text(encoding="utf-8") + '{"seed": 10001, "st',
+                 encoding="utf-8")
+    p = watch.read(d)
+    assert [r.seed for r in p.runs] == [10000]
+
+
+def test_the_state_comes_from_the_log_and_not_from_the_trace_stopping(bench):
+    """A trace that stops looks the same whether the pass ended or the container died."""
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    assert watch.read(d).state == "running"
+    (d / "a--b-pass1.log").write_text("header\ndone  1 runs  0.0 badges\n",
+                                      encoding="utf-8")
+    assert watch.read(d).state == "done"
+    (d / "a--b-pass1.log").write_text("header\nFAILED after 1 runs: boom\n",
+                                      encoding="utf-8")
+    assert watch.read(d).state == "FAILED"
+
+
+def test_wanted_is_never_less_than_what_was_played(bench):
+    """Some older command files record `--seeds` as a range of two numbers.
+
+    A pass that says it wanted 2 and played 50 reads as a broken pass rather than as a
+    file being read the wrong way.
+    """
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000 + i, 0, "2026-08-20T17:00:00") for i in range(5)])
+    (d / "command.json").write_text(json.dumps(
+        {"runs": 0, "seeds": [10000, 10004]}), encoding="utf-8")
+    assert watch.read(d).wanted == 5
+
+
+def test_the_notes_come_from_the_last_block_that_changed(bench):
+    """`unchanged` means the previous block still stands, so it must not clear it."""
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    (d / "a--b-pass1-notebook.log").write_text(
+        "notes a/b kept between runs\n\n"
+        "run  1  seed 10000  (1 notes)\n  [1] first\n"
+        "run  2  seed 10001  (1 notes)  unchanged\n", encoding="utf-8")
+    assert watch.read(d).notes == ["[1] first"]
+
+
+def test_newest_prefers_the_directory_written_to_last(bench):
+    old = bench / "v9" / "logs" / "20260820-160000"
+    new = bench / "v9" / "logs" / "20260820-170000"
+    _trace(old, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
+    _trace(new, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
+    import os
+    import time
+
+    os.utime(old / "a--b-pass1.jsonl", (time.time() - 600, time.time() - 600))
+    assert watch.newest() == new
+
+
+def test_nothing_to_watch_is_an_answer(bench):
+    assert watch.dashboard(once=True) == 1
+    assert watch.overview() == 1
+
+
+def test_it_draws_what_it_read(bench):
+    """The renderables are built, so a field renamed in the reader cannot go unnoticed."""
+    from rich.console import Console
+
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00"),
+        # On the run in flight, which is the one the turn panel is about.
+        _row(10001, 0, "2026-08-20T17:00:10",
+             tools=[{"tool": "remember", "note": "a lesson", "kept": 1},
+                    {"tool": "play", "index": 0, "why": "because"}]),
+    ])
+    p = watch.read(d)
+    out = Console(width=100, record=True, file=open("/dev/null", "w"))
+    out.print(watch.render(p, ["a-container"]))
+    text = out.export_text()
+    assert "a/b" in text and "10000" in text
+    assert "remember" in text and "a lesson" in text
+    assert watch.dashboard(once=True) == 0
+    assert watch.overview() == 0
