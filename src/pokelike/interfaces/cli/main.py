@@ -553,6 +553,13 @@ def cmd_llm_bench(args) -> int:
         print(f"\n  table written to {llmbench.write_readme(price)}")
         return 0
 
+    if not args.harness:
+        print("--harness is required: it decides which frozen scaffold the model is\n"
+              f"asked to play, and rows are never compared across versions.\n"
+              f"  on disk: {', '.join(llmbench.versions()) or 'none'}",
+              file=sys.stderr)
+        return 2
+
     # Only the endpoint and the key: here the model is not a setting for one bot,
     # it is the thing being measured, and it arrives per model in the loop below.
     creds = llm_settings(args)
@@ -921,7 +928,16 @@ def main(argv: list[str] | None = None) -> int:
     # There the prompt is the submission; here the harness is frozen and the model
     # is the only thing that varies, so a row says something about the model.
     s = sub.add_parser("llm-bench", help="run models against a frozen LLM harness")
-    s.add_argument("--harness", default="v0", help="harness version, e.g. v0")
+    # No default. A harness version IS the question a row answers, so choosing one
+    # silently would let two passes that asked different things look like the same
+    # command. Not `required=True` either, because `--table` reads every version and
+    # has no harness of its own; the check is in `cmd_llm_bench`, where the
+    # difference between reading and running is known.
+    from ... import llmbench as _lbv
+    s.add_argument("--harness", default=None,
+                   help="harness version, one of: "
+                        f"{', '.join(_lbv.versions()) or 'none on disk'}. "
+                        "Required unless --table")
     s.add_argument("--model", default="", help="model id, e.g. openai/gpt-4o-mini")
     s.add_argument("--models", default="", help="several, comma separated")
     s.add_argument("--workers", type=int, default=1,

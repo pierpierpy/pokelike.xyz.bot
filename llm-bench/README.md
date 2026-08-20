@@ -103,7 +103,7 @@ uv run pokelike llm-bench --table
 
 | flag | what it does |
 |---|---|
-| `--harness v0` | which frozen harness, see [below](#the-harnesses) |
+| `--harness v3` | which frozen harness. **Required**, there is no default: the version is the question a row answers, see [below](#the-harnesses) |
 | `--model a/b` | one model id |
 | `--models a/b,c/d` | several, comma separated, played one after another |
 | `--endpoint URL` | OpenAI-compatible base URL, no `/v1`. Overrides `$FW_ENDPOINT` |
@@ -189,7 +189,7 @@ rationale: [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
 ```bash
 ls -t llm-bench/v0/logs/                        # your commands, newest first
 tail -f llm-bench/v0/logs/20260819-144219/*.log # follow one
-bash llm-bench/run.sh <model> [flags]           # the script for the common case
+bash llm-bench/run.sh <model> --harness <v>      # the script for the common case
 ```
 
 `run.sh` builds, runs detached, names the container after the model, picks the worker

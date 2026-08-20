@@ -2,9 +2,9 @@
 #
 # One benchmark, in a container, detached and self-removing.
 #
-#   bash llm-bench/run.sh deepseek/deepseek-v4-flash-0731
-#   bash llm-bench/run.sh google/gemini-3.7-flash --workers 2
-#   bash llm-bench/run.sh a/b,c/d --runs 2 --dry-run        # cheap check first
+#   bash llm-bench/run.sh deepseek/deepseek-v4-flash-0731 --harness v3
+#   bash llm-bench/run.sh google/gemini-3.7-flash --harness v0 --workers 2
+#   bash llm-bench/run.sh a/b,c/d --harness v3 --runs 2 --dry-run   # cheap check first
 #
 # Credentials come from .env at the repo root, which is gitignored and which
 # compose reads by itself. They are deliberately NOT arguments here: a key on a
@@ -20,8 +20,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE="$ROOT/llm-bench/docker/docker-compose.yml"
 
 if [ $# -lt 1 ]; then
-    echo "usage: bash llm-bench/run.sh <model>[,<model>...] [flags for llm-bench]" >&2
-    echo "   eg: bash llm-bench/run.sh deepseek/deepseek-v4-flash-0731" >&2
+    echo "usage: bash llm-bench/run.sh <model>[,<model>...] --harness <v> [flags]" >&2
+    echo "   eg: bash llm-bench/run.sh deepseek/deepseek-v4-flash-0731 --harness v3" >&2
     exit 2
 fi
 
@@ -37,17 +37,20 @@ fi
 NAME="$(printf '%s' "${MODELS%%,*}" | tr -c 'a-zA-Z0-9' '-' | tr -s '-' | sed 's/^-//;s/-$//')"
 NAME="${NAME}-$(date +%H%M%S)"
 
-HARNESS_DEFAULT=v0
-
-# The harness comes from the flags if you passed one, so `--harness v2` is not
-# fighting a hardcoded v0 further down the command line.
-HARNESS="$HARNESS_DEFAULT"
+# No default harness. A version IS the question the row answers, so picking one here
+# would decide it for you from a line nobody reads.
+HARNESS=""
 prev=""
 for a in "$@"; do
     [ "$prev" = "--harness" ] && HARNESS="$a"
     prev="$a"
 done
-case " $* " in *" --harness "*) HAS_HARNESS=1 ;; *) HAS_HARNESS=0 ;; esac
+if [ -z "$HARNESS" ]; then
+    echo "--harness is required, e.g. --harness v3" >&2
+    echo "  on disk: $(ls -d "$ROOT"/llm-bench/v*/harness 2>/dev/null \
+        | sed 's|.*/llm-bench/||;s|/harness||' | tr '\n' ' ')" >&2
+    exit 2
+fi
 
 # Workers: 4 is right for a harness whose runs are independent -- enough to finish a
 # 50-seed pass in half an hour, few enough that a rate-limited provider does not
@@ -74,7 +77,6 @@ fi
 # fails with EACCES on a repo the user owns.
 CMD=(docker compose -f "$COMPOSE" run -d --rm --user "$(id -u):$(id -g)" --name "$NAME" bench
      "${@:1:0}" "${WORKERS[@]}" --models "$MODELS" "$@")
-[ "$HAS_HARNESS" = "0" ] && CMD=("${CMD[@]}" --harness "$HARNESS_DEFAULT")
 
 if [ -n "${ECHO_ONLY:-}" ]; then printf '%q ' "${CMD[@]}"; echo; exit 0; fi
 
