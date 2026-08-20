@@ -253,6 +253,51 @@ def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench, monkeypatch
     assert [x.name for x in watch.live()] == [d.name]
 
 
+def test_the_numbers_in_the_list_do_not_move(bench, monkeypatch):
+    """A number has to mean the same pass twice in a row.
+
+    Ordered by last write, which is how everything else here is ordered, the list
+    reshuffled between two invocations: the 3 chosen a minute ago was the 1 chosen now,
+    and both were the same pass.
+    """
+    import os
+
+    a = bench / "v9" / "logs" / "20260820-160000"
+    b = bench / "v9" / "logs" / "20260820-170000"
+    _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
+    _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
+    # a was launched first and is the one writing now, so the two orders disagree.
+    (a / "command.json").write_text(json.dumps(
+        {"at": "2026-08-20T16:00:00+02:00", "runs": 3}), encoding="utf-8")
+    (b / "command.json").write_text(json.dumps(
+        {"at": "2026-08-20T17:00:00+02:00", "runs": 3}), encoding="utf-8")
+    older = time.time() - 30
+    os.utime(b / "c--d-pass1.jsonl", (older, older))
+    monkeypatch.setattr(watch, "_containers", lambda: [])
+
+    assert watch.folders()[0] == a, "the fixture does not set up the disagreement"
+    order = sorted(watch.live(), key=watch._started)
+    assert [d.name for d in order] == [a.name, b.name]
+
+
+def test_a_container_and_a_host_pass_sort_against_each_other(bench):
+    """The stamps are two clocks two hours apart, so the name cannot be the key.
+
+    A container writes UTC into the directory name and the host writes UTC+2. The `at`
+    in the command file carries its offset, which is why that is what this reads.
+    """
+    utc = bench / "v9" / "logs" / "20260820-150000"
+    host = bench / "v9" / "logs" / "20260820-163000"
+    _trace(utc, "a/b", [_row(10000, 0, "2026-08-20T15:00:00")])
+    _trace(host, "c/d", [_row(10000, 0, "2026-08-20T16:30:00")])
+    (utc / "command.json").write_text(json.dumps(
+        {"at": "2026-08-20T15:00:00+00:00", "runs": 3}), encoding="utf-8")
+    (host / "command.json").write_text(json.dumps(
+        {"at": "2026-08-20T16:30:00+02:00", "runs": 3}), encoding="utf-8")
+    # 15:00 UTC is 17:00 in Rome, so the container pass started LAST.
+    assert sorted([utc, host], key=watch._started) == [host, utc]
+
+
 def test_nothing_to_watch_is_an_answer(bench):
     assert watch.dashboard(once=True) == 1
     assert watch.overview() == 1

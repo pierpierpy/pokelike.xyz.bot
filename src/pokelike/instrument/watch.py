@@ -167,6 +167,26 @@ def live(version: str | None = None, within: float = 900.0) -> list[Path]:
     return out
 
 
+def _started(folder: Path) -> tuple[int, str]:
+    """When the pass was launched, for ordering a list of them.
+
+    From `command.json`, whose `at` carries a UTC offset, so a pass started in a
+    container (UTC) and one started on the host (UTC+2) sort against each other
+    correctly. The directory name cannot do that: it is local time in both cases and
+    the two clocks are two hours apart. Falls back to the name when there is no
+    command file, which is only ever a half-written directory.
+    """
+    f = folder / "command.json"
+    if f.is_file():
+        try:
+            at = json.loads(f.read_text(encoding="utf-8")).get("at")
+            if at:
+                return (0, datetime.fromisoformat(at).astimezone().isoformat())
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    return (1, folder.name)
+
+
 def pick(version: str | None = None, stamp: str | None = None,
          model: str | None = None) -> Path | None:
     """Which pass to follow, from what was asked for and what is running.
@@ -193,15 +213,22 @@ def pick(version: str | None = None, stamp: str | None = None,
     if len(running) < 2:
         return running[0] if running else newest(version)
 
+    # Numbered by when each pass STARTED, because a number has to mean the same thing
+    # twice in a row. Ordered by last write, which is how everything else here is
+    # ordered, the list reshuffled between two invocations: the 3 you chose a minute
+    # ago was the 1 you chose now, and both were the same pass.
+    running.sort(key=_started)
+
     console = Console()
     if not console.is_terminal:
-        # Nobody to ask. The newest is as good an answer as any, and saying which
-        # one it settled on is what stops the number being read as the other pass.
+        # Nobody to ask. The one being written to is as good an answer as any, and
+        # saying which it settled on is what stops the number being read as another.
+        chosen = max(running, key=_touched)
         console.print(f"[dim]{len(running)} passes going, following "
-                      f"{running[0].name}[/dim]")
-        return running[0]
+                      f"{chosen.name}[/dim]")
+        return chosen
 
-    console.print(f"{len(running)} passes are going:\n")
+    console.print(f"{len(running)} passes are going, oldest first:\n")
     for i, d in enumerate(running, 1):
         p = read(d)
         where = f"{p.done}/{p.wanted or '?'} runs" if p else "?"
