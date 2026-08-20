@@ -535,21 +535,22 @@ read-only tools, and closes with `play(index)`:
 that layer forever, and without reading the edges the model cannot know that.
 
 **What the model reads each turn is yours to choose too.** The default is the
-same ASCII view a person sees, which is 880 characters and leaves real things
-out (the engine's type/item table, which node connects to which, raw base
-stats) because it renders what someone would look at rather than everything
+same text a person sees, about 630 characters. That includes what the game says
+each option IS, the text it shows under the pointer on a map node: `Officer - +2
+Levels - Fire Pokemon`, or a gym leader's roster with levels. It still leaves
+real things out (the engine's type/item table, which node connects to which, raw
+base stats), because it renders what someone would look at rather than everything
 that is true. One line changes it:
 
 | `STATE_VIEW` | the model gets | roughly |
 |---|---|--:|
-| `"screen"` | the rendered view. The default | 880 chars |
-| `"json"` | the whole state dict | 5900 chars |
-| `"both"` | the view, then the dict under it | 6800 chars |
+| `"screen"` | the rendered view. The default | 630 chars |
+| `"json"` | the whole state dict | 5100 chars |
+| `"both"` | the view, then the dict under it | 5800 chars |
 | `["team", "actions"]` | just those keys, as JSON | varies |
 
-Six times the tokens is the price of `"json"`, about 1.8M per benchmark against
-275k, and it is not only money. A map the turn does not need takes room from
-the reasoning the model was about to do. Whether that trade pays is an
+Eight times the tokens is the price of `"json"`, and it is not only money. A map
+the turn does not need takes room from the reasoning the model was about to do. Whether that trade pays is an
 experiment, which is why [`llm-raw`](bots/llm-raw/) is `llm-survivor` with the
 same prompt and a different view, and nothing else.
 
@@ -724,17 +725,21 @@ Credentials come from `$FW_ENDPOINT` / `$FW_TOKEN` / `$MODEL_ID` or from
 reads a file, so the key stays out of `ps` and out of your shell history. The same
 three flags work on `bot` and `bench`.
 
-There are two harness versions and they are **never ranked against each other**,
+There are four harness versions and they are **never ranked against each other**,
 because two models asked different questions were not compared. `v0` is one call a
 turn with four tools. `v1` adds a notebook the model writes with
 `remember` / `revise` / `forget` and keeps *between* runs, to ask whether a model
-gets better at the game while it plays, which costs seed independence, so `v1`
-refuses to run in parallel and reports a learning column instead of trusting its
-mean.
+gets better at the game while it plays, which costs seed independence, so it refuses
+to run in parallel and reports a learning column instead of trusting its mean. `v2`
+adds a real agent loop: the last few turns travel with it and it plans a route
+through the map. `v3` gives it what a person sees, the text the game shows under the
+pointer on each map node.
 
-A frozen harness is never edited once a result exists under it: that would make
-every recorded row a claim about code that no longer exists. A new idea is a new
-directory. See [llm-bench/README.md](llm-bench/README.md).
+Each version freezes four files, so nothing outside its own directory can change what
+a recorded row means: the loop, the text the model reads, the bridge that decides what
+is in the state, and the script that pins the seed. A frozen harness is never edited
+once a result exists under it. A new idea is a new directory. See
+[llm-bench/README.md](llm-bench/README.md).
 
 ## Reproducibility
 
@@ -860,11 +865,16 @@ state['actions']  ..  THE ONLY THING YOU MUST UNDERSTAND
   Two shapes:
 
   a map move                      any other choice
-    kind:  'node'                   kind:  'element'
-    id:    'n3_1'                   idx:   2
-    node:  'catch'                  label: 'Squirtle Lv. 5 WATER ...'
-    layer: 3                        layer: 'catch-screen'
-    col:   1
+    kind:    'node'                 kind:  'element'
+    id:      'n3_1'                 idx:   2
+    node:    'catch'                label: 'Squirtle Lv. 5 WATER ...'
+    layer:   3                      layer: 'catch-screen'
+    col:     1
+    tooltip: 'Catch Pokemon'
+
+  `tooltip` is what the game says this node IS, the same text it shows a
+  person hovering over it. Read it: 'Officer - +2 Levels - Fire Pokemon'
+  is the difference between a fight you win and one you do not.
 
   real: {"kind": "node", "id": "n3_0", "node": "catch", "layer": 3, "col": 0, "tooltip": "Catch Pokemon"}
   real: {"kind": "node", "id": "n3_1", "node": "catch", "layer": 3, "col": 1, "tooltip": "Catch Pokemon"}
@@ -923,7 +933,7 @@ state['map']
 ------------------------------------------------------------------------------
   current    id of the node you are standing on
   edges      [from, to] pairs. This is how you know where a choice leads
-  nodes      every node: id, kind, layer, col, accessible, visited, revealed
+  nodes      every node: id, kind, layer, col, accessible, visited, revealed, and `tooltip`, the text the game itself shows when a person rests the pointer on it. That is where the detail lives: a trainer's archetype and the types they use, a gym leader's roster with levels, what a trade does. None of it is anywhere else in the state
 
   Picking a node CLOSES every other node on that layer, forever. Use
   `edges` to see where a choice leads before taking it.

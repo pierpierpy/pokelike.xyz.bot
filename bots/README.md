@@ -168,7 +168,7 @@ It is there so a reader can tell at a glance what kind of thing is winning.
 |---|---|
 | `rules` | hand-written logic |
 | `rl` | anything trained: tabular, linear, deep |
-| `llm` | a language model in the loop. The four `llm-*` bots here are one shared harness with four prompts |
+| `llm` | a language model in the loop. The six `llm-*` bots here are one shared harness: five are a prompt and nothing else, and `llm-example` turns every knob with a reason for each |
 | `human` | a person playing, for reference |
 | `other` | search, planning, hybrids, whatever else |
 

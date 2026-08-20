@@ -84,7 +84,11 @@ TEAM_FIELDS = {
 }
 
 MAP_FIELDS = {
-    "nodes": "every node: id, kind, layer, col, accessible, visited, revealed",
+    "nodes": ("every node: id, kind, layer, col, accessible, visited, revealed, "
+              "and `tooltip`, the text the game itself shows when a person rests the "
+              "pointer on it. That is where the detail lives: a trainer's archetype "
+              "and the types they use, a gym leader's roster with levels, what a trade "
+              "does. None of it is anywhere else in the state"),
     "edges": "[from, to] pairs. This is how you know where a choice leads",
     "current": "id of the node you are standing on",
 }
@@ -143,11 +147,16 @@ def describe(obs: dict[str, Any]) -> str:
     add("  Two shapes:")
     add("")
     add("  a map move                      any other choice")
-    add("    kind:  'node'                   kind:  'element'")
-    add("    id:    'n3_1'                   idx:   2")
-    add("    node:  'catch'                  label: 'Squirtle Lv. 5 WATER ...'")
-    add("    layer: 3                        layer: 'catch-screen'")
-    add("    col:   1")
+    add("    kind:    'node'                 kind:  'element'")
+    add("    id:      'n3_1'                 idx:   2")
+    add("    node:    'catch'                label: 'Squirtle Lv. 5 WATER ...'")
+    add("    layer:   3                      layer: 'catch-screen'")
+    add("    col:     1")
+    add("    tooltip: 'Catch Pokemon'")
+    add("")
+    add("  `tooltip` is what the game says this node IS, the same text it shows a")
+    add("  person hovering over it. Read it: 'Officer - +2 Levels - Fire Pokemon'")
+    add("  is the difference between a fight you win and one you do not.")
     add("")
     for a in (obs.get("actions") or [])[:3]:
         add(f"  real: {json.dumps(a)}")
