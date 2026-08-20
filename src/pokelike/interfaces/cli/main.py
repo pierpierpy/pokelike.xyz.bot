@@ -612,23 +612,29 @@ def cmd_llm_bench(args) -> int:
     creds = llm_settings(args)
     creds.pop("model", None)
 
-    if args.notes:
+    try:
+        settings = llmbench.parse_settings(args.settings)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    if settings:
         # Asked of the harness before the browser is up and the pre-flight is paid
         # for. Below the `--table` branch and not above it, because `board` has no
         # such flag at all: reading it there raised AttributeError on a command that
         # was only printing a table.
         #
-        # The constructor is what decides. Harnesses before v4 declare `NOTES_MAX`
-        # and refuse it as a setting, so nothing shorter than asking is correct.
+        # The constructor is what decides, and it names what it refused. Nothing
+        # here has a list of settings to check against, which is the point: a
+        # harness added tomorrow needs no change on this side.
         from ...bot.catalogue import load_class
 
         try:
             load_class(llmbench.harness_path(args.harness))(
-                seed=0, model="x", endpoint="http://x", token="x", notes=args.notes)
-        except TypeError:
-            print(f"--notes: harness {args.harness} does not let the notebook be "
-                  f"capped from outside.\n  It arrived in v4; before that the number "
-                  f"is part of what the version froze.", file=sys.stderr)
+                seed=0, model="x", endpoint="http://x", token="x", **settings)
+        except TypeError as e:
+            print(f"harness {args.harness}: {e}", file=sys.stderr)
+            print(f"  `--set` reaches the harness, and this one does not take "
+                  f"what was passed.", file=sys.stderr)
             return 2
         except Exception:  # noqa: BLE001, anything else is not this flag's business
             pass
@@ -729,6 +735,10 @@ def cmd_llm_bench(args) -> int:
         "workers": args.workers,
         "repeat": args.repeat,
         "records": not (args.dry_run or partial),
+        # What the harness was told beyond the shared flags. Recorded because a pass
+        # with a different setting is answering a different question, and the flags
+        # were the one thing nothing wrote down before.
+        **({"settings": settings} if settings else {}),
         # The endpoint, never the key: which provider served a row changes what the
         # row means, and is worth having later. A token is worth nothing later.
         "endpoint": creds.get("endpoint") or os.environ.get("FW_ENDPOINT") or None,
@@ -755,11 +765,11 @@ def cmd_llm_bench(args) -> int:
                     one = llmbench.fan_out(args.harness, model, seeds, args.workers,
                                            SITE_ROOT, port0=args.port + 10,
                                            folder=folder, attempt=attempt,
-                                           notes=args.notes, **creds)
+                                           settings=settings, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
                                               seeds, folder=folder, attempt=attempt,
-                                              notes=args.notes, **creds)
+                                              settings=settings, **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                       f"(best {s.get('badges_best')}), "
@@ -1088,10 +1098,13 @@ def _model_bench_args(s) -> None:
                    help="pick the seeds yourself: 10010,10011 or 10010-10019. "
                         "Anything other than the standard 50 records nothing, so "
                         "this is for testing and for running two at once")
-    s.add_argument("--notes", type=int, default=0, metavar="N",
-                   help="cap the model's notebook at N notes, where the harness "
-                        "lets it be set. A different cap is a different question, "
-                        "so it is recorded with the pass")
+    # Whatever one harness understands and the others do not. The flags above are
+    # the ones every version needs; this is where a version speaks for itself.
+    s.add_argument("--set", action="append", dest="settings", default=[],
+                   metavar="KEY=VALUE",
+                   help="a setting this harness understands, repeatable. v4 takes "
+                        "`--set notes=4` to cap its notebook. A different setting "
+                        "is a different question, so it is recorded with the pass")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
     s.add_argument("--table", action="store_true", help=argparse.SUPPRESS)

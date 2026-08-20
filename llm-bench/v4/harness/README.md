@@ -31,7 +31,7 @@ writes every tool call into the record.
 | | `v3` | `v4` |
 |---|---|---|
 | when to write a note | "a lesson for the NEXT run" | any turn, for this map or for the game |
-| the cap | 12, in the code and as a word in the prompt | 12 by default, `--notes N` per pass, in the prompt as a number |
+| the cap | 12, in the code and as a word in the prompt | 12 by default, `--set notes=N` per pass, in the prompt as a number |
 | what the trace holds | the choice and the sentence | that, plus every tool call in order |
 | the notebook in the record | once per finished run | that, plus each write, revision and deletion |
 | the `play` call | stored with no reply to it | answered, so the stored exchange is valid |
@@ -51,16 +51,21 @@ And it says when: at the moment something is learned, not at the end.
 
 ## The cap as a parameter
 
-`NOTES_MAX = 12` is the declared default, and `--notes N` sets it per pass. The prompt
-carries the real number rather than the word "twelve", so what the model is told and
-what the tool enforces cannot drift apart.
+`NOTES_MAX = 12` is the declared default, and `--set notes=N` changes it per pass. The
+prompt carries the real number rather than the word "twelve", so what the model is
+told and what the tool enforces cannot drift apart.
+
+`--set` is how a harness takes a setting no other version understands: it goes
+straight to the constructor, which refuses by name what it does not know. There is no
+`--notes` flag, and there is nothing to add to the CLI when a later version invents a
+knob of its own.
 
 Every run row records `notes_max`. **A pass with a different cap is a different
 question**, so a row measured at 5 and a row measured at 12 are not each other's
 competition, in the same way a `v3` row is not a `v4` row.
 
 ```bash
-uv run pokelike model bench --harness v4 --model qwen/qwen3.7-flash --notes 4
+uv run pokelike model bench --harness v4 --model qwen/qwen3.7-flash --set notes=4
 ```
 
 ## Every tool call, in order

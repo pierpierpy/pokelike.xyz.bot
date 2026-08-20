@@ -522,6 +522,43 @@ def session_dir(version: str) -> Path:
     return d
 
 
+def parse_settings(pairs: list[str] | None) -> dict[str, Any]:
+    """`--set notes=4` into `{"notes": 4}`, for the harness to accept or refuse.
+
+    WHY THIS RATHER THAN A FLAG EACH. The flags every benchmark needs are the
+    same handful: which harness, which model, how many seeds, how many workers,
+    where to send the request. What ONE harness needs is its own business, and a
+    named flag for it means this file, the worker, the fan-out and the parser all
+    learn a word that means nothing to any other version. `notes` was exactly
+    that: four places threading one integer that only v4 can read.
+
+    Nothing is validated here on purpose. The harness constructor already refuses
+    what it does not know, by name, and it is the only thing that knows.
+
+    Values are typed by shape, since a command line has only strings and
+    `notes="4"` would be a string where a number belongs.
+    """
+    out: dict[str, Any] = {}
+    for item in pairs or []:
+        key, sep, value = item.partition("=")
+        key = key.strip()
+        if not sep or not key:
+            raise ValueError(f"--set wants key=value, got {item!r}")
+        value = value.strip()
+        if value.lower() in ("true", "false"):
+            out[key] = value.lower() == "true"
+            continue
+        for cast in (int, float):
+            try:
+                out[key] = cast(value)
+                break
+            except ValueError:
+                continue
+        else:
+            out[key] = value
+    return out
+
+
 def record_command(folder: Path, payload: dict[str, Any]) -> Path:
     """What was asked for, beside what it produced.
 
@@ -833,19 +870,18 @@ class PassLog:
 def play_model(game, version: str, model: str, site: Path,
                seeds: list[int] | None = None, endpoint: str | None = None,
                token: str | None = None, folder: Path | None = None,
-               attempt: int = 1, notes: int = 0) -> dict[str, Any]:
+               attempt: int = 1,
+               settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness."""
     from ..bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
-    kw: dict[str, Any] = {}
-    if notes:
-        # Refused rather than ignored by a harness that has no cap to set. A flag
-        # that silently does nothing is worse than one that does not exist, since
-        # the pass then answers a question nobody asked.
-        kw["notes"] = notes
-    bot = cls(seed=0, model=model, endpoint=endpoint, token=token, **kw)
+    # Straight to the constructor, which refuses what it does not know by name. A
+    # setting silently ignored is worse than one that does not exist, because the
+    # pass then answers a question nobody asked.
+    bot = cls(seed=0, model=model, endpoint=endpoint, token=token,
+              **(settings or {}))
     # Taken now, against the code about to play, not at the end against whatever
     # is on disk by then.
     stamp = fingerprints(version)
@@ -997,7 +1033,8 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
 def fan_out(version: str, model: str, seeds: list[int], workers: int,
             site: Path, port0: int = 8500, endpoint: str | None = None,
             token: str | None = None, folder: Path | None = None,
-            attempt: int = 1, notes: int = 0) -> dict[str, Any]:
+            attempt: int = 1,
+            settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """The same pass, played by several processes at once."""
     import os
     import queue
@@ -1046,7 +1083,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             # single-process path still worked.
             [sys.executable, "-m", __name__, "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
-             *(("--notes", str(notes)) if notes else ()),
+             *[a for k, v in (settings or {}).items()
+               for a in ("--set", f"{k}={v}")],
              "--seeds", ",".join(str(s) for s in chunk)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))
@@ -1170,13 +1208,13 @@ def _worker() -> int:
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--seeds", required=True)
     # Passed through by `fan_out`. Without it a parallel pass would run the
-    # harness default while the pass said it ran the cap that was asked for.
-    p.add_argument("--notes", type=int, default=0)
+    # harness defaults while the pass said it ran what was asked for.
+    p.add_argument("--set", action="append", dest="settings", default=[])
     a = p.parse_args()
 
     seeds = [int(s) for s in a.seeds.split(",") if s]
     cls = load_class(harness_path(a.harness))
-    bot = cls(seed=0, model=a.model, **({"notes": a.notes} if a.notes else {}))
+    bot = cls(seed=0, model=a.model, **parse_settings(a.settings))
     server = AssetServer(ROOT / "site", port=a.port)
     server.start()
     game = Game(url=server.url, **script_paths(a.harness))
@@ -1189,7 +1227,14 @@ def _worker() -> int:
             # inside it, so without this the shared bar has nothing to say for
             # minutes at a time. Every fifth step, because the point is "it is
             # moving and here is where", not a transcript.
+            #
+            # The observation itself is kept EVERY step, which is not the same thing:
+            # the decision written below draws the map from it, and a map four steps
+            # stale is a map of somewhere else.
+            last: dict[str, Any] = {}
+
             def live(obs, steps, _seed=seed):
+                last["obs"] = obs
                 if steps % 5:
                     return
                 # Raw counts, not the bar's pretty strings: the parent has to add
@@ -1200,11 +1245,27 @@ def _worker() -> int:
                     **live_fields(obs),
                 }), flush=True)
 
+            drawn = [""]
+
             def decided(entry, _seed=seed):
+                # The same additions the sequential path makes, and for the same
+                # reasons. Kept in step deliberately: a trace read by the dashboard
+                # cannot say less about a pass because four processes played it.
+                extra: dict[str, Any] = {}
+                made = getattr(bot, "tool_calls_made", None)
+                if callable(made):
+                    extra["tools"] = made()
+                if ((last.get("obs") or {}).get("map") or {}).get("nodes"):
+                    from ..core import render
+
+                    picture = render.map_view(last["obs"]["map"])
+                    if picture and picture != drawn[0]:
+                        extra["map_view"] = picture
+                        drawn[0] = picture
                 print(json.dumps({"trace": {
                     "seed": _seed,
                     "run_in": bot.tokens_in, "run_out": bot.tokens_out,
-                    **entry,
+                    **entry, **extra,
                 }}, ensure_ascii=False), flush=True)
 
             full = play_run(game, bot, seed, max_steps=400, on_step=live,

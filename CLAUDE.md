@@ -55,7 +55,9 @@ uv run pokelike bot board                           # the standings, from disk
 
 # THE INSTRUMENT: the scaffold is frozen, the model is the entry
 uv run pokelike model bench --harness v4 --model a/b
-uv run pokelike model bench --harness v4 --model a/b --notes 4   # smaller notebook
+uv run pokelike model bench --harness v4 --model a/b --set notes=4  # smaller notebook
+# --set goes to the harness constructor, which refuses by name what it does not
+# know. Shared flags are the same for every version; a version's own knob is its own.
 uv run pokelike model board --harness v4            # that version's table
 uv run pokelike model watch                         # follow the running pass
 uv run pokelike model watch --stamp 20260820-1533   # pick one, when several run

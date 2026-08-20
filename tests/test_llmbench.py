@@ -662,3 +662,25 @@ def test_a_watched_bar_still_carries_the_live_state(capsys, monkeypatch):
     bar.set_postfix({"badges": 0.75})
     bar.close()
     assert "badges" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- --set settings
+
+
+def test_settings_are_typed_by_shape():
+    """A command line has only strings, and `notes="4"` is a string where a number goes."""
+    got = L.parse_settings(["notes=4", "temperature=0.7", "verbose=true", "who=me"])
+    assert got == {"notes": 4, "temperature": 0.7, "verbose": True, "who": "me"}
+
+
+def test_a_setting_without_a_value_is_refused():
+    with pytest.raises(ValueError):
+        L.parse_settings(["notes"])
+    with pytest.raises(ValueError):
+        L.parse_settings(["=4"])
+
+
+def test_no_settings_is_an_empty_dict_not_a_none():
+    """It is splatted into a constructor call, so it has to be a mapping either way."""
+    assert L.parse_settings(None) == {}
+    assert L.parse_settings([]) == {}

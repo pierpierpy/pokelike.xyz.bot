@@ -48,6 +48,7 @@ class Run:
     screen: str = ""
     why: str = ""
     tools: list[dict[str, Any]] = field(default_factory=list)
+    ops: list[dict[str, Any]] = field(default_factory=list)
     team: list[str] = field(default_factory=list)
     map_view: str = ""
 
@@ -76,6 +77,7 @@ class Pass:
     state: str = "running"
     runs: list[Run] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    notes_live: list[str] = field(default_factory=list)
     plan: str = ""
 
     @property
@@ -297,6 +299,10 @@ def read(folder: Path) -> Pass | None:
         r.screen = e.get("screen") or ""
         r.why = e.get("why") or ""
         r.tools = e.get("tools") or []
+        # Kept for the whole run, not just the last turn: the notes as they stand now
+        # are the last finished notebook with this run's operations applied.
+        r.ops.extend(c for c in (e.get("tools") or [])
+                     if c.get("tool") in ("remember", "revise", "forget"))
         r.team = e.get("team") or r.team
         # Written only when it changed, so the last one seen is the current one. Kept
         # per run, because a run that ends leaves its own last map behind it.
@@ -326,7 +332,39 @@ def read(folder: Path) -> Pass | None:
 
     p.notes = _notes(folder, trace)
     p.plan = _plan(folder, trace)
+    p.notes_live = _replay(p)
     return p
+
+
+def _replay(p: Pass) -> list[str]:
+    """The notes as they stand THIS turn, not as they stood when a run last ended.
+
+    The notebook file is written per finished run, so a note written five turns ago sat
+    in a dashboard that said "nothing written yet" until the run ended. Under v4 every
+    operation is in the trace with the text, so the current state is the last finished
+    notebook with this run's operations applied on top.
+
+    Refused operations are skipped, which is the whole reason `refused` is recorded: a
+    `remember` against a full notebook changed nothing and must not read as if it did.
+
+    A harness that does not record its operations gets the per-run notebook and nothing
+    else, which is all there is to have.
+    """
+    r = p.current
+    if r is None:
+        return list(p.notes)
+    notes = list(p.notes)
+    for c in r.ops:
+        if c.get("refused"):
+            continue
+        op, note, i = c.get("tool"), c.get("note"), c.get("id")
+        if op == "remember" and note:
+            notes.append(str(note))
+        elif op == "forget" and isinstance(i, int) and 1 <= i <= len(notes):
+            notes.pop(i - 1)
+        elif op == "revise" and note and isinstance(i, int) and 1 <= i <= len(notes):
+            notes[i - 1] = str(note)
+    return notes
 
 
 def _notes(folder: Path, trace: Path) -> list[str]:
@@ -345,7 +383,11 @@ def _notes(folder: Path, trace: Path) -> list[str]:
             if "unchanged" not in line:
                 block = []
         elif line.startswith("  ["):
-            block.append(line.strip())
+            # The file writes `  [1] a note`. The number is stripped here and put
+            # back by whoever draws it, so a replayed operation and a note read
+            # from the file are numbered by the same thing.
+            _, _, text = line.strip().partition("] ")
+            block.append(text or line.strip())
     return block
 
 
@@ -452,8 +494,15 @@ def _team_and_map(p: Pass):
     from rich.panel import Panel
 
     r = p.current or (p.runs[-1] if p.runs else None)
-    team = "\n".join(r.team) if r and r.team else "[dim]not in this trace[/dim]"
-    picture = r.map_view if r and r.map_view else "[dim]not in this trace[/dim]"
+    # A run at the character select has no team and no map yet, which is not the
+    # same as a trace that never carries them. Saying the wrong one of those sends
+    # you looking for a bug in the logger.
+    ever_team = any(x.team for x in p.runs)
+    ever_map = any(x.map_view for x in p.runs)
+    nothing_team = "[dim]not yet[/dim]" if ever_team else "[dim]not in this trace[/dim]"
+    nothing_map = "[dim]not yet[/dim]" if ever_map else "[dim]not in this trace[/dim]"
+    team = "\n".join(r.team) if r and r.team else nothing_team
+    picture = r.map_view if r and r.map_view else nothing_map
     return Columns([
         Panel(team, title="team", title_align="left", border_style="dim"),
         Panel(picture, title=f"map {r.map if r else '?'}", title_align="left",
@@ -464,10 +513,19 @@ def _team_and_map(p: Pass):
 def _memory(p: Pass):
     from rich.panel import Panel
 
-    body = "\n".join(p.notes) if p.notes else "[dim]nothing written yet[/dim]"
+    notes = p.notes_live or p.notes
+    # Numbered as the model sees them, because the numbers are what it passes to
+    # `revise` and `forget` and what the trace records.
+    body = ("\n".join(f"[{i}] {n}" for i, n in enumerate(notes, 1)) if notes
+            else "[dim]nothing written yet[/dim]")
     if p.plan:
         body += f"\n\n[bold]plan[/bold]  {p.plan}"
-    return Panel(body, title="memory", title_align="left", border_style="dim")
+    title = "memory"
+    if p.notes_live != p.notes:
+        # Says which it is showing. The file behind `notes` is per finished run, so
+        # the two differ exactly when this run has touched them.
+        title = "memory, this turn"
+    return Panel(body, title=title, title_align="left", border_style="dim")
 
 
 def _containers() -> list[str]:

@@ -117,7 +117,34 @@ def test_the_notes_come_from_the_last_block_that_changed(bench):
         "notes a/b kept between runs\n\n"
         "run  1  seed 10000  (1 notes)\n  [1] first\n"
         "run  2  seed 10001  (1 notes)  unchanged\n", encoding="utf-8")
-    assert watch.read(d).notes == ["[1] first"]
+    # Without its number: the panel numbers them, and a replayed operation and a note
+    # read from the file have to be numbered by the same thing.
+    assert watch.read(d).notes == ["first"]
+
+
+def test_the_notes_shown_are_the_ones_it_holds_this_turn(bench):
+    """The notebook file is per finished run, so a note written mid-run was invisible.
+
+    A dashboard that said "nothing written yet" while the tool log on the line above it
+    showed a `remember` is the reason this exists.
+    """
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00"),
+        _row(10001, 0, "2026-08-20T17:00:10", tools=[
+            {"tool": "remember", "note": "written this run", "kept": 2}]),
+        _row(10001, 1, "2026-08-20T17:00:20", tools=[
+            {"tool": "remember", "note": "refused, full", "refused": "notes full"},
+            {"tool": "forget", "id": 1, "kept": 1},
+        ]),
+    ])
+    (d / "a--b-pass1-notebook.log").write_text(
+        "notes a/b kept between runs\n\n"
+        "run  1  seed 10000  (1 notes)\n  [1] from a finished run\n", encoding="utf-8")
+    p = watch.read(d)
+    assert p.notes == ["from a finished run"], "the per-run file is still read"
+    # The finished notebook, plus this run's operations, minus the refused one.
+    assert p.notes_live == ["written this run"]
 
 
 def test_newest_prefers_the_directory_written_to_last(bench):
