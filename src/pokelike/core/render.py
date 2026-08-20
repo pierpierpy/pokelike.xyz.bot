@@ -270,7 +270,7 @@ def tutor_view(obs: dict[str, Any]) -> str:
 
     The buttons read "→ SURF:Wartortle Lv35" and carry neither power nor type,
     so the comparison that decides the choice is not on screen at all. It is in
-    the state — `team[i].move` and `offered_moves[i]` — and this is where it
+    the state (`team[i].move` and `offered_moves[i]`) and this is where it
     becomes readable.
 
     Renders whenever `offered_moves` is present, which is every turn: the bridge
@@ -325,7 +325,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
 
     offers = tutor_view(obs) if obs.get("screen") == "move-tutor-screen" else ""
     if offers:
-        parts += ["", "MOVE TUTOR — what each offer replaces", offers]
+        parts += ["", "MOVE TUTOR, what each offer replaces", offers]
 
     parts += ["", "ACTIONS", actions_view(obs.get("actions") or [])]
 
