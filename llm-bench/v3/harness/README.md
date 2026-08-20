@@ -45,15 +45,15 @@ What the game actually says, now in the state and on every legal option:
 ```
 ACTIONS
   [0] go to node n1_0   (catch)  Catch Pokemon
-  [1] go to node n1_1   (battle)  Wild Battle - +1 level
+  [1] go to node n1_1   (battle)  Wild Battle — +1 level
 ```
 
 and the ones that carry a real decision:
 
 ```
-  Officer - +2 Levels - Fire Pokemon
-  Brock - Rock Gym | Geodude Lv12 | Onix Lv14
-  Trade - swap a Pokemon for one 3 levels higher
+  Officer — +2 Levels — Fire Pokemon
+  Brock — Rock Gym | Geodude Lv12 | Onix Lv14
+  Trade — swap a Pokémon for one 3 levels higher
 ```
 
 Knowing Brock leads Geodude and Onix, both Rock, is the difference between arriving
@@ -90,7 +90,7 @@ labelled:
 
 ```
 WHAT YOU DID, AND WHAT YOU SAID AT THE TIME.
-  step 7: [0] node n2_1 (trainer), Firebreather - +2 Levels - Fire Pokemon
+  step 7: [0] node n2_1 (trainer), Firebreather — +2 Levels — Fire Pokemon
     it said: a second Pokemon matters more than one more fight this early
 ```
 

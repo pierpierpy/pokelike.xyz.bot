@@ -161,7 +161,10 @@ across them.
   `forget`, twelve notes. Sequential only.
 - **`v2`** — plus an actual agent loop: the last three turns travel with it, a `plan`
   tool for the route through the map, 4000 tokens an answer, and a prompt that
-  explains all of it and how to play. Sequential only.
+  explains all of it and how to play. Sequential only, and it cannot measure a model
+  served by OpenAI: the history it sends carries a tool call that was never answered,
+  which OpenAI's API refuses and other providers accept.
+  [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
 - **`v3`** — the same loop, seeing what a person sees: the node tooltips the game
   shows on hover, the move tutor block only at the tutor, and a journal that separates
   what was done from what the model said about it. Sequential only.

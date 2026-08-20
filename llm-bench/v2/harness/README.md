@@ -90,6 +90,29 @@ cheap; the scratchpad is not.
 independent and `--workers > 1` is refused. Budget half an hour a pass at v0 speeds,
 more here because the requests are bigger.
 
+### Models served by OpenAI cannot be measured here
+
+The scratchpad keeps the exchange that ended the turn, and the `play` call inside it
+never received a reply: `choose` returns the moment the model calls `play`, so the
+loop never writes a `tool` message for that `tool_call_id`. From the second turn on,
+every request carries an assistant message whose tool call was never answered.
+
+OpenAI's API refuses the whole request for it:
+
+> An assistant message with 'tool_calls' must be followed by tool messages responding
+> to each 'tool_call_id'.
+
+Providers that do not check the pairing accept it, which is every provider in the
+table above, and that is why those rows exist. A model served by OpenAI falls back on
+nearly every turn instead: `openai/gpt-4o-mini` on seed 10000 fell back on 12 turns of
+13, each one an HTTP 400, and a row like that measures this file rather than the
+model. It is also why `v0`, which opens a fresh two-message conversation every turn
+and so has no history to malform, has three `openai/` rows and `v2` has none.
+
+This cannot be corrected here. Four rows under `../results/` were measured against
+this file exactly as it is, and editing it would make them claims about code that no
+longer exists.
+
 ## What a result carries
 
 Every run row keeps the notebook, plus what is new here:

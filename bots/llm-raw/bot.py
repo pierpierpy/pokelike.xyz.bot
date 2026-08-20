@@ -7,16 +7,19 @@
 
 THE EXPERIMENT
 Every other bot here reads `render.screen`, which is written for a person: HP as
-a bar, the map as a picture. It is 880 characters and it leaves real things out
+a bar, the map as a picture. It is 631 characters and it leaves real things out
 -- the engine's type/item table, which node connects to which, raw base stats --
 because it shows what someone would look at rather than everything that is true.
 
-This one gets the state dict, 5900 characters of JSON, and works out what matters
-by itself. Same prompt as `llm-survivor`, so the difference between the two rows
-is the difference between reading a summary and reading the data.
+This one gets the state dict, 5144 characters of compact JSON, and works out what
+matters by itself. Same prompt as `llm-survivor`, so the difference between the
+two rows is the difference between reading a summary and reading the data.
+
+Both figures are the first map turn of seed 10000, the state every number in
+`bots/llm-example/README.md` is taken at, so the two pages can be compared.
 
 WHAT IT COSTS
-About 6.6x the tokens per turn, which is roughly 1.8M per fifty-seed benchmark
+About 8x the tokens per turn, which is roughly 1.8M per fifty-seed benchmark
 against 275k. And the cost is not only money: a map the turn does not need takes
 room from the reasoning the model was about to do. Whether that trade is worth it
 is exactly what running both answers.

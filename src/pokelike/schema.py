@@ -155,7 +155,8 @@ def describe(obs: dict[str, Any]) -> str:
     add("    tooltip: 'Catch Pokemon'")
     add("")
     add("  `tooltip` is what the game says this node IS, the same text it shows a")
-    add("  person hovering over it. Read it: 'Officer - +2 Levels - Fire Pokemon'")
+    add("  person hovering over it. Read it: 'Officer \u2014 +2 Levels \u2014 "
+        "Fire Pokemon'")
     add("  is the difference between a fight you win and one you do not.")
     add("")
     for a in (obs.get("actions") or [])[:3]:

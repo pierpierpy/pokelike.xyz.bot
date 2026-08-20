@@ -27,7 +27,7 @@ and they are re-sent every turn:
 | `messages[0]`, role `system` | `PROMPT` | 1665 char |
 | `tools` | `EXTRA_TOOLS`, `tools()` | 1202 char |
 | `messages[1]`, role `user` | `STATE_VIEW` / `view()` | 631 char |
-| role `tool` replies | `run_tool()` | 120 to 135 char each |
+| role `tool` replies | `run_tool()` | 24 to 120 char each |
 | `model`, `temperature`, `max_tokens`, `seed` | `MODEL`, `TEMPERATURE`, `MAX_TOKENS` | n/a |
 
 **3498 characters a turn before the model has asked for anything.** The tool
@@ -75,8 +75,8 @@ shown), the map edges, raw `base_stats`, `item_id`, and 21 of 23 node ids. It
 renders what a person would look at, not everything that is true.
 
 What it no longer leaves out: each option now carries the game's own description of
-the node it leads to, the same text a browser shows on hover. `Officer - +2 Levels -
-Fire Pokemon`. It used to say only `trainer`.
+the node it leads to, the same text a browser shows on hover.
+`Officer — +2 Levels — Fire Pokemon`. It used to say only `trainer`.
 
 `view()` is for the rest. This bot overrides it to show what "easier for a model"
 looks like, which is not the same as easier for a person:

@@ -66,7 +66,7 @@ state['actions']  ..  THE ONLY THING YOU MUST UNDERSTAND
     tooltip: 'Catch Pokemon'
 
   `tooltip` is what the game says this node IS, the same text it shows a
-  person hovering over it. Read it: 'Officer - +2 Levels - Fire Pokemon'
+  person hovering over it. Read it: 'Officer — +2 Levels — Fire Pokemon'
   is the difference between a fight you win and one you do not.
 
   real: {"kind": "node", "id": "n3_0", "node": "catch", "layer": 3, "col": 0, "tooltip": "Catch Pokemon"}
