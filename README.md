@@ -1,15 +1,32 @@
 # POKELIKE.XYZ.BOT
 
+Play [pokelike.xyz](https://pokelike.xyz/), a Pokémon roguelike, from the command
+line, from Python, or over an HTTP API. No window, no internet, no account.
+
 ![A trained policy playing a run](img/reinforcement_learning.gif)
 
-*A trained reinforcement-learning policy playing (apparently the bot learned to take squirtle and just use it over and over again LOL)*
+*A trained reinforcement-learning policy, mid-run. It converged on something blunt:
+take Squirtle, then send Squirtle at everything. Which scores better than you would
+like.*
 
-Play [pokelike.xyz](https://pokelike.xyz/) — a Pokémon roguelike — from the
-command line, from Python, or over an HTTP API. No windows, no internet.
+**Three things live in this repo**
 
-**Bot competition is open! Look below!** ⬇️
+- **An environment**, for anyone who needs to simulate a run. You play pokelike, you
+  want to try a route or a team without burning an afternoon, and you have a coding
+  agent to drive it for you. [Play it yourself](#play-it-yourself) or
+  [let a bot play](#let-a-bot-play).
+- **A model benchmark**, for AI researchers who want to know how models do on an
+  agentic task unlike the usual ones. No browsing, no tickets, no code. Irreversible
+  choices, permanent losses, and a state that barely fits on a screen. Every model
+  gets the same frozen scaffold and the same fifty seeds, so a row says something
+  about the model rather than about whoever tuned their prompt hardest.
+  [Benchmarking a model](#benchmarking-a-model).
+- **A place to test your skills**, whether you are curious, starting out, or have
+  done RL and ML for years. The question is whether you can beat the game. A trained
+  policy, a prompt, a rulebook, tree search, anything that turns a state into a move.
+  [Writing a bot](#writing-a-bot).
 
-## 🏆 POKELIKE.XYZ BOT COMPETITION IS [OPEN]!!!
+## 🏆 The bot competition is open
 
 
 > Write something that plays [pokelike.xyz](https://pokelike.xyz/) better than
@@ -28,7 +45,7 @@ command line, from Python, or over an HTTP API. No windows, no internet.
 > that was played, because scores from before and after a game update are not
 > comparable.
 >
-> **Where to start: [GUIDE.md](GUIDE.md)** — six steps from a clone to a pull
+> **Where to start: [GUIDE.md](GUIDE.md)**. Six steps from a clone to a pull
 > request, nothing skipped. The short version is that a bot is one method,
 > `choose(state) -> int`, and the rest is measuring it honestly.
 >
@@ -89,8 +106,8 @@ the others.
 |---|---|---|
 | **[GUIDE.md](GUIDE.md)** | entering the contest | you want to write a bot and submit one. Six steps, clone to pull request |
 | **[bots/](bots/)** | every bot, and the standings | you want to see who is winning, play the leader without training anything, or read the rules in full |
-| **[experiments/](experiments/)** | making a bot better | you are past a first bot and want to train, sweep or compare — and to see what was already tried, including what failed |
-| **[llm-bench/](llm-bench/)** | measuring a model | you want to know how well a *model* plays, with the scaffold held fixed — a different question from `bots/`, where the prompt is the submission |
+| **[experiments/](experiments/)** | making a bot better | you are past a first bot and want to train, sweep or compare, and to see what was already tried, including what failed |
+| **[llm-bench/](llm-bench/)** | measuring a model | you want to know how well a *model* plays, with the scaffold held fixed. A different question from `bots/`, where the prompt is the submission |
 | **[example.ipynb](src/pokelike/interfaces/python/example.ipynb)** | driving it yourself | you would rather poke at the game in a notebook than read about it |
 | **[CLAUDE.md](CLAUDE.md)** | changing this repo | you are editing the package itself. Internals, and the pitfalls that were hit for real |
 
@@ -126,7 +143,7 @@ uv run pokelike setup
 After that **you never need the internet again**.
 
 > **On Linux you may need system libraries.** Chromium needs a handful of them,
-> and minimal images — Raspberry Pi, servers, containers — usually lack them.
+> and minimal images (Raspberry Pi, servers, containers) usually lack them.
 > `setup` tells you if that is your case and prints the exact command. It checks
 > by launching the browser rather than trusting the installer's exit code, which
 > is 0 even when it warns.
@@ -224,7 +241,7 @@ It needs the full browser: `uv run playwright install chromium`.
 ### The game lives entirely in the browser
 
 Pokelike has no server: all its logic sits in one JavaScript file that runs in
-your browser. So there is no remote API to call — the engine is already on your
+your browser. So there is no remote API to call. The engine is already on your
 machine, and we talk straight to its functions.
 
 ### "Headless" does not mean "no graphics"
@@ -277,7 +294,7 @@ game logic.
 
 ### The three interfaces
 
-**Python** — the server and the browser are started for you.
+**Python**, where the server and the browser are started for you.
 
 ```python
 from pokelike import session
@@ -299,14 +316,14 @@ result = play(create("sarsa-v2"), seed=42)      # one run, with its decision tra
 print(compare({"mine": create("mine")}, seeds=range(20))["table"])
 ```
 
-`create` takes the name of a folder under `bots/` — the same name `--bot` takes,
+`create` takes the name of a folder under `bots/`, the same name `--bot` takes,
 and there is nothing to import or register.
 
 `compare` plays every bot on the **same** seeds and pairs them. Runs vary
 enormously by luck here, so two separate averages mostly measure who drew the
 nicer maps.
 
-**In a notebook**, `with` cannot span cells — and starting a run in one cell,
+**In a notebook**, `with` cannot span cells, and starting a run in one cell,
 taking a move in the next and reading the state in the one after is the point of
 using one. So there is a game that outlives the cell that opened it:
 
@@ -324,7 +341,7 @@ is the full walkthrough, cell by cell: open a game, read the state raw and
 rendered, take a move, draw the map, reorder the team, read the score, hand the
 rest to a bot, compare two bots.
 
-**HTTP** — `uv run pokelike api` (port 8423). The browser stays alive between
+**HTTP**, with `uv run pokelike api` (port 8423). The browser stays alive between
 calls, which is why this is a process that has to keep running.
 
 | Method | Route | What it does |
@@ -333,14 +350,14 @@ calls, which is why this is a process that has to keep running.
 | `GET` | `/state` | full state + a ready-to-print `view` field |
 | `GET` | `/actions` | just the legal actions |
 | `POST` | `/action` `{"index":1}` | take it → new state (409 if illegal) |
-| `POST` | `/reorder` `{"a":0,"b":2}` | swap two team slots — free, does not use the turn |
+| `POST` | `/reorder` `{"a":0,"b":2}` | swap two team slots, free, does not use the turn |
 | `GET` | `/score` | score using the game's own formula |
 | `GET` | `/screenshot` | a PNG of the current screen |
 | `GET` | `/schema` | what the state contains, described from itself |
 
 ### Who can do what
 
-The interfaces are meant for different drivers, so they are not identical —
+The interfaces are meant for different drivers, so they are not identical.
 but everything needed to *play* is in all three.
 
 | | CLI | HTTP | Python |
@@ -348,12 +365,12 @@ but everything needed to *play* is in all three.
 | start, read, act, score | yes | yes | yes |
 | swap the team order | `w a b` | `POST /reorder` | `game.reorder(a, b)` |
 | see the screen | `--shots`, `--watch` | `GET /screenshot` | `game.screenshot(path)` |
-| draw the map | `-g` | — | `render.graph_view` |
+| draw the map | `-g` | n/a | `render.graph_view` |
 | what the state contains | `pokelike schema` | `GET /schema` | `pokelike.schema.describe` |
-| run a bot over many seeds | `pokelike bot` | — | `evaluate`, `compare` |
-| benchmark and submit | `pokelike bench` | — | `bench.run_benchmark` |
-| history and leaderboard | `pokelike history`, `leaderboard` | — | `stats`, `leaderboard` |
-| install and mirror | `pokelike setup`, `mirror` | — | `assets.mirror.build` |
+| run a bot over many seeds | `pokelike bot` | n/a | `evaluate`, `compare` |
+| benchmark and submit | `pokelike bench` | n/a | `bench.run_benchmark` |
+| history and leaderboard | `pokelike history`, `leaderboard` | n/a | `stats`, `leaderboard` |
+| install and mirror | `pokelike setup`, `mirror` | n/a | `assets.mirror.build` |
 
 The missing HTTP rows are batch and installation jobs, not ways of playing a
 run. Exposing them over an interface whose whole job is one live game would be
@@ -367,7 +384,7 @@ is written in: there is nothing to expose, only something to import.
 A bot is one thing only: given the state, it says **which action to take**.
 
 **What you get to look at:** the [state reference](#appendix-what-a-bot-receives)
-at the end of this file. It is not hand-written — it is generated from a live
+at the end of this file. It is not hand-written. It is generated from a live
 observation by `uv run pokelike schema --markdown`, so it cannot describe a game
 that no longer exists. `uv run pokelike schema` prints the same thing from the
 game as it is right now.
@@ -382,7 +399,7 @@ uv run pokelike new-bot mine
 ```
 bots/mine/
 ├── bot.py        one class inheriting from Bot
-├── artifacts/    weights, prompts, tables — whatever yours needs
+├── artifacts/    weights, prompts, tables, whatever yours needs
 └── README.md     one line on how it decides
 ```
 
@@ -411,7 +428,7 @@ What `new-bot` writes already plays, which matters more than it sounds: you can
 measure it before changing a line, and know later that the number moved because
 of you.
 
-**If your bot is a prompt**, start from the shared harness instead — you write
+**If your bot is a prompt**, start from the shared harness instead, where you write
 nothing but the prompt, and your result is comparable with the other `llm-*`
 bots because the loop asking the model is the same one:
 
@@ -427,7 +444,7 @@ different thing: it fingerprints your code and artifacts, so a bot edited after
 being measured is flagged rather than quietly keeping a score it no longer earns.
 
 **The folder has to stand on its own.** Everything `bot.py` needs is either in
-this package or in `artifacts/` beside it — never an import from `experiments/`,
+this package or in `artifacts/` beside it, never an import from `experiments/`,
 never an import of another bot. A trained policy is meaningless under a different
 encoding, and a bot is meant to be handed to someone who has none of your setup.
 
@@ -439,8 +456,8 @@ weights to record beside your result.
 
 Slot 0 is the Pokemon that enters the next battle, so the order of your team
 matters. Reordering is free: it does not consume the turn. That is why it is not
-one of `state["actions"]` — a full team would otherwise add fifteen swap pairs
-next to the real moves at every map node — and lives in its own hook instead:
+one of `state["actions"]`, since a full team would otherwise add fifteen swap pairs
+next to the real moves at every map node. It lives in its own hook instead:
 
 ```python
 class MyBot(Bot):
@@ -462,19 +479,19 @@ Three things the engine knows and a bot would otherwise have to guess at. All of
 them are in the appendix below; they are called out here because each one was a
 place where a trained agent was provably choosing at random.
 
-**`team[].move`** — what that Pokemon actually attacks with, `{name, power, type,
+**`team[].move`** is what that Pokemon actually attacks with, `{name, power, type,
 special}`, straight from the engine's own `getMoveForPokemon`. **`offered_moves`**
 is the same question for the move tutor: what it *would* hand each member. The
 tutor's button text carries neither power nor type, so without these an agent
-cannot tell a 40-power move being replaced by a 90-power one from a sidegrade —
+cannot tell a 40-power move being replaced by a 90-power one from a sidegrade,
 and one duly learned to press SKIP.
 
-**`team[].item_id`** and **`bag_items[].id`** — the id, not just the display name.
+**`team[].item_id`** and **`bag_items[].id`** give the id, not just the display name.
 Item effects are not structured anywhere in the engine: an item is
 `{id, name, desc, icon}` and every magnitude lives inline in the battle code,
 keyed on that string. The id is the only stable handle on what an item does.
 
-**`type_items`** — the engine's own type → item table, 18 entries
+**`type_items`** is the engine's own type to item table, 18 entries
 (Fire → `charcoal`). It collapses eighteen nearly identical "+40% X-type damage"
 items into one answerable question: does this boost a type I actually field.
 
@@ -488,8 +505,8 @@ and the first trained agent here did not.
 **The six `llm-*` bots** are one shared harness: four prompts, one of those
 prompts reading a different view of the state, and one reference that turns every
 knob there is.
-The harness — the tools, the agentic loop, the state rendering, one HTTP call per
-turn — lives in [src/pokelike/bot/llm.py](src/pokelike/bot/llm.py), and it is
+The harness (the tools, the agentic loop, the state rendering, one HTTP call per
+turn) lives in [src/pokelike/bot/llm.py](src/pokelike/bot/llm.py), and it is
 shared **on purpose**: two bots with different loops are two harnesses being
 compared, and the model is the smaller half of that difference. So each bot is
 about thirty lines, and the prompt is the whole submission:
@@ -518,8 +535,8 @@ that layer forever, and without reading the edges the model cannot know that.
 
 **What the model reads each turn is yours to choose too.** The default is the
 same ASCII view a person sees, which is 880 characters and leaves real things
-out — the engine's type/item table, which node connects to which, raw base
-stats — because it renders what someone would look at rather than everything
+out (the engine's type/item table, which node connects to which, raw base
+stats) because it renders what someone would look at rather than everything
 that is true. One line changes it:
 
 | `STATE_VIEW` | the model gets | roughly |
@@ -529,8 +546,8 @@ that is true. One line changes it:
 | `"both"` | the view, then the dict under it | 6800 chars |
 | `["team", "actions"]` | just those keys, as JSON | varies |
 
-Six times the tokens is the price of `"json"` — about 1.8M per benchmark against
-275k — and it is not only money: a map the turn does not need takes room from
+Six times the tokens is the price of `"json"`, about 1.8M per benchmark against
+275k, and it is not only money. A map the turn does not need takes room from
 the reasoning the model was about to do. Whether that trade pays is an
 experiment, which is why [`llm-raw`](bots/llm-raw/) is `llm-survivor` with the
 same prompt and a different view, and nothing else.
@@ -539,7 +556,7 @@ Override `view(state)` when none of the four fit. The journal and the "pick an
 index" line are wrapped around whatever it returns, so replacing the view
 wholesale cannot silently cost a bot its memory.
 
-**You can give it tools of your own**, or replace these outright — declare them
+**You can give it tools of your own**, or replace these outright. Declare them
 in `EXTRA_TOOLS` and answer them in `run_tool`. Only `play` is required, since
 it is how a turn ends. What a bot cannot do is hide that it did it: the tool
 names go into its result and the standings mark a bot whose set differs from
@@ -555,7 +572,7 @@ the model.
 
 Authentication failures are the exception and stop the run instead. A 401 will
 fail identically forever, and falling back on it would play the whole run on the
-backup heuristic while reporting it as an LLM result — which through `bench`
+backup heuristic while reporting it as an LLM result, which through `bench`
 would put an entry on the leaderboard that no model ever played.
 
 Your own prompt is one command away, and you write nothing but the prompt:
@@ -597,7 +614,7 @@ neither: it is an error listing both.
 contest works: same 100 features as `sarsa-v2`, same reward, but the weights are
 solved as the exact linear fixed point of the projected Bellman equation instead
 of nudged by gradient steps. Least-squares policy iteration, Lagoudakis & Parr
-2003. Different machinery, comparable result — which is itself the finding.
+2003. Different machinery, comparable result, which is itself the finding.
 
 ---
 
@@ -631,7 +648,7 @@ random         7     0    0.43      1    0.0      0    -2.1    -35     25    2.3
 ```
 
 `~` is the average, `+` the best. Careful with `done`: those are runs *completed*
-by beating the whole League, not badges — badges are their own column.
+by beating the whole League, not badges. Badges are their own column.
 
 The `extra` column is free-form JSON for a bot's own notes: the LLM one puts its
 model, call count, tokens spent and how many fallbacks it made.
@@ -667,7 +684,7 @@ instead.
 
 [experiments/](experiments/) holds the attempts, kept outside the package: the
 package is the environment, that folder is the research on top of it. Not all of
-it is training — teaching a policy with RL and finding a better prompt for an LLM
+it is training. Teaching a policy with RL and finding a better prompt for an LLM
 are both ways of improving a player.
 
 ```bash
@@ -710,7 +727,7 @@ There are two harness versions and they are **never ranked against each other**,
 because two models asked different questions were not compared. `v0` is one call a
 turn with four tools. `v1` adds a notebook the model writes with
 `remember` / `revise` / `forget` and keeps *between* runs, to ask whether a model
-gets better at the game while it plays — which costs seed independence, so `v1`
+gets better at the game while it plays, which costs seed independence, so `v1`
 refuses to run in parallel and reports a learning column instead of trusting its
 mean.
 
@@ -731,7 +748,7 @@ uv run pytest -m "not slow"   # only the fast ones, no browser needed
 ```
 
 The regression tests replay recorded runs and compare fingerprints made only of
-engine data — screens, node types, scores — so refactoring and renaming cannot
+engine data (screens, node types, scores) so refactoring and renaming cannot
 make them pass or fail spuriously.
 
 ---
@@ -771,7 +788,7 @@ again. It does not guess: the list comes from the game itself as it plays.
 **What happens if something is missing:** nothing, as far as the game goes.
 Images are decoration. The local server answers 404, notes it down, and the game
 shows an emoji instead of the sprite. **The run, the rules and the score do not
-change at all** — verified by deleting a sprite in use and replaying the same
+change at all**, verified by deleting a sprite in use and replaying the same
 run: same steps, same ending, same score.
 
 Bots do not even notice: they read the game state, not pixels. A missing sprite
@@ -798,7 +815,7 @@ Internals, pitfalls and how it is put together: [CLAUDE.md](CLAUDE.md).
 ## Appendix: what a bot receives
 
 <!-- BEGIN state-reference: generated by `pokelike schema --markdown`, do not edit by hand -->
-_Generated from a live observation — edit `schema.py`, never this block._
+_Generated from a live observation. Edit `schema.py`, never this block._
 _Regenerate with `pokelike schema --markdown` after any change to_
 _`core/bridge.js`._
 
@@ -818,12 +835,12 @@ TOP LEVEL
 ------------------------------------------------------------------------------
   actions      THE LEGAL MOVES. choose() returns an index into this list
   bag          item names you are carrying
-  bag_items    the bag with ids: [{id, name, desc, usable}]. `bag` is the same list as bare names. The id is the handle that matters — item effects are not structured anywhere in the engine, so the id is what every effect in the battle code is keyed on
-  can_reorder  whether the team can be reordered right now. Slot 0 leads the next battle, so the order is a decision — but a FREE one, which is why it is not in `actions`: see Bot.rearrange / Game.reorder
+  bag_items    the bag with ids: [{id, name, desc, usable}]. `bag` is the same list as bare names. The id is the handle that matters, because item effects are not structured anywhere in the engine, so the id is what every effect in the battle code is keyed on
+  can_reorder  whether the team can be reordered right now. Slot 0 leads the next battle, so the order is a decision, but a FREE one, which is why it is not in `actions`: see Bot.rearrange / Game.reorder
   done         True when the run is over
-  layer        'screen' or 'modal' — modals are choices too, not decoration
+  layer        'screen' or 'modal'. Modals are choices too, not decoration
   map          the whole board: nodes, edges, where you stand
-  offered_moves what the move tutor WOULD offer each team member, by index: {name, power, type, special}. Computed with the engine's own getBestMove, the same call it builds the tutor button from — so the offer can be compared against `team[i].move` instead of guessed at from a name
+  offered_moves what the move tutor WOULD offer each team member, by index: {name, power, type, special}. Computed with the engine's own getBestMove, the same call it builds the tutor button from, so the offer can be compared against `team[i].move` instead of guessed at from a name
   prompt       what the screen is ASKING. Read it: on the swap screen the same list of your team means 'choose one to release', not 'choose a lead'
   run          run-wide facts: map index, badges, whether anyone has fainted
   screen       which screen you are on: map-screen, catch-screen, item-equip-modal, ...
@@ -834,7 +851,7 @@ TOP LEVEL
   type_items   the engine's type -> held-item table, 18 entries (Fire -> charcoal). Collapses eighteen nearly identical '+40% X-type damage' items into one question: does this boost a type I actually field
 
 ------------------------------------------------------------------------------
-state['actions']  —  THE ONLY THING YOU MUST UNDERSTAND
+state['actions']  ..  THE ONLY THING YOU MUST UNDERSTAND
 ------------------------------------------------------------------------------
   Between 2 and 7 entries. They change every turn, and they are NOT stable
   by position: index 2 is a battle now and a catch next turn.
@@ -897,7 +914,7 @@ state['team'][i]
   name           species name, e.g. 'Bulbasaur'
   shiny          whether it is shiny (worth points at the end)
   species_id     national dex number
-  types          list of types, e.g. ['Grass', 'Poison'] — this decides battles
+  types          list of types, e.g. ['Grass', 'Poison']. This decides battles
   uid            unique id within the run
 
 ------------------------------------------------------------------------------
@@ -911,7 +928,7 @@ state['map']
   `edges` to see where a choice leads before taking it.
 
 ------------------------------------------------------------------------------
-state['stats']  —  the engine's own counters, for building a reward
+state['stats']  ..  the engine's own counters, for building a reward
 ------------------------------------------------------------------------------
     battlesWon
     catches

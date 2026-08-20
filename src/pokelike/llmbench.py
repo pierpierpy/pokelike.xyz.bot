@@ -1170,7 +1170,7 @@ def markdown_table(version: str,
             f"| {'—' if each is None else f'{each:.4f}'} |")
     if learns:
         out += ["", f"`learn` is the last {LEARN_K} runs of a pass minus its "
-                    f"first {LEARN_K}, in the order played — this harness lets "
+                    f"first {LEARN_K}, in the order played. This harness lets "
                     "the model keep notes between runs, so that column is what it "
                     "exists to measure. `badges~` is a mean over a learning curve "
                     "here."]

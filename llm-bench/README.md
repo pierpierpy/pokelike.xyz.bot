@@ -3,7 +3,7 @@
 **How well does a model play the game?**
 
 Same scaffold for everyone, same fifty seeds, only the model changes. That is the
-whole idea — and it is a different question from [`bots/`](../bots/), where the
+whole idea, and it is a different question from [`bots/`](../bots/), where the
 prompt is the submission and the model is whatever you happened to point it at.
 
 ```bash
@@ -37,7 +37,7 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 | 2 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.48 | 0.0096 |
 | 3 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
-`learn` is the last 10 runs of a pass minus its first 10, in the order played — this harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
+`learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
 _No models measured under harness `v1` yet._
 
@@ -56,7 +56,7 @@ _No models measured under harness `v1` yet._
 <!-- END llm-bench -->
 
 Regenerate with `pokelike llm-bench --table`. Rows are grouped by harness version
-and **never ranked across versions** — two models asked different questions were
+and **never ranked across versions**. Two models asked different questions were
 not compared.
 
 ## Running it
@@ -131,13 +131,13 @@ like a bad player. It also prints what the pass is likely to cost.
 by less than roughly twice that are not distinguishable, however confidently the
 rows are sorted.
 
-**One pass is not a measurement.** Same seed, same prompt, different answer — LLM
+**One pass is not a measurement.** Same seed, same prompt, different answer. LLM
 runs are not reproducible. Three passes of one model can differ by about 0.2
 badges, which is roughly the entire gap between the top two entries in `bots/`.
 `--repeat 3` is what tells you which case you are in.
 
 **`fallback` disqualifies.** When a call fails or the model never calls `play`, the
-harness plays a safe move so the run survives — and that turn was decided by our
+harness plays a safe move so the run survives, and that turn was decided by our
 heuristic under the model's name. Above 0.1 the row measures the harness.
 
 **Tokens are counted, money is not.** In and out separately, because output costs
@@ -194,7 +194,7 @@ docker logs -f glm
 ```
 
 Flags after `bench` are exactly the flags above. Credentials can come from the
-flags, or from a `.env` at the repo root — `cp .env.example .env` — which compose
+flags, or from a `.env` at the repo root (`cp .env.example .env`) which compose
 reads if it exists.
 
 Three things about it:
@@ -213,6 +213,6 @@ Three things about it:
 
 `v0/harness/bot.py` is a **copy** of `src/pokelike/bot/llm.py`, not an import: the
 shared harness is meant to improve, and a benchmark needs the opposite. So a harness
-is never edited once a result exists beside it — a new idea is a new directory. The
+is never edited once a result exists beside it. A new idea is a new directory. The
 full argument, and what is *not* frozen, is in
 [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).

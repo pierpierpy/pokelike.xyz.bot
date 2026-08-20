@@ -22,7 +22,7 @@ FIELDS = {
     "screen": "which screen you are on: map-screen, catch-screen, item-equip-modal, ...",
     "prompt": "what the screen is ASKING. Read it: on the swap screen the same "
               "list of your team means 'choose one to release', not 'choose a lead'",
-    "layer": "'screen' or 'modal' — modals are choices too, not decoration",
+    "layer": "'screen' or 'modal'. Modals are choices too, not decoration",
     "steps": "how many decisions this run has taken",
     "seed": "the run's seed; the same seed replays the same run",
     "done": "True when the run is over",
@@ -33,12 +33,12 @@ FIELDS = {
     "stats": "the engine's cumulative counters, updated after every battle",
     "actions": "THE LEGAL MOVES. choose() returns an index into this list",
     "bag_items": ("the bag with ids: [{id, name, desc, usable}]. `bag` is the same "
-                  "list as bare names. The id is the handle that matters — item "
+                  "list as bare names. The id is the handle that matters, because item "
                   "effects are not structured anywhere in the engine, so the id is "
                   "what every effect in the battle code is keyed on"),
     "offered_moves": ("what the move tutor WOULD offer each team member, by index: "
                       "{name, power, type, special}. Computed with the engine's own "
-                      "getBestMove, the same call it builds the tutor button from — "
+                      "getBestMove, the same call it builds the tutor button from, "
                       "so the offer can be compared against `team[i].move` instead of "
                       "guessed at from a name"),
     "type_items": ("the engine's type -> held-item table, 18 entries "
@@ -46,7 +46,7 @@ FIELDS = {
                    "'+40% X-type damage' items into one question: does this boost a "
                    "type I actually field"),
     "can_reorder": ("whether the team can be reordered right now. Slot 0 leads the "
-                    "next battle, so the order is a decision — but a FREE one, which "
+                    "next battle, so the order is a decision, but a FREE one, which "
                     "is why it is not in `actions`: see Bot.rearrange / Game.reorder"),
     "stalled": "only present if the engine stopped responding (should never happen)",
 }
@@ -69,7 +69,7 @@ TEAM_FIELDS = {
     "level": "current level",
     "hp": "current HP",
     "max_hp": "maximum HP. hp/max_hp is what tells you if it is in danger",
-    "types": "list of types, e.g. ['Grass', 'Poison'] — this decides battles",
+    "types": "list of types, e.g. ['Grass', 'Poison']. This decides battles",
     "base_stats": "hp, atk, def, speed, special, spdef",
     "item_id": ("the held item's id, e.g. 'leftovers'. The name is for reading, the "
                 "id is for deciding: every effect in the battle code is keyed on it"),
@@ -130,12 +130,12 @@ def describe(obs: dict[str, Any]) -> str:
     add("TOP LEVEL")
     add("-" * 78)
     for k in sorted(obs):
-        doc = FIELDS.get(k, "*** UNDOCUMENTED — add it to schema.py ***")
+        doc = FIELDS.get(k, "*** UNDOCUMENTED, add it to schema.py ***")
         add(f"  {k:<12} {doc}")
 
     add("")
     add("-" * 78)
-    add("state['actions']  —  THE ONLY THING YOU MUST UNDERSTAND")
+    add("state['actions']  ..  THE ONLY THING YOU MUST UNDERSTAND")
     add("-" * 78)
     add("  Between 2 and 7 entries. They change every turn, and they are NOT stable")
     add("  by position: index 2 is a battle now and a catch next turn.")
@@ -184,7 +184,7 @@ def describe(obs: dict[str, Any]) -> str:
 
     add("")
     add("-" * 78)
-    add("state['stats']  —  the engine's own counters, for building a reward")
+    add("state['stats']  ..  the engine's own counters, for building a reward")
     add("-" * 78)
     for k in sorted(obs.get("stats") or {}):
         add(f"    {k}")
@@ -211,7 +211,7 @@ def as_markdown(obs: dict[str, Any]) -> str:
     # Headings start at h3: this is written into a section of README.md, not into
     # a file of its own, so an h1 or h2 here would break the document around it.
     return (
-        "_Generated from a live observation — edit `schema.py`, never this block._\n"
+        "_Generated from a live observation. Edit `schema.py`, never this block._\n"
         "_Regenerate with `pokelike schema --markdown` after any change to_\n"
         "_`core/bridge.js`._\n\n"
         "```\n" + describe(obs) + "\n```\n\n"
@@ -226,7 +226,7 @@ def _trimmed(obs: dict[str, Any], keep: int = 4) -> dict[str, Any]:
     """A shortened observation that is still valid JSON.
 
     The previous version sliced the serialised text at 4000 characters, which cut
-    through the middle of a map node and left the block unparseable — a reference
+    through the middle of a map node and left the block unparseable, a reference
     sample nobody could paste anywhere. Long lists are shortened instead, with a
     marker saying what was dropped, so every KEY a bot can read is still present
     and the shape is intact.
@@ -253,7 +253,7 @@ def capture(game, seed: int = 42, max_steps: int = 12) -> dict[str, Any]:
     """A mid-run observation, deep enough to show everything.
 
     A fresh run has no map and no team, and `stats` only appears after the first
-    battle — which is exactly the field a bot author needs to build a reward. So
+    battle, which is exactly the field a bot author needs to build a reward. So
     we play on until the state has all three.
     """
     obs = game.reset(seed=seed)
