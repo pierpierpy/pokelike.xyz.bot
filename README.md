@@ -109,6 +109,7 @@ the others.
 | **[experiments/](experiments/)** | making a bot better | you are past a first bot and want to train, sweep or compare, and to see what was already tried, including what failed |
 | **[llm-bench/](llm-bench/)** | measuring a model | you want to know how well a *model* plays, with the scaffold held fixed. A different question from `bots/`, where the prompt is the submission |
 | **[example.ipynb](src/pokelike/interfaces/python/example.ipynb)** | driving it yourself | you would rather poke at the game in a notebook than read about it |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | what lands, and how | you are about to open a pull request that is not just a bot folder, or you found a bug in the shared code |
 | **[CLAUDE.md](CLAUDE.md)** | changing this repo | you are editing the package itself. Internals, and the pitfalls that were hit for real |
 
 The [appendix](#appendix-what-a-bot-receives) at the end is generated from a live

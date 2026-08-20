@@ -69,8 +69,11 @@ uv run pokelike bench --bot experiments/mine --dry-run       # measure a candida
 site/                    the downloaded game (gitignored, ~130 MB)
 src/pokelike/
 ├── core/                SHARED LOGIC, the only part that knows how to play
-│   ├── bridge.js          injected into the page: observes and acts
-│   ├── browser.py         Playwright headless, pinned seed, flattened animations
+│   ├── bridge.js          injected AFTER the bundle: observes and acts. Decides
+│   │                      what is in the state, and the ORDER actions come in
+│   ├── init.js            injected BEFORE the bundle: seeded Math.random, pinned
+│   │                      clock, capped timers. This is what makes a seed replay
+│   ├── browser.py         Playwright headless: launches, injects both, filters
 │   ├── game.py            class Game: reset/state/step/score/reorder
 │   └── render.py          ASCII map, team, actions
 ├── bot/                 WHAT RUNS A BOT, not the bots themselves
@@ -506,13 +509,32 @@ ranked together.
 
 ### Three things to know before touching any of it
 
-- **`pokelike.core.render` is imported, not copied**, and it is behaviour rather than
-  an interface. Every pass records a sha256 of the harness *and* of the render module,
-  and the table marks a row ⚠︎ when either stops matching disk. Changing `render.py`
-  is allowed; it just gets caught. The fingerprint is taken when a pass STARTS, not
-  when it records, so an edit mid-pass cannot yield a row certifying code it never ran.
+- **A harness freezes four files, not one.** `bot.py` (the loop), `render.py` (the
+  text the model reads), `bridge.js` (what is in the state, and the order `actions`
+  come in) and `init.js` (the seeded `Math.random` and the pinned clock), all inside
+  `llm-bench/<version>/harness/`. Nothing outside that directory can reach them.
+  `bridge.js` matters more than the renderer, because a bot answers with an **index**
+  into `actions`: reordering that list does not change what the model sees, it changes
+  what its answer means. `init.js` matters more again, since the run seed is built
+  from `Date.now()` and `Math.random()`, so moving a constant there does not mark a
+  recorded score, it voids it.
+
+  This used to be `render.py` imported from `pokelike.core` and merely fingerprinted,
+  on the argument that copying it would be worse than the problem. It was not: the
+  transitive closure of what a harness calls is 123 lines of 434, and `graph_view`,
+  the biggest thing in the file, is reached only by the CLI. And fingerprinting it
+  failed the first real case, because the MOVE TUTOR defect could not be fixed for
+  the person at the terminal without marking every score ever recorded. The benchmark
+  was holding the CLI hostage.
+
+  Still shared and hashed rather than copied: `browser.py`, `game.py`, `runner.py`.
+  Seven keys in all, plus the game bundle recorded separately. The fingerprint is
+  taken when a pass STARTS, not when it records, so an edit mid-pass cannot yield a
+  row certifying code it never ran. Compared **key by key**, over the keys the pass
+  actually recorded, so adding a file to the fingerprint does not retroactively mark
+  every row that could not have had it.
 - **`pokelike.leaderboard.Artifact` and `pokelike.bot.base.Bot` are frozen import
-  paths.** All three harnesses import them, as do five submitted bots whose files are
+  paths.** All four harnesses import them, as do five submitted bots whose files are
   fingerprinted against their scores. They cannot move without a permanent shim.
 - **`CROSS_RUN_MEMORY` is asked of the harness, never hardcoded.** A version carrying
   notes between runs has no independent runs, so `--workers > 1` is refused and the

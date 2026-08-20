@@ -199,6 +199,23 @@ git push origin my-bot
 Then open the pull request GitHub offers you, from your fork to this repo. Your
 whole submission is one folder.
 
+### One folder, and why that is the whole of it
+
+A pull request that touches only `bots/` is read as a submission and usually merged
+as is. One that also changes `src/` or `llm-bench/` gets a slower read, because those
+two directories are what makes every recorded score comparable, and a change there is
+usually landed by hand rather than merged.
+
+That is not a fence against your ideas, it is a fence around the numbers. Almost
+everything people reach into the library for can be done from inside your folder:
+`PROMPT`, `STATE_VIEW`, `view()`, `EXTRA_TOOLS`, `run_tool()`, `_call()`. The one
+thing that cannot is adding data the bridge never read from the game.
+
+And if what you found is a **bug** in the shared code, that is wanted, not tolerated.
+Two of the worst defects found so far came from someone building a bot on a fork and
+noticing the library was lying to their model. Open an issue. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ---
 
 ## The optional hooks
@@ -242,7 +259,7 @@ beside its weights. [`bots/sarsa-v2/`](bots/sarsa-v2/) is the large one, 100
 feature definitions carried inline for exactly this reason.
 
 **The one exception is `pokelike.bot.llm`**, the harness the `llm-*` bots share.
-It is shared knowingly, so editing it *does* reach every LLM bot ever measured.
+It is shared knowingly, so editing it *does* reach every LLM bot ever measured,
 which is why it carries a `HARNESS` number that is written into every result, and
 why a row measured under an older one is flagged instead of being ranked as
 though it had been asked the same question.

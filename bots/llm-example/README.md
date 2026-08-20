@@ -25,27 +25,37 @@ and they are re-sent every turn:
 | part of the body | where you tune it | `llm-survivor` |
 |---|---|--:|
 | `messages[0]`, role `system` | `PROMPT` | 1665 char |
-| `tools` | `EXTRA_TOOLS`, `tools()` | 1137 char |
-| `messages[1]`, role `user` | `STATE_VIEW` / `view()` | 831 char |
-| role `tool` replies | `run_tool()` | 120–135 char each |
+| `tools` | `EXTRA_TOOLS`, `tools()` | 1202 char |
+| `messages[1]`, role `user` | `STATE_VIEW` / `view()` | 631 char |
+| role `tool` replies | `run_tool()` | 120 to 135 char each |
 | `model`, `temperature`, `max_tokens`, `seed` | `MODEL`, `TEMPERATURE`, `MAX_TOKENS` | n/a |
 
-**3633 characters a turn before the model has asked for anything.** The tool
-definitions cost more than the state does. A fifth tool is not free because
+**3498 characters a turn before the model has asked for anything.** The tool
+definitions cost nearly twice what the state does. A fifth tool is not free because
 nobody calls it, you pay for its schema every turn of every run.
+
+Every number on this page is measured at one state, the first map turn of seed 10000,
+so they can be checked rather than believed. They moved when the MOVE TUTOR block
+stopped being printed on every turn: the view was 831 characters and the turn 3633.
 
 The `user` message is three pieces, one yours and two the harness's:
 
 ```
 _situation(state)
-├── view(state)                       ← YOURS
-├── "YOUR RECENT MOVES:" + journal    ← harness, length is MEMORY
-└── "Pick an index between 0 and N"   ← harness, never yours to drop
+├── view(state)                       <- YOURS
+├── the journal, MEMORY turns long    <- harness
+└── "Pick an index between 0 and N"   <- harness, never yours to drop
 ```
 
 The harness owns the journal and the instruction line, so replacing the view
 wholesale cannot cost the bot its memory or leave the model without the range
 of legal indices.
+
+Each journal line carries what was **done**, taken from `state["actions"]`, with the
+model's own sentence underneath and labelled as its own. It used to be the sentence
+alone under a heading reading `YOUR RECENT MOVES`, which handed a model its guesses
+back as a record of events: a plan reads as a thing that happened, one turn later,
+with nothing to tell the two apart.
 
 ## The view, which is the deepest knob
 
@@ -53,14 +63,21 @@ Four settings need no code:
 
 | `STATE_VIEW` | the model gets | |
 |---|---|--:|
-| `"screen"` | the rendered view a person sees | ~880 char |
-| `"json"` | the whole state dict | ~5900 char |
-| `"both"` | the view, then the dict | ~6800 char |
+| `"screen"` | the rendered view a person sees | 631 char |
+| `"json"` | the whole state dict | 5144 char |
+| `"both"` | the view, then the dict | 5802 char |
 | `["team", "actions"]` | those keys, as JSON | varies |
 
-What `"screen"` leaves out, measured: the engine's type→item table (0 of 18
+Eight times the tokens is the price of `"json"`, and it is not only money: filling
+the context with a map the turn does not need takes room from the reasoning.
+
+What `"screen"` leaves out, measured: the engine's type to item table (0 of 18
 shown), the map edges, raw `base_stats`, `item_id`, and 21 of 23 node ids. It
 renders what a person would look at, not everything that is true.
+
+What it no longer leaves out: each option now carries the game's own description of
+the node it leads to, the same text a browser shows on hover. `Officer - +2 Levels -
+Fire Pokemon`. It used to say only `trainer`.
 
 `view()` is for the rest. This bot overrides it to show what "easier for a model"
 looks like, which is not the same as easier for a person:
@@ -80,10 +97,11 @@ YOUR OPTIONS
   Taking one of these closes the others for good.
 ```
 
-390 characters against the default's 831, and three deliberate changes: HP as a
-percentage because `#######...` and `17/24` both make the model divide before it
-can compare; the consequence written as a sentence instead of drawn as a graph;
-the exits inline instead of behind a tool call.
+The block above is a later turn, shown for its shape. Measured at the same state as
+every other number here, this view is 325 characters against the default's 631, and
+it makes three deliberate changes: HP as a percentage because `#######...` and `17/24`
+both make the model divide before it can compare; the consequence written as a
+sentence instead of drawn as a graph; the exits inline instead of behind a tool call.
 
 That last one is a real trade, not a free win. It is cheaper, and it also
 removes the chance to observe whether the model knows to ask.

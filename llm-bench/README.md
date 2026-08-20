@@ -102,7 +102,7 @@ uv run pokelike llm-bench --table
 
 | flag | what it does |
 |---|---|
-| `--harness v0` | which frozen harness. `v0`, `v1` or `v2`, see [below](#the-harnesses) |
+| `--harness v0` | which frozen harness, see [below](#the-harnesses) |
 | `--model a/b` | one model id |
 | `--models a/b,c/d` | several, comma separated, played one after another |
 | `--endpoint URL` | OpenAI-compatible base URL, no `/v1`. Overrides `$FW_ENDPOINT` |
