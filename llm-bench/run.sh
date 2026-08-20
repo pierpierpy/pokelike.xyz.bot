@@ -68,7 +68,11 @@ else
     WORKERS=()
 fi
 
-CMD=(docker compose -f "$COMPOSE" run -d --rm --name "$NAME" bench
+# Run as the caller, not as root. The container writes results and logs onto a
+# mounted volume, so without this every file it produces is owned by root: the
+# next thing that has to rewrite one, such as re-fingerprinting a recorded pass,
+# fails with EACCES on a repo the user owns.
+CMD=(docker compose -f "$COMPOSE" run -d --rm --user "$(id -u):$(id -g)" --name "$NAME" bench
      "${@:1:0}" "${WORKERS[@]}" --models "$MODELS" "$@")
 [ "$HAS_HARNESS" = "0" ] && CMD=("${CMD[@]}" --harness "$HARNESS_DEFAULT")
 

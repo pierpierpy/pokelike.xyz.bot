@@ -127,9 +127,36 @@ def test_a_changed_harness_marks_the_row_stale(tmp_path):
 
 
 def test_fingerprint_covers_the_harness_and_the_render_it_used():
-    """render.py is imported rather than frozen, so it is hashed instead."""
+    """Both files are frozen beside the harness, so neither can move under a row."""
     for v in L.versions():
         assert set(L.fingerprints(v)) == {"bot.py", "render.py"}
+
+
+def test_every_harness_carries_its_own_renderer():
+    """The renderer is a copy per version, not the module the CLI improves.
+
+    It used to be `pokelike.core.render`, fingerprinted in the hope of catching
+    drift rather than preventing it. That hope failed the first time the shared
+    renderer had a defect: fixing it for the person at the terminal would have
+    marked every score ever recorded, so the benchmark was holding the CLI
+    hostage.
+    """
+    for v in L.versions():
+        p = L.render_path(v)
+        assert p.is_file()
+        assert p.parent == L.harness_path(v).parent
+        assert "core" not in p.parts
+
+
+def test_a_harness_without_a_renderer_is_an_error_not_a_missing_key(tmp_path, monkeypatch):
+    """A key nobody records is a key nobody checks, so absence must be loud."""
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    (tmp_path / "v9" / "harness").mkdir(parents=True)
+    (tmp_path / "v9" / "harness" / "bot.py").write_text("x = 1\n")
+    with pytest.raises(FileNotFoundError):
+        L.render_path("v9")
+    with pytest.raises(FileNotFoundError):
+        L.fingerprints("v9")
 
 
 def test_adding_a_file_to_the_fingerprint_does_not_mark_older_results(monkeypatch):

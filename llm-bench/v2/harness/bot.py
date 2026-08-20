@@ -112,16 +112,33 @@ Generated mechanically from v1, never transcribed by hand.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import random
+import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from pokelike.bot.base import Bot
-from pokelike.core import render
+
+# The renderer is the COPY beside this file, loaded by path rather than imported.
+#
+# Two reasons it cannot be a plain import. `load_class` runs a harness with
+# `spec_from_file_location` and no parent package, so `from . import render` has
+# nothing to be relative to. And every harness directory is named `harness`, so
+# all three versions would land on the same name in `sys.modules` and shadow one
+# another; the version directory is what makes this one unique.
+_HERE = Path(__file__).resolve().parent
+_spec = importlib.util.spec_from_file_location(
+    f"pokelike_harness_{_HERE.parent.name}_render", _HERE / "render.py"
+)
+render = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = render
+_spec.loader.exec_module(render)
 
 # How a decision is made here. Written into every result; a row measured under a
 # different number is marked as such rather than ranked as if it were the same.

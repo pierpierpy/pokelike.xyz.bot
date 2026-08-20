@@ -48,7 +48,6 @@ from .bench import STANDARD_SEEDS, _tok, progress_bar, run_benchmark, summarise
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "llm-bench"
-RENDER = Path(__file__).resolve().parent / "core" / "render.py"
 
 # How many runs at each end of a pass make up the learning comparison. Ten of
 # fifty: long enough to average out a lucky seed, short enough that the two
@@ -76,6 +75,24 @@ def harness_path(version: str) -> Path:
     return p
 
 
+def render_path(version: str) -> Path:
+    """The renderer frozen beside this harness.
+
+    Required, not optional. A harness that rendered with the shared module would
+    be measuring against a file the CLI is free to improve, which is the whole
+    thing this directory exists to avoid; and letting the key vanish when the
+    file is missing would turn a hole into silence, since a key nobody recorded
+    is a key nobody checks.
+    """
+    p = BENCH / version / "harness" / "render.py"
+    if not p.is_file():
+        raise FileNotFoundError(
+            f"no renderer at {p}. Every harness carries its own: copy the one "
+            f"from the previous version rather than importing pokelike.core.render."
+        )
+    return p
+
+
 def slug(model: str) -> str:
     """A model id as a filename. `openai/gpt-4o-mini` -> `openai--gpt-4o-mini`."""
     return model.replace("/", "--").replace(":", "-").replace(" ", "-")
@@ -84,13 +101,23 @@ def slug(model: str) -> str:
 def fingerprints(version: str) -> dict[str, str]:
     """What the measurement actually depended on.
 
-    The harness, and the render module it renders the state with. The second one
-    is not frozen — it is shared with the CLI — so it is fingerprinted instead:
-    change it and every row that used it is marked rather than quietly meaning
-    something new. See the header of the harness file.
+    Both files are frozen beside the harness, so neither can move under a
+    recorded row: the renderer used to be `pokelike.core.render`, shared with the
+    CLI and therefore fingerprinted in the hope of catching drift rather than
+    preventing it. That hope failed on the first real case. A defect in the
+    shared renderer could not be fixed for the person at the terminal without
+    marking every score ever recorded, so the benchmark was holding the CLI
+    hostage. Now each harness carries the 120 lines it renders with, and the
+    shared module is free to improve.
+
+    What is NOT here yet, and is the remaining hole: `bridge.js` decides what is
+    in the state at all and in what order `actions` come, and the bot answers
+    with an index into that list, so reordering changes what the same index
+    means. See ARCHITECTURE.md.
     """
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]  # noqa: E731
-    return {"bot.py": sha(harness_path(version)), "render.py": sha(RENDER)}
+    return {"bot.py": sha(harness_path(version)),
+            "render.py": sha(render_path(version))}
 
 
 def cross_run_memory(version: str) -> bool:
