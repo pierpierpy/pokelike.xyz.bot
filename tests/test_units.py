@@ -567,6 +567,37 @@ def test_map_marks_position_and_legal_moves():
     assert "B" not in text, "an unrevealed node must not show up"
 
 
+TUTOR_OFFER = {"0": {"name": "Energy Ball", "power": 90, "type": "Grass",
+                     "special": True}}
+
+
+def test_the_tutor_block_appears_only_on_the_tutor_screen():
+    """It used to appear on EVERY turn, which is 187 characters of prompt a turn.
+
+    The bridge asks the engine what the tutor would offer each team member on
+    every state, so `offered_moves` is always there; `tutor_view` renders
+    whenever it is, and nothing was gating on the screen. Measured on seed 10000:
+    the block was on 11 of the first 13 turns, not one of them a tutor.
+    """
+    off_tutor = {**SAMPLE_STATE, "offered_moves": TUTOR_OFFER}
+    assert "MOVE TUTOR" not in render.screen(off_tutor)
+
+    on_tutor = {**off_tutor, "screen": "move-tutor-screen"}
+    text = render.screen(on_tutor)
+    assert "MOVE TUTOR" in text
+    assert "Energy Ball" in text, "the offer itself must still be readable"
+
+
+def test_tutor_view_still_answers_when_asked_off_the_tutor_screen():
+    """The gate is the caller's, not the function's.
+
+    A bot planning several maps ahead has a reason to ask what the tutor would
+    offer before reaching one, and no way to get it back if this refused.
+    """
+    text = render.tutor_view({**SAMPLE_STATE, "offered_moves": TUTOR_OFFER})
+    assert "Energy Ball" in text
+
+
 def test_team_shows_hp_and_shiny():
     text = render.team_view(SAMPLE_STATE["team"])
     assert "Bulbasaur" in text and "19/19" in text

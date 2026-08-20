@@ -260,6 +260,14 @@ def tutor_view(obs: dict[str, Any]) -> str:
     so the comparison that decides the choice is not on screen at all. It is in
     the state — `team[i].move` and `offered_moves[i]` — and this is where it
     becomes readable.
+
+    Renders whenever `offered_moves` is present, which is every turn: the bridge
+    asks the engine what the tutor WOULD offer each member unconditionally, so
+    the question can be answered before reaching a tutor. Gating on the screen is
+    therefore the caller's job, and `screen()` does it. Kept that way round on
+    purpose, since a bot that wants to plan several maps ahead has a reason to
+    call this off a tutor screen and no way to get it back if this function
+    refused.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -303,7 +311,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
         if with_legend:
             parts += ["", LEGEND]
 
-    offers = tutor_view(obs)
+    offers = tutor_view(obs) if obs.get("screen") == "move-tutor-screen" else ""
     if offers:
         parts += ["", "MOVE TUTOR — what each offer replaces", offers]
 
