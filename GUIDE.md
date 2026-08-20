@@ -15,8 +15,7 @@ is easy to get wrong is marked, and the rule that catches people out has
 - [6 Submit](#6-submit)
 
 **Then**
-- [The optional hooks](#the-optional-hooks) 
-- [What you can adjust](#what-you-can-adjust) 
+- [How much control you want](#how-much-control-you-want) 
 - [The rule that is not obvious](#the-rule-that-is-not-obvious) 
 - [Two people, one name](#two-people-one-name) 
 - [Where to experiment](#where-to-experiment) 
@@ -104,7 +103,7 @@ half of that difference.
 
 If the prompt is not where your idea lives, you can go further without leaving
 the harness: what the model reads, what it can ask, and what answers it. That is
-its own section, [what you can adjust](#what-you-can-adjust). The model you point
+its own section, [how much control you want](#how-much-control-you-want). The model you point
 it at and the view you chose are both recorded in your result, so your row says
 what it actually was.
 
@@ -204,9 +203,9 @@ as is. One that also changes `src/` or `llm-bench/` gets a slower read, because 
 two directories are what makes every recorded score comparable.
 
 That is a fence around the numbers, not around your ideas, and it is drawn so that
-almost nothing you want to do is on the wrong side of it: everything in [what you can
-adjust](#what-you-can-adjust) lives inside your own folder, down to the JavaScript
-that decides what the state contains.
+almost nothing you want to do is on the wrong side of it: every step in
+[how much control you want](#how-much-control-you-want) lives inside your own folder,
+down to the JavaScript that decides what the state contains.
 
 If you find a **bug** in the shared code, report it. That is the most useful thing
 anyone does here, and it is not in tension with the fence: see
@@ -214,101 +213,139 @@ anyone does here, and it is not in tension with the fence: see
 
 ---
 
-## The optional hooks
+## How much control you want
 
-Only `choose` is required. These exist for bots that need them, and ignoring one
-costs you nothing:
+Eight steps, from the smallest bot that works to changing what the game tells you.
+Each step keeps everything before it and takes over one more thing. **Stop at the
+first one that fits.** Most bots stop at 1 or at 3.
 
-| hook | what it is for |
-|---|---|
-| `rearrange(state)` | who leads the next battle. Free, it does not use the turn |
-| `explain()` | one line under each decision in the log |
-| `on_start(seed)` / `on_end(state, score)` | a bot with memory across turns |
-| `artifacts()` | weights and config to record beside your result |
+| | you take over | you write | you need this when |
+|--:|---|---|---|
+| 1 | the decision | `choose(state)` | always. It is the whole contract |
+| 2 | the turn around it | five optional methods | your bot has memory, or trains |
+| 3 | nothing: a model decides | `PROMPT` | your idea is what to tell a model |
+| 4 | what the model reads | `STATE_VIEW` | the default view is wrong for you |
+| 5 | the text itself | `view(state)` | none of the four values of `STATE_VIEW` fit |
+| 6 | what the model can ask | `EXTRA_TOOLS`, `run_tool()` | it needs to look something up |
+| 7 | how the model is called | `_call(messages)` | your model is not an HTTP endpoint |
+| 8 | what is in the state | `artifacts/bridge.js` | you need a field nobody exposed |
 
-`rearrange` is worth a look. Slot 0 is the Pokemon that enters the next battle,
-so the order is a real decision, and it is kept out of `actions` because taking
-it costs no turn: a full team would otherwise add fifteen swap pairs beside the
-real moves at every single map node.
+Steps 1 and 2 are a bot that decides for itself: `random`, `sarsa-v2`, `dyna-q`,
+`lspi`. Steps 3 to 7 are a bot that asks a model: the six `llm-*` bots. Step 8 works
+for either.
 
 ---
 
-## What you can adjust
+### 1. Decide the move
 
-There are two ways to write a bot, and they are different jobs rather than two
-sizes of the same one. The question that separates them: **who decides the move.**
+Inherit from `Bot` and write one method. This is the whole required surface.
 
-| | you decide | the model decides |
-|---|---|---|
-| you inherit from | `Bot` | `LLMBot` |
-| you write | how the bot decides | what the model sees and can do |
-| `choose` | yours | already written |
-| in `bots/` | `random`, `sarsa-v2`, `dyna-q`, `lspi` | `llm-baseline`, `llm-survivor`, `llm-example` |
+```python
+class MyBot(Bot):
+    name = "mine"
 
-### Deciding it yourself
+    def choose(self, state: dict) -> int:
+        return 0
+```
 
-Inherit from `Bot`, write `choose`, and the rest of the surface is the six methods
-in [the optional hooks](#the-optional-hooks). You are not deciding moves by hand:
-you are writing the rule that decides them. A trained policy reads `state["team"]`,
-does its arithmetic and returns an index. Nothing here knows what text is.
+`state["actions"]` is the list you pick from, and you return a **position** in it.
+The list changes every turn and is not stable: index 2 is a battle now and a catch
+next turn, so never decide by position, always look at what the entry is.
 
-### Letting a model decide
+You are not choosing moves by hand. You are writing the rule that chooses them. A
+trained policy reads `state["team"]`, does its arithmetic and returns an index.
 
-Inherit from `LLMBot` and the loop is written: one HTTP call a turn, four tools,
-the journal, the retry policy, and a backup move for when a call fails so the run
-survives. Set `PROMPT` and you have a working bot in about thirty lines, which is
-what five of the six LLM bots in `bots/` are.
+### 2. Take over the turn around it
 
-Nine settings need no code:
+Five more methods, all optional. Ignoring one costs nothing.
 
-| | decides |
+| | what it is for |
 |---|---|
-| `PROMPT` | the system prompt. **This is your submission** |
+| `rearrange(state)` | return `(a, b)` to swap two team slots |
+| `explain()` | one line under each decision in the log |
+| `on_start(seed)` | before the first turn of a run |
+| `on_end(state, score)` | after the last one, with the score |
+| `artifacts()` | weights and config to record beside your result |
+
+`rearrange` is the one worth reading twice. Slot 0 enters the next battle, so the
+order is a real decision, and it is kept out of `actions` because making it costs no
+turn: a full team would otherwise add fifteen swap pairs next to the real moves at
+every map node.
+
+`on_end` receives the score, which is what an RL bot uses as its reward signal.
+
+### 3. Let a model decide instead
+
+Inherit from `LLMBot` and the loop is already written: one HTTP call a turn, four
+tools the model can call, a journal of past turns, retries for the failures that are
+transient, and a backup move when a call fails so the run survives instead of dying.
+
+You write the prompt.
+
+```python
+class MyBot(LLMBot):
+    name = "mine"
+    PROMPT = GAME_RULES + "Heal before it is urgent. Faints end runs."
+```
+
+That is a working bot, and it is what five of the six `llm-*` bots in `bots/` are:
+between 29 and 48 lines, almost all of it prompt. **The prompt is the submission.**
+
+Six numbers you can set, and none of them needs code:
+
+| | |
+|---|---|
 | `MODEL` | which model, or `None` to take `$MODEL_ID` |
-| `TEMPERATURE`, `MAX_TOKENS` | sampling, and the ceiling on one answer |
+| `TEMPERATURE` | sampling |
+| `MAX_TOKENS` | ceiling on one answer |
 | `MAX_ROUNDS` | tool rounds before the turn is given up on |
-| `MEMORY` | how many past turns are shown back |
+| `MEMORY` | how many past turns are shown back to the model |
 | `TOKEN_BUDGET` | tokens per run, 0 for no ceiling |
-| `EXTRA_TOOLS` | tools of your own, on top of the shared four |
-| `STATE_VIEW` | **what the model reads each turn** |
 
-`STATE_VIEW` decides what the model is looking at, as opposed to what it is told to
-do:
+**Do not override `choose` here.** It is what runs the loop, so replacing it throws
+away the reason you inherited from `LLMBot`. If that is what you want, go back to
+step 1 and inherit from `Bot`.
 
-| value | the model gets | roughly |
+### 4. Change what the model reads
+
+One setting, four values. It decides what the model is **looking at**, as opposed to
+what it has been told to do, which makes it the heaviest thing on this page after the
+prompt.
+
+| `STATE_VIEW` | the model gets | size |
 |---|---|--:|
-| `"screen"` | the text a person sees. The default | 630 char |
+| `"screen"` | the same text a person sees. The default | 630 char |
 | `"json"` | the whole state dict, compact JSON | 5100 char |
 | `"both"` | the text, then the dict under it | 5800 char |
-| `["team", "actions"]` | just those keys, as JSON | varies |
+| `["team", "actions"]` | only those keys, as JSON | varies |
 
-Eight times the tokens is the price of `"json"`, and it is not only money: filling
-the context with a map the turn does not need takes room from the reasoning.
+Measured at one state, the first map turn of seed 10000.
 
-And four hooks for when a setting is not enough:
+`"json"` costs eight times the tokens, and the money is the smaller half: a map the
+turn does not need takes room from the reasoning the model was about to do. Whether
+that trade pays is an experiment, which is why [`llm-raw`](bots/llm-raw/) exists. It
+is `llm-survivor` with the same prompt and a different view, and nothing else, so the
+pair measures the view.
 
-| override | when |
-|---|---|
-| `view(state)` | none of the four values of `STATE_VIEW` fit |
-| `tools()` | you want to control the whole tool list |
-| `run_tool(name, args, state)` | you have to answer your own tools |
-| `_call(messages)` | your model is not an HTTP endpoint |
+### 5. Write the text yourself
 
-Overriding `choose` is possible and is almost always a mistake: it throws away the
-loop, which was the reason to inherit from `LLMBot` in the first place. If that is
-what you want, inherit from `Bot`.
+When none of the four fit, override `view(state)` and return any string you like.
 
-### What `render` is
+```python
+def view(self, state: dict) -> str:
+    return f"You have {len(state['team'])} Pokemon and {len(state['actions'])} options."
+```
 
-`pokelike.core.render` turns the state dict into text. It is not a class and holds
-nothing: eleven functions that take part of a state and return a string.
+You cannot break the plumbing by doing this. The journal and the "pick an index
+between 0 and N" line are added around whatever you return, so replacing the view
+cannot silently cost your bot its memory or leave the model without the range of
+legal indices.
 
-It exists because nobody reads a dict, neither a person nor a model. `render.screen`
-is what `pokelike play` prints in your terminal **and** what an `LLMBot` sends by
-default, which is why the default view is described as what a person sees rather
-than as a format for models.
-
-The blocks are separate functions, so you can use one on its own:
+**What you build it from.** `pokelike.core.render` turns the state into text. It is
+not a class and holds nothing: eleven functions that take part of a state and return
+a string. `render.screen` is both what `pokelike play` prints in your terminal and
+what an `LLMBot` sends by default, which is why the default is described as what a
+person sees rather than as a format for models.
 
 | | |
 |---|---|
@@ -318,51 +355,92 @@ The blocks are separate functions, so you can use one on its own:
 | `actions_view(obs["actions"])` | the numbered options, with what the game says each is |
 | `graph_view(obs["map"])` | the map drawn, for a terminal |
 
-Your `view()` can call any of them, ignore all of them, or build something that
-looks nothing like a screen. `bots/llm-example/` shows one at 325 characters against
-the default's 630, and explains each choice.
+Call one, call none, or build something that looks nothing like a screen.
+[`bots/llm-example/`](bots/llm-example/) shows one at 325 characters against the
+default's 630, and explains every choice it made.
 
-### Adding to the state itself
+### 6. Give the model something to ask
 
-The state is not everything the game knows. It is a projection, written by hand in
-`src/pokelike/core/bridge.js`, which reads the engine and lists the fields to expose.
-So there is one thing no Python hook can do: **invent a field the bridge never read.**
+Declare a tool and answer it. Two pieces.
 
-If your idea needs a field nobody thought to expose, copy that file to
-`artifacts/bridge.js` beside your bot and change it there. It is picked up when your
-bot runs, and the run prints which bridge it used:
+```python
+EXTRA_TOOLS = [{
+    "type": "function",
+    "function": {"name": "bag", "description": "What you are carrying.",
+                 "parameters": {"type": "object", "properties": {}}},
+}]
+
+def run_tool(self, name, args, state):
+    if name == "bag":
+        return ", ".join(state.get("bag") or []) or "nothing"
+    return super().run_tool(name, args, state)
+```
+
+The model already has four: full team stats, where each option leads, who leads the
+next battle, and the one that ends the turn.
+
+**A tool is not free when nobody calls it.** Its schema is part of the prompt and is
+re-sent every single turn: the four shared ones already cost 1202 characters a turn,
+every turn, of every run.
+
+### 7. Call the model yourself
+
+Override `_call(messages)` and return the provider's answer. This is the hook for a
+local checkpoint, something behind vLLM or TGI, or anything that is not an
+OpenAI-compatible HTTP endpoint.
+
+If it **is** OpenAI-compatible, you do not need this: point `FW_ENDPOINT` at it.
+
+If you pin a model from a hub, pin the repo id **and a commit sha**, not a branch.
+The fingerprint covers your file, which covers the pointer, not the weights, so a
+moving branch means a row claiming a model that no longer exists.
+
+### 8. Change what is in the state
+
+Everything above works on the state the game hands you. That state is not everything
+the game knows: it is a projection, written by hand in
+[`src/pokelike/core/bridge.js`](src/pokelike/core/bridge.js), which reads the engine
+and lists the fields to expose.
+
+So there is exactly one thing no step above can do: **invent a field the bridge never
+read.** If that is what you are stuck on, copy that file to `artifacts/bridge.js`
+beside your bot and change it there. It is used when your bot runs, and the run says
+which one it used:
 
 ```
 bridge: /home/you/pokelike.xyz.bot/bots/mine/artifacts/bridge.js
 run 1/1  seed 1  steps  21  ...
 ```
 
-This works by path, so it works from an experiment folder too, before the bot has
-earned a place in `bots/`:
+It works by path, so it works from an experiment folder before the bot has earned a
+place in `bots/`. `pokelike bot bench --bot experiments/mine --dry-run` picks up
+`experiments/mine/artifacts/bridge.js` the same way.
 
-```bash
-uv run pokelike bot bench --bot experiments/mine --dry-run
-```
+**In `artifacts/`, not next to `bot.py`.** Your fingerprint covers `bot.py` plus
+everything under `artifacts/`. Putting it there is what makes a custom bridge part of
+what your score is a claim about, and that is the only reason anyone can trust the
+number. Beside `bot.py` it would not be hashed at all.
 
-picks up `experiments/mine/artifacts/bridge.js` the same way.
+**Do not click.** The bridge observes and answers. It must never pump the game: the
+engine consumes its seeded randomness in the order it is asked, so a bridge that
+dispatches events makes the same seed stop replaying the same run, and your score
+stops meaning what the seed says. Read the state, call the engine's own functions,
+return data.
 
-`artifacts/` and not the folder root, because your result's fingerprint covers
-`bot.py` plus everything under `artifacts/`. Putting it there means a custom bridge
-is part of what your score is a claim about, which is the only reason anyone can
-trust the number.
+---
 
-Two things to know before you do.
+### The ceiling
 
-**Do not click.** The bridge must observe and answer, never pump the game. The engine
-consumes its seeded randomness in the order it is asked, so a bridge that dispatches
-events makes the same seed stop replaying the same run, and your score stops meaning
-what the seed says it means. Read state, call the engine's own functions, return data.
+Two things are not yours, and both for the same reason: they are what makes two
+scores comparable.
 
-**`init.js` is not yours.** It pins `Math.random` and `Date.now`, and a run's seed is
-built from both. A bot supplying its own would play fifty different games while the
-table said it had played the standard fifty seeds, so that one is not overridable.
-More information is fair and is visible in your fingerprint; a different game under
-the same seed name is not.
+**The 50 seeds.** Everyone plays the same list. A partial run prints and records
+nothing.
+
+**`init.js`.** It pins `Math.random` and `Date.now`, and a run's seed is built from
+both. A bot supplying its own would play fifty different games while the table said
+it had played the standard fifty. More information is fair, and your fingerprint
+makes it visible; a different game under the same seed name is not.
 
 ---
 
