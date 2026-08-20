@@ -49,6 +49,12 @@ from .bench import STANDARD_SEEDS, _tok, progress_bar, run_benchmark, summarise
 ROOT = Path(__file__).resolve().parents[2]
 BENCH = ROOT / "llm-bench"
 
+# Shared and NOT frozen: what drives the game, as opposed to what decides what the
+# game shows. Fingerprinted so a change is reported rather than absorbed.
+BROWSER = Path(__file__).resolve().parent / "core" / "browser.py"
+GAME = Path(__file__).resolve().parent / "core" / "game.py"
+RUNNER = Path(__file__).resolve().parent / "runner.py"
+
 # How many runs at each end of a pass make up the learning comparison. Ten of
 # fifty: long enough to average out a lucky seed, short enough that the two
 # ends are actually early and late rather than two halves of the same curve.
@@ -93,6 +99,33 @@ def render_path(version: str) -> Path:
     return p
 
 
+def script_paths(version: str) -> dict[str, Path]:
+    """The two JavaScript files this harness drives the game with.
+
+    Frozen for a stronger reason than the renderer. A renderer decides how the
+    state is shown; these decide what the state IS. `bridge.js` chooses which
+    fields exist and the order `actions` come in, and a bot answers with an INDEX
+    into that list, so reordering silently changes what the same answer means.
+    `init.js` replaces Math.random and Date.now, and the run seed is built from
+    both: move a constant there and every seed maps to a different run, which does
+    not mark a recorded score, it voids it.
+
+    Handed to `Game(bridge=..., init=...)`, so the choice lives in the harness
+    directory rather than in the code that runs it.
+    """
+    out = {}
+    for key, name in (("bridge", "bridge.js"), ("init", "init.js")):
+        p = BENCH / version / "harness" / name
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"no {name} at {p}. Every harness carries its own copy: take the "
+                f"one from the previous version, or from src/pokelike/core/ if this "
+                f"is a new idea rather than a re-run of an old one."
+            )
+        out[key] = p
+    return out
+
+
 def slug(model: str) -> str:
     """A model id as a filename. `openai/gpt-4o-mini` -> `openai--gpt-4o-mini`."""
     return model.replace("/", "--").replace(":", "-").replace(" ", "-")
@@ -101,23 +134,33 @@ def slug(model: str) -> str:
 def fingerprints(version: str) -> dict[str, str]:
     """What the measurement actually depended on.
 
-    Both files are frozen beside the harness, so neither can move under a
-    recorded row: the renderer used to be `pokelike.core.render`, shared with the
-    CLI and therefore fingerprinted in the hope of catching drift rather than
-    preventing it. That hope failed on the first real case. A defect in the
-    shared renderer could not be fixed for the person at the terminal without
-    marking every score ever recorded, so the benchmark was holding the CLI
-    hostage. Now each harness carries the 120 lines it renders with, and the
-    shared module is free to improve.
+    Four files frozen beside the harness, and three shared ones hashed because
+    they cannot be.
 
-    What is NOT here yet, and is the remaining hole: `bridge.js` decides what is
-    in the state at all and in what order `actions` come, and the bot answers
-    with an index into that list, so reordering changes what the same index
-    means. See ARCHITECTURE.md.
+    The frozen four are everything that decides what a run IS: the loop, the text
+    the model reads, the state it is built from, and the pins that make a seed
+    replay. None of them can move under a recorded row, because nothing outside
+    that directory touches them.
+
+    The shared three drive the game. They are hashed rather than copied because
+    copying them would mean a harness carrying its own browser plumbing, which is
+    640 lines to freeze an engineering detail; when they change it is normally for
+    reasons that are not about content, and the mark is there to say so.
+
+    Not hashed: the game bundle, which is recorded separately as `game` because it
+    is downloaded rather than committed and has its own name and sha.
+
+    History. This used to be two keys, the harness and `pokelike.core.render`, on
+    the argument that copying the renderer would be worse than fingerprinting it.
+    That failed on the first real case: a defect in the shared renderer could not
+    be fixed for the person at the terminal without marking every score ever
+    recorded, so the benchmark was holding the CLI hostage. See ARCHITECTURE.md.
     """
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]  # noqa: E731
-    return {"bot.py": sha(harness_path(version)),
-            "render.py": sha(render_path(version))}
+    frozen = {"bot.py": harness_path(version), "render.py": render_path(version)}
+    frozen.update({f"{k}.js": v for k, v in script_paths(version).items()})
+    shared = {f"shared/{p.name}": p for p in (BROWSER, GAME, RUNNER)}
+    return {k: sha(v) for k, v in {**frozen, **shared}.items()}
 
 
 def cross_run_memory(version: str) -> bool:
@@ -1062,7 +1105,7 @@ def _worker() -> int:
     bot = cls(seed=0, model=a.model)
     server = AssetServer(ROOT / "site", port=a.port)
     server.start()
-    game = Game(url=server.url)
+    game = Game(url=server.url, **script_paths(a.harness))
     game.open()
     try:
         for seed in seeds:

@@ -114,7 +114,17 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     # With a window open the animations should run at their own speed, otherwise
     # everything flashes past unseen. Headless squashes them to 1 ms because
     # nobody is watching.
-    game = Game(url=server.url, watch=watch, max_delay=100_000 if watch else 1)
+    #
+    # A benchmark run drives the game with the bridge and init frozen beside its
+    # harness, not with the shared ones. Only `llm-bench` has a harness, and every
+    # other command wants the current pair: play and bot should follow a fix, not
+    # be pinned away from it.
+    scripts = {}
+    if getattr(args, "harness", None):
+        from ... import llmbench as _lb
+        scripts = _lb.script_paths(args.harness)
+    game = Game(url=server.url, watch=watch, max_delay=100_000 if watch else 1,
+                **scripts)
     try:
         game.open()
     except Exception as e:  # noqa: BLE001

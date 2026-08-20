@@ -35,6 +35,10 @@ class Game:
     max_delay: int = 1
     scoring: bool = True
     load_images: bool = True
+    # Passed straight to the Session. A harness under llm-bench/ hands over its own
+    # frozen copies so that improving the shared ones cannot reach a recorded score.
+    bridge: Path | None = None
+    init: Path | None = None
 
     session: Session | None = field(default=None, repr=False)
     seed: int | None = None
@@ -47,7 +51,8 @@ class Game:
 
     def open(self) -> None:
         self.session = Session(url=self.url, watch=self.watch, max_delay=self.max_delay,
-                               load_images=self.load_images)
+                               load_images=self.load_images,
+                               bridge=self.bridge, init=self.init)
         self.session.start()
 
     def close(self) -> None:

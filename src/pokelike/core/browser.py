@@ -16,63 +16,24 @@ from playwright.sync_api import Browser, Page, sync_playwright
 
 BRIDGE = Path(__file__).with_name("bridge.js")
 
-# Script that runs BEFORE the game bundle. It pins the game's two sources of
-# randomness and collapses animation delays.
+# The two JavaScript files, and the reason they are files rather than strings.
 #
-# The run seed is `Date.now() ^ (Math.random() * 2**32)` and everything a run
-# generates (map layout, encounters, item offers) flows from the engine's PRNG
-# seeded with it. Making a run reproducible therefore means pinning both.
-# Substituted with str.replace, not `%`: this script is full of prose, and a
-# comment mentioning a percentage made `INIT_SCRIPT % cfg` raise "not enough
-# arguments for format string" from a line nowhere near the change.
+# `init.js` runs before the game bundle and pins its randomness; `bridge.js` runs
+# after it and is the whole surface Python drives the game through. Both decide
+# what a run IS, not merely how it is presented, so a harness in llm-bench/ takes
+# a frozen copy of each and passes it here. Keeping them on disk is what makes
+# that copy possible.
+#
+# Substituted with str.replace, not `%`: init.js is full of prose, and a comment
+# mentioning a percentage made `INIT_SCRIPT % cfg` raise "not enough arguments for
+# format string" from a line nowhere near the change.
 CFG_MARK = "__PK_CFG_JSON__"
-
-INIT_SCRIPT = """
-(() => {
-  const cfg = __PK_CFG_JSON__;
-  let s = (cfg.seed >>> 0) || 1;
-  Math.random = function () {
-    s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0;
-    return s / 4294967296;
-  };
-  let clock = 1700000000000;
-  Date.now = () => (clock += 16);
-  const st = window.setTimeout.bind(window);
-  // Kept aside because the line below caps every delay to 1 ms: the settle loop
-  // needs a real one to pace itself, or it clicks faster than the game redraws.
-  window.__pk_realTimeout = st;
-  window.setTimeout = (fn, d, ...a) => st(fn, Math.min(Number(d) || 0, cfg.max_delay), ...a);
-  window.requestAnimationFrame = (fn) => st(() => fn(performance.now()), 0);
-
-  // The clock the ANIMATIONS read, and the reason capping timers was not enough.
-  //
-  // The engine plays a battle out over roughly 800 ms, and it paces that on
-  // elapsed time rather than on a number of ticks: it asks what time it is and
-  // works out how far along it should be. Capping setTimeout to 1 ms only makes
-  // it ask more often; the answer still walks at wall-clock speed, so we sat
-  // watching an animation whose outcome was already decided. Measured: 79% of a
-  // headless run was that wait, and 98.6% of it on the battle screen.
-  //
-  // Moving the clock forward by `tick` on every read collapses it. `__pk_realNow`
-  // keeps a true one for anything that must measure real elapsed time -- the
-  // settle loop's own timeout budget, which would otherwise burn 90 seconds in
-  // a few hundred reads.
-  //
-  // tick = 0 leaves the clock alone, which is what --watch does: a person
-  // watching wants to see the battle.
-  window.__pk_realNow = performance.now.bind(performance);
-  if (cfg.tick > 0) {
-    let vnow = window.__pk_realNow();
-    performance.now = () => (vnow += cfg.tick);
-  }
-  try { localStorage.clear(); } catch (e) {}
-})();
-"""
+INIT = Path(__file__).with_name("init.js")
 
 # The game's onboarding callouts ("Click a Pokemon to swap positions in your
 # team"), hidden because we cause them and never dismiss them.
 #
-# `INIT_SCRIPT` clears localStorage so no saved state leaks between runs, which
+# `init.js` clears localStorage so no saved state leaks between runs, which
 # means the game meets a first-time player on EVERY run and puts up the tutorial.
 # A human clicks it away; a bot never does, so the callouts pile up, one per team
 # slot, over the map and the battle screen alike.
@@ -95,7 +56,7 @@ HIDE_TUTORIAL_CSS = (
     "#tutorial-overlay, .tutorial-callout { display: none !important; }"
 )
 
-# The engine's PRNG is 32-bit: `INIT_SCRIPT` above does `(cfg.seed >>> 0) || 1`.
+# The engine's PRNG is 32-bit: `init.js` does `(cfg.seed >>> 0) || 1`.
 # That is the real range of a run seed, and going outside it fails in three ways
 # that all look like something else:
 #
@@ -176,11 +137,29 @@ class Session:
     # them removes a few hundred decodes and layout passes per run. Off by
     # default, because --watch and --shots obviously do want them.
     load_images: bool = True
+    # The two scripts that define what a run IS. Default to the shared ones, which
+    # is what the CLI, the API and the bots in bots/ all want: they should follow
+    # an improvement, not be pinned away from it.
+    #
+    # A harness in llm-bench/ passes its own frozen copies instead. It renders with
+    # a frozen renderer for the same reason, but these two go deeper than
+    # presentation: bridge.js decides what is in the state at all and in what order
+    # `actions` come, and a bot answers with an INDEX into that list, so reordering
+    # silently changes what the same answer means. init.js is deeper still, since
+    # every seed maps to a different run if it moves.
+    bridge: Path | None = None
+    init: Path | None = None
     _pw: object | None = field(default=None, repr=False)
     browser: Browser | None = field(default=None, repr=False)
     page: Page | None = field(default=None, repr=False)
     external_requests: list[str] = field(default_factory=list, repr=False)
     page_errors: list[str] = field(default_factory=list, repr=False)
+
+    def _init_js(self) -> str:
+        return Path(self.init or INIT).read_text(encoding="utf-8")
+
+    def _bridge_js(self) -> str:
+        return Path(self.bridge or BRIDGE).read_text(encoding="utf-8")
 
     def start(self) -> None:
         self._pw = sync_playwright().start()
@@ -198,7 +177,7 @@ class Session:
         page.route("**/*", self._filter)
 
         page.add_init_script(
-            INIT_SCRIPT.replace(CFG_MARK, json.dumps({
+            self._init_js().replace(CFG_MARK, json.dumps({
                 "seed": seed,
                 "max_delay": self.max_delay,
                 # A person watching wants to see the battle, not its conclusion.
@@ -223,7 +202,7 @@ class Session:
                 "modals": GAME_MODALS,
             },
         )
-        page.evaluate(BRIDGE.read_text(encoding="utf-8"))
+        page.evaluate(self._bridge_js())
         page.add_style_tag(content=HIDE_TUTORIAL_CSS)
 
         if self.page is not None:

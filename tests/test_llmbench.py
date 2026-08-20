@@ -126,10 +126,26 @@ def test_a_changed_harness_marks_the_row_stale(tmp_path):
     assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is True
 
 
-def test_fingerprint_covers_the_harness_and_the_render_it_used():
-    """Both files are frozen beside the harness, so neither can move under a row."""
+def test_fingerprint_covers_what_decides_a_run_and_what_drives_it():
+    """Four frozen files, three shared ones, and the difference is the point.
+
+    The frozen four decide what a run IS: the loop, the text the model reads, the
+    state it is built from, and the pins that make a seed replay. The shared three
+    drive the game, and are hashed rather than copied because copying them would
+    mean each harness carrying its own browser plumbing.
+    """
     for v in L.versions():
-        assert set(L.fingerprints(v)) == {"bot.py", "render.py"}
+        keys = set(L.fingerprints(v))
+        assert keys == {"bot.py", "render.py", "bridge.js", "init.js",
+                        "shared/browser.py", "shared/game.py", "shared/runner.py"}
+
+
+def test_the_frozen_files_all_live_in_the_harness_directory():
+    """Frozen means nothing outside that folder can reach them."""
+    for v in L.versions():
+        here = L.harness_path(v).parent
+        for p in (L.render_path(v), *L.script_paths(v).values()):
+            assert p.parent == here, f"{p} is not frozen beside the harness"
 
 
 def test_every_harness_carries_its_own_renderer():
@@ -148,7 +164,7 @@ def test_every_harness_carries_its_own_renderer():
         assert "core" not in p.parts
 
 
-def test_a_harness_without_a_renderer_is_an_error_not_a_missing_key(tmp_path, monkeypatch):
+def test_a_harness_without_its_own_scripts_is_an_error(tmp_path, monkeypatch):
     """A key nobody records is a key nobody checks, so absence must be loud."""
     monkeypatch.setattr(L, "BENCH", tmp_path)
     (tmp_path / "v9" / "harness").mkdir(parents=True)
@@ -156,7 +172,14 @@ def test_a_harness_without_a_renderer_is_an_error_not_a_missing_key(tmp_path, mo
     with pytest.raises(FileNotFoundError):
         L.render_path("v9")
     with pytest.raises(FileNotFoundError):
+        L.script_paths("v9")
+    with pytest.raises(FileNotFoundError):
         L.fingerprints("v9")
+
+    (tmp_path / "v9" / "harness" / "render.py").write_text("y = 1\n")
+    (tmp_path / "v9" / "harness" / "bridge.js").write_text("// b\n")
+    with pytest.raises(FileNotFoundError, match="init.js"):
+        L.script_paths("v9")
 
 
 def test_adding_a_file_to_the_fingerprint_does_not_mark_older_results(monkeypatch):
@@ -172,7 +195,7 @@ def test_adding_a_file_to_the_fingerprint_does_not_mark_older_results(monkeypatc
     assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is False
 
     monkeypatch.setattr(L, "fingerprints",
-                        lambda v: {**stamp, "bridge.js": "0123456789abcdef"})
+                        lambda v: {**stamp, "shared/something-new.py": "0123456789ab"})
     assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is False
 
 
@@ -181,7 +204,8 @@ def test_a_key_that_moved_is_still_caught_among_keys_that_did_not(monkeypatch):
     stamp = L.fingerprints("v0")
     one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
                                            "fallbacks": 0}], {}, {}, fingerprint=stamp)
-    moved = {**stamp, "render.py": "ffffffffffffffff", "bridge.js": "0123456789abcdef"}
+    moved = {**stamp, "render.py": "ffffffffffffffff",
+             "shared/something-new.py": "0123456789ab"}
     monkeypatch.setattr(L, "fingerprints", lambda v: moved)
     assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is True
 
