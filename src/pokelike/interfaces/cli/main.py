@@ -767,8 +767,8 @@ def cmd_llm_bench(args) -> int:
         money = llmbench.prices()
         llmbench.write_readme(money)
         table = llmbench.format_table(args.harness, money)
-    if table:
-        print(f"\n{table}")
+        if table:
+            print(f"\n{table}")
     return 0
 
 

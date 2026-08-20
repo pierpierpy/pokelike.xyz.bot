@@ -71,5 +71,12 @@ RUN uv sync --frozen
 # writes -- so anything else would produce output that dies with the container.
 # Baking the subcommand in means `docker compose run bench --harness v0 ...`
 # rather than an invitation to run something whose results would be lost.
-ENTRYPOINT ["uv", "run", "--frozen", "pokelike", "model", "bench"]
+# `--no-sync`: the environment was built above, at image build time, as root. The
+# project is COPYied in, not mounted, so at run time there is nothing for uv to
+# sync against and no reason to look. Without this, `uv run` rebuilt the editable
+# install on every start, which meant setuptools touching
+# `/app/src/*.egg-info` -- root-owned, from the build -- while the container runs
+# as the calling user, and the run died before its first request with "Cannot
+# update time stamp of directory".
+ENTRYPOINT ["uv", "run", "--frozen", "--no-sync", "pokelike", "model", "bench"]
 CMD ["--help"]
