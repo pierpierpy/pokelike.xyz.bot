@@ -64,11 +64,19 @@ WHAT CHANGED FROM v2, AND WHY EACH.
 
   6. EVERY TOOL CALL IS IN THE RECORD, IN ORDER. Each decision in the trace carries
      the calls the model made to reach it: which tools, and for the ones that change
-     something, what they changed, refusals included. Under v0 to v3 a pass recorded
-     that a turn had happened and what it chose, and the eight tools were invisible: a
-     model that never once asked what was ahead looked identical to one that asked
+     something, what they changed, refusals included. Before this a pass recorded
+     that a turn had happened and what it chose, and the eight tools were invisible:
+     a model that never once asked what was ahead looked identical to one that asked
      every turn. The notebook was saved once per run on top of that, so a note added
      and dropped inside one run left no trace at all.
+
+     THIS ONE IS NOT v4's ANY MORE. It started here and v0 and v2 were given the
+     same recorder afterwards, because a list appended to in the dispatch loop is an
+     observation: the request, the reply the model reads and every branch are
+     untouched. Their eleven recorded passes were re-fingerprinted with the old
+     hashes and that reason kept beside them. What arrives in a version and belongs
+     to all of them goes to all of them; that is the difference between watching a
+     benchmark and changing one.
 
   7. THE PLAY CALL IS ANSWERED. v2 stored the exchange that ended the turn with the
      `play` call in it and no reply to that call, because the turn returns the moment

@@ -109,14 +109,22 @@ Read-only tools appear as a name: what they answered is rebuildable from the sta
 which is already in the trace. The ones that change something carry what they changed,
 refusals included: `{"tool": "remember", "refused": "notes full", "kept": 12}`.
 
-**A refusal that is not recorded reads afterwards as a model that never tried.** Under
-v0 to v3 that is exactly what `remember` against a full notebook looked like: nothing at
+**A refusal that is not recorded reads afterwards as a model that never tried.** Before
+this, that is exactly what `remember` against a full notebook looked like: nothing at
 all.
 
 This is also the only way to answer what a model does with the eight tools it is given.
 Measured on the first three v4 passes, over 147 decisions: `what_lies_ahead` on about
 half the turns, `team_details` between one and five times each, and `set_lead` seventeen
 times for one model and never for another.
+
+**Every harness records this now, not only v4.** It started here, and v0 and v2 were
+given the same recorder afterwards: a list appended to in the dispatch loop leaves the
+request, the reply and every branch untouched, so it is an observation and belongs to
+all of them. Their eleven recorded passes carry the old hashes and the reason beside the
+new ones. It lives in each harness rather than in the shared code because the loop is
+the harness: `play` and `set_lead` never reach `run_tool`, so nothing outside can see
+the decision itself.
 
 `pokelike model watch` reads this while the pass runs.
 

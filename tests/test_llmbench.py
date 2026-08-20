@@ -691,3 +691,36 @@ def test_no_settings_is_an_empty_dict_not_a_none():
     """It is splatted into a constructor call, so it has to be a mapping either way."""
     assert L.parse_settings(None) == {}
     assert L.parse_settings([]) == {}
+
+
+# ------------------------------------------------- what every harness must record
+
+
+@pytest.mark.parametrize("version", L.versions())
+def test_every_harness_records_the_tool_calls_it_makes(version):
+    """The trace and the dashboard read this. A version without it logs less than v4.
+
+    It lives in each harness rather than in the shared side because the dispatch loop is
+    the harness: `play` and `set_lead` are handled inline and never reach `run_tool`, so
+    a wrapper around that method from outside cannot see the decision itself. Three
+    copies of one method is what a frozen copy means here.
+    """
+    cls = load_class(L.harness_path(version))
+    bot = cls(seed=0, model="test-model", **OFFLINE)
+    assert callable(getattr(bot, "tool_calls_made", None))
+
+    bot._note_call("what_lies_ahead", {})
+    bot._note_call("play", {"index": 2, "why": "because"})
+    made = bot.tool_calls_made()
+    assert [c["tool"] for c in made] == ["what_lies_ahead", "play"]
+    assert made[1]["index"] == 2 and made[1]["why"] == "because"
+    assert bot.tool_calls_made() == [], "asking must drain, or a turn is logged twice"
+
+
+@pytest.mark.parametrize("version", L.versions())
+def test_the_recorder_is_called_for_every_tool_the_model_asks_for(version):
+    """In the dispatch loop, before the call runs, so an unknown name is recorded too."""
+    src = L.harness_path(version).read_text(encoding="utf-8")
+    loop = src[src.index("for c in calls:"):]
+    assert "self._note_call(name, args)" in loop[:400], (
+        f"{version} extracts the tool name and does not record it")

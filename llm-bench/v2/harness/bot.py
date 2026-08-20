@@ -614,6 +614,11 @@ class HarnessV2(Bot):
         self.retries = 0
         self.fallbacks = 0
         self.journal: list[str] = []
+        # Every tool call since the last decision was logged, in the order made,
+        # drained by `tool_calls_made`. Not cleared per turn from in here: the model can
+        # also be called during `rearrange`, which runs before `choose`, and a call
+        # dropped because of where it happened is the one worth seeing.
+        self.tool_log: list[dict[str, Any]] = []
         # The notes. Deliberately NOT cleared by on_start -- see
         # CROSS_RUN_MEMORY. Not called `memory`: that name is taken by v0's
         # journal-trim size, and `_commit` slices the journal with it.
@@ -875,6 +880,7 @@ class HarnessV2(Bot):
                     args = json.loads(c["function"].get("arguments") or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                self._note_call(name, args)
 
                 if name == "play":
                     # The turn ends, so its exchange joins the scratchpad -- with
@@ -993,11 +999,15 @@ class HarnessV2(Bot):
 
         if verb == "remember":
             if not note:
-                return "nothing to remember: `note` was empty."
+                return self._refused("empty note",
+                                     "nothing to remember: `note` was empty.")
             if len(self.notebook) >= self.NOTES_MAX:
-                return (f"your notes are full ({self.NOTES_MAX}). Use `revise` to "
-                        f"improve one or `forget` to make room, then try again.")
+                return self._refused(
+                    "notes full",
+                    f"your notes are full ({self.NOTES_MAX}). Use `revise` to "
+                    f"improve one or `forget` to make room, then try again.")
             self.notebook.append(note)
+            self._kept()
             return (f"noted as [{len(self.notebook)}]. "
                     f"{len(self.notebook)}/{self.NOTES_MAX} notes used.")
 
@@ -1007,20 +1017,76 @@ class HarnessV2(Bot):
         try:
             i = int(args.get("id"))
         except (TypeError, ValueError):
-            return f"`id` must be a number between 1 and {len(self.notebook)}."
+            return self._refused(
+                "no id",
+                f"`id` must be a number between 1 and {len(self.notebook)}.")
         if not 1 <= i <= len(self.notebook):
-            return (f"there is no note [{i}]. You have {len(self.notebook)}: "
-                    f"use a number between 1 and {len(self.notebook)}.")
+            return self._refused(
+                "no such note",
+                f"there is no note [{i}]. You have {len(self.notebook)}: "
+                f"use a number between 1 and {len(self.notebook)}.")
 
         if verb == "forget":
             gone = self.notebook.pop(i - 1)
+            self._kept(dropped=gone)
             return (f"forgotten: {gone[:60]}. "
                     f"{len(self.notebook)}/{self.NOTES_MAX} notes used, and they have "
                     f"been renumbered.")
         if not note:
-            return "nothing to revise it to: `note` was empty."
+            return self._refused("empty note",
+                                 "nothing to revise it to: `note` was empty.")
+        was = self.notebook[i - 1]
         self.notebook[i - 1] = note
+        self._kept(was=was)
         return f"note [{i}] rewritten. {len(self.notebook)}/{self.NOTES_MAX} notes used."
+
+    def _kept(self, **what: Any) -> None:
+        """Marks the call just recorded as having changed the notes."""
+        if self.tool_log:
+            self.tool_log[-1]["kept"] = len(self.notebook)
+            self.tool_log[-1].update(
+                {k: str(v)[:160] for k, v in what.items() if v})
+
+    def _refused(self, why: str, reply: str) -> str:
+        """Marks it as refused, and answers the model.
+
+        Both in one place because the two must not disagree. A refusal that was not
+        recorded reads afterwards as a model that never tried, which is the opposite of
+        what happened.
+        """
+        if self.tool_log:
+            self.tool_log[-1]["refused"] = why
+            self.tool_log[-1]["kept"] = len(self.notebook)
+        return reply
+
+    def _note_call(self, name: str, args: dict[str, Any]) -> None:
+        """One tool call, as it is made, before it is run.
+
+        Recorded here and not inside `run_tool`, because `play`, `set_lead` and a name
+        the model invented never reach `run_tool`, and those are three of the things
+        worth knowing about a turn.
+
+        The arguments kept are the ones that decide something. A read-only tool takes
+        none, and the reply it produced is reconstructible from the state, which is
+        already in the trace.
+        """
+        entry: dict[str, Any] = {"tool": name}
+        for k in ("index", "id", "slot", "note", "route", "why"):
+            v = args.get(k)
+            if v not in (None, ""):
+                entry[k] = v if not isinstance(v, str) else v[:160]
+        self.tool_log.append(entry)
+
+    def tool_calls_made(self) -> list[dict[str, Any]]:
+        """Every call since this was last asked, and forget them.
+
+        Drained rather than read, and per DECISION rather than per turn, because the
+        caller is the logger and a decision is what it writes a line for. Draining is
+        also what makes it right across `rearrange`, which can call the model, and whose
+        calls belong to the decision that follows them.
+        """
+        out, self.tool_log = self.tool_log, []
+        return out
 
     def _memory_block(self) -> list[str]:
         """The notes as the model sees them: numbered, so it can revise and forget.

@@ -365,6 +365,11 @@ class HarnessV0(Bot):
         self.retries = 0
         self.fallbacks = 0
         self.journal: list[str] = []
+        # Every tool call since the last decision was logged, in the order made,
+        # drained by `tool_calls_made`. Not cleared per turn from in here: the model can
+        # also be called during `rearrange`, which runs before `choose`, and a call
+        # dropped because of where it happened is the one worth seeing.
+        self.tool_log: list[dict[str, Any]] = []
         self._last_why = ""
         # The turn decided in `rearrange`, waiting for `choose` to collect it.
         self._pending: tuple[int | None, int | None, str] | None = None
@@ -411,6 +416,35 @@ class HarnessV0(Bot):
             "state_view": self.view_name(),
             "reproducible": False,
         }
+
+    def _note_call(self, name: str, args: dict[str, Any]) -> None:
+        """One tool call, as it is made, before it is run.
+
+        Recorded here and not inside `run_tool`, because `play`, `set_lead` and a name
+        the model invented never reach `run_tool`, and those are three of the things
+        worth knowing about a turn.
+
+        The arguments kept are the ones that decide something. A read-only tool takes
+        none, and the reply it produced is reconstructible from the state, which is
+        already in the trace.
+        """
+        entry: dict[str, Any] = {"tool": name}
+        for k in ("index", "id", "slot", "note", "route", "why"):
+            v = args.get(k)
+            if v not in (None, ""):
+                entry[k] = v if not isinstance(v, str) else v[:160]
+        self.tool_log.append(entry)
+
+    def tool_calls_made(self) -> list[dict[str, Any]]:
+        """Every call since this was last asked, and forget them.
+
+        Drained rather than read, and per DECISION rather than per turn, because the
+        caller is the logger and a decision is what it writes a line for. Draining is
+        also what makes it right across `rearrange`, which can call the model, and whose
+        calls belong to the decision that follows them.
+        """
+        out, self.tool_log = self.tool_log, []
+        return out
 
     def tool_names(self) -> list[str]:
         return [t["function"]["name"] for t in self.tools()]
@@ -585,6 +619,7 @@ class HarnessV0(Bot):
                     args = json.loads(c["function"].get("arguments") or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                self._note_call(name, args)
 
                 if name == "play":
                     return args.get("index"), str(args.get("why", "")), lead

@@ -194,8 +194,8 @@ Each has its own README with exactly what it asks a model:
 
 One directory per command under `llm-bench/<version>/logs/<stamp>/`, holding
 `command.json`, a `.log` per pass (one line a game, tail-able), a `.jsonl` (one
-decision each, with the reason and the tools called), and under any harness that
-keeps notes a `notebook.log` and a `plan.log`. Results live apart, one file per model with every pass inside. Layout and
+decision each, with the reason, the tools called, the team and the map), and under
+any harness that keeps notes a `notebook.log` and a `plan.log`. Results live apart, one file per model with every pass inside. Layout and
 rationale: [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
 
 ```bash

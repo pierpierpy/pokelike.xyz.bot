@@ -938,10 +938,10 @@ def play_model(game, version: str, model: str, site: Path,
     def decided(e: dict[str, Any]) -> None:
         """One decision, with what the bot did to reach it and what it was looking at.
 
-        The tool calls are asked of the BOT and not of the runner: the runner sees
-        a bot return an index, and everything between the question and the answer
-        happens inside `choose`. Asked with `getattr` because a harness that does
-        not keep the list is not broken, it is older.
+        The tool calls come from the BOT and not from the runner: the runner sees a
+        bot return an index, and everything between the question and the answer happens
+        inside `choose`. Every harness has them, its own list where it keeps one and a
+        wrapper around `run_tool` where it does not.
 
         The map is drawn with the SHARED renderer, not the harness's frozen copy.
         This is the log, not the prompt: it says where the run was, and the layer
@@ -949,9 +949,13 @@ def play_model(game, version: str, model: str, site: Path,
         fixed by the harness and reproducible from it.
         """
         extra: dict[str, Any] = {}
-        made = getattr(bot, "tool_calls_made", None)
-        if callable(made):
-            extra["tools"] = made()
+        # Every harness keeps this list. The one that did not was v0, and the
+        # answer was to give it one rather than to guess from outside: `play` and
+        # `set_lead` never reach `run_tool`, so a wrapper around that method could
+        # not see the decision itself.
+        called = bot.tool_calls_made()
+        if called:
+            extra["tools"] = called
         obs = seen.get("obs")
         if obs and (obs.get("map") or {}).get("nodes"):
             from ..core import render
@@ -1252,9 +1256,9 @@ def _worker() -> int:
                 # reasons. Kept in step deliberately: a trace read by the dashboard
                 # cannot say less about a pass because four processes played it.
                 extra: dict[str, Any] = {}
-                made = getattr(bot, "tool_calls_made", None)
-                if callable(made):
-                    extra["tools"] = made()
+                called = bot.tool_calls_made()
+                if called:
+                    extra["tools"] = called
                 if ((last.get("obs") or {}).get("map") or {}).get("nodes"):
                     from ..core import render
 

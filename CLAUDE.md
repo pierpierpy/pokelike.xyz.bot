@@ -574,7 +574,8 @@ One directory per command, `llm-bench/<version>/logs/<stamp>/`:
 |---|---|
 | `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential**. `record_command` refuses a payload with a credential-shaped key |
 | `<model>-passN.log` | one line per finished run, flushed as it happens. What you `tail -f` |
-| `<model>-passN.jsonl` | one object per decision: the option taken, the options it had, the reason, tokens at turn/run/pass level. No prompts, since they are reconstructible from the harness plus the seed |
+| `<model>-passN.jsonl` | one object per decision: a wall clock, the option taken, the options it had, the reason, every tool call in order, the team, the map when it changed, and tokens at turn/run/pass level. No prompts, since they are reconstructible from the harness plus the seed |
+| | Every harness records its tool calls, in its own dispatch loop, because `play` and `set_lead` never reach `run_tool` and nothing outside the harness can see them. A version without `tool_calls_made()` fails the suite. |
 | `-notebook.log` | under any harness that keeps notes: they are opened on demand, so a version with none leaves no empty file. The notes as they stood at the end of each run, `unchanged` when nothing moved |
 | `-plan.log` | same, for the route it planned for each map |
 
