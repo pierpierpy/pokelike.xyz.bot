@@ -26,34 +26,6 @@ like.*
   policy, a prompt, a rulebook, tree search, anything that turns a state into a move.
   [Writing a bot](#writing-a-bot).
 
-```
-                       ONE GAME, RUN HEADLESS AND REPRODUCIBLY
-                       same seed, same run, every time
-                                     |
-        +----------------------------+----------------------------+
-        |                            |                            |
-  THE ENVIRONMENT              THE COMPETITION              THE INSTRUMENT
-  simulate a run               your code is the entry       the model is the entry
-
-  you fix    nothing           the 50 seeds                 the 50 seeds AND the
-                                                            whole scaffold
-  you vary   the seed,         everything: policy,          the model id, and
-             the moves         prompt, view, tools,         nothing else
-                               even the bridge
-  you get    a state, a        a row in the standings       a row in the model
-             screen, a score   that ranks IDEAS             table, per version
-                                                            that ranks MODELS
-
-  for        a player with     curious, beginner or         an AI researcher
-             a coding agent    twenty years of RL           measuring an odd
-                                                            agentic task
-
-  pokelike   play              bot new / run                model bench
-             api               bot bench                    model board
-                               bot board
-
-  lives in   src/pokelike/     bots/<yours>/                llm-bench/v<n>/
-```
 
 Rows never cross between the last two. The competition asks who had the better idea,
 and the model is whatever the author happened to point at. The instrument asks which

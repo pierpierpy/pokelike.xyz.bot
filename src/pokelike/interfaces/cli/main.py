@@ -876,36 +876,87 @@ def seed_arg(value: str) -> int:
 #
 # The old flat names still work and are not listed: see ALIASES below.
 
-GROUPS = """
-commands
+# rich when installed, plain argparse when not. The help has to render in an
+# environment where an optional dependency failed to install.
+try:
+    from rich_argparse import RawDescriptionRichHelpFormatter as _FORMATTER
+except ImportError:  # pragma: no cover
+    _FORMATTER = argparse.RawDescriptionHelpFormatter
 
-  setting up      setup, mirror
-  playing         play, api
 
-  bot             the competition: your code is the entry, ranked by idea
-                    new    write a bot folder that already plays
-                    run    play it and watch the decisions
-                    bench  the 50 standard seeds, records a result
-                    board  the standings
+# Three boxes, one per thing this repo does, and every command lives in exactly one.
+FAMILIES = (
+    ("the game", "run it, look at it",
+     "Headless and reproducible: same seed, same run, every time.",
+     (("setup", "browser plus an offline copy of the game. Once"),
+      ("play", "play it yourself in the terminal"),
+      ("api", "drive it over HTTP"),
+      ("schema", "what a bot receives: state, actions, node kinds"),
+      ("history", "what you have played here. Not comparable with anyone"),
+      ("mirror", "rebuild the offline copy if it breaks"))),
+    ("pokelike bot", "the competition",
+     "Your code is the entry and the game is fixed, so the standings rank ideas.",
+     (("new", "write a bot folder that already plays"),
+      ("run", "play it and watch the decisions"),
+      ("bench", "the 50 standard seeds, records a result"),
+      ("board", "the standings"))),
+    ("pokelike model", "the instrument",
+     "The loop, the text it reads, the state and the seed are frozen, so the model "
+     "is the only thing that varies.",
+     (("bench", "a model against one frozen harness version"),
+      ("board", "what has been measured, per version"))),
+)
 
-  model           the instrument: the scaffold is frozen, the model is the variable
-                    bench  a model against one frozen harness version
-                    board  what has been measured, per version
-
-  reference       schema, history
+PLAIN_GROUPS = """
+  the game         setup, play, api, schema, history, mirror
+  pokelike bot     new, run, bench, board     your code is the entry
+  pokelike model   bench, board               the model is the entry
 
 `pokelike <command> --help` for any of them.
 """
 
-# `pokelike bot run --bot mine` means `pokelike bot run --bot mine`, and `pokelike model
+
+def groups_epilog() -> str:
+    """The family overview, boxed with rich when it is available.
+
+    Falls back to plain text rather than failing: `--help` is the one command that
+    must work in an environment where an optional dependency did not install.
+    """
+    try:
+        from rich.console import Console, Group
+        from rich.panel import Panel
+        from rich.table import Table
+        from rich.text import Text
+    except ImportError:  # pragma: no cover
+        return PLAIN_GROUPS
+
+    console = Console(width=min(84, Console().width), record=True)
+    with console.capture() as cap:
+        console.print()
+        for name, tag, blurb, verbs in FAMILIES:
+            verb_rows = Table.grid(padding=(0, 2))
+            verb_rows.add_column(style="bold",
+                                 width=max(len(v) for v, _ in verbs) + 1)
+            verb_rows.add_column()
+            for verb, help_ in verbs:
+                verb_rows.add_row(verb, help_)
+            # The blurb goes INSIDE the box: as a subtitle rich truncates it to the
+            # border width, and the sentence that explains the difference is the one
+            # thing that must not be cut.
+            console.print(Panel(
+                Group(Text(blurb, style="italic dim"), "", verb_rows),
+                title=f"[bold]{name}[/bold]  [dim]{tag}[/dim]",
+                title_align="left", border_style="dim", padding=(0, 2),
+            ))
+            console.print()
+        console.print("[dim]`pokelike <command> --help` for any of them.[/dim]")
+    return cap.get()
+
+
+# `pokelike bot --bot mine` means `pokelike bot run --bot mine`, and `pokelike model
 # --table` means `pokelike model board`. Without this, adding the verb would break
 # every command already written down.
 FAMILY_DEFAULT = {"bot": "run", "model": "bench"}
-
-# The flat names this replaced. Registered without `help=`, so they keep working and
-# are not advertised.
-ALIASES = {"new-bot": ("bot", "new"), "bench": ("bot", "bench"),
-           "leaderboard": ("bot", "board"), "llm-bench": ("model", "bench")}
 
 
 def _with_default_verb(argv: list[str]) -> list[str]:
@@ -1023,38 +1074,44 @@ def _model_board_args(s) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="pokelike",
+        # Written out, because suppressing argparse's own subcommand listing takes
+        # `<command>` out of the generated usage line with it.
+        usage="pokelike [--port PORT] <command> [<verb>] [flags]",
         description="Play pokelike.xyz headless, from the command line or over HTTP.",
-        epilog=GROUPS,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=groups_epilog(),
+        formatter_class=_FORMATTER,
     )
     p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
     # The listing is in the epilog, grouped by family, so the brace list is replaced
     # by a placeholder rather than printing eleven names on one line.
-    sub = p.add_subparsers(dest="command", required=True, metavar="<command>")
+    # The listing is the three boxes in the epilog, so argparse's own is suppressed
+    # rather than printing the same eight names again with no grouping.
+    sub = p.add_subparsers(dest="command", required=True, metavar="<command>",
+                           help=argparse.SUPPRESS)
 
-    s = sub.add_parser("setup", help="get everything ready: browser + offline copy (run once)")
+    s = sub.add_parser("setup")
     s.add_argument("--force", action="store_true", help="rebuild the copy even if present")
     s.set_defaults(func=cmd_setup)
 
-    s = sub.add_parser("mirror", help="rebuild only the offline copy of the game")
+    s = sub.add_parser("mirror")
     s.add_argument("--phase", choices=list(PHASES), default="all",
                    help="resume from one phase without downloading everything again")
     s.set_defaults(func=cmd_mirror)
 
-    s = sub.add_parser("play", help="interactive run in the terminal")
+    s = sub.add_parser("play")
     s.add_argument("--seed", type=seed_arg, default=1, help="seed of the run")
     s.add_argument("--watch", action="store_true", help="open a real window and watch")
     s.add_argument("--shots", metavar="FOLDER", help="save an image of every screen")
     s.set_defaults(func=cmd_play)
 
-    s = sub.add_parser("api", help="start the HTTP API")
+    s = sub.add_parser("api")
     s.add_argument("--api-port", type=int, default=8423)
     s.add_argument("--seed", type=seed_arg, default=1, help="seed of the initial run")
     s.set_defaults(func=cmd_api)
 
     # ---- the competition: your code is the entry -------------------------------
     fam = sub.add_parser(
-        "bot", help="write, play and benchmark a bot. Your code is the entry",
+        "bot",
         description="The competition. Your code is the entry and the game is fixed, so "
                     "the standings rank ideas. To measure a MODEL with the scaffold "
                     "held still, see `pokelike model`.",
@@ -1071,7 +1128,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ---- the instrument: the model is the entry --------------------------------
     fam = sub.add_parser(
-        "model", help="benchmark a model against a frozen harness",
+        "model",
         description="The instrument. Every version freezes the loop, the text the "
                     "model reads, the state and the seed, so the model is the only "
                     "thing that varies and a row says something about it. To rank "
@@ -1083,7 +1140,7 @@ def main(argv: list[str] | None = None) -> int:
     _model_board_args(models.add_parser(
         "board", help="what has been measured, per version"))
 
-    s = sub.add_parser("schema", help="what a bot receives: state, actions, node kinds")
+    s = sub.add_parser("schema")
     s.add_argument("--json", action="store_true", help="print a real observation instead")
     s.add_argument("--markdown", action="store_true",
                    help="regenerate the state reference inside STATE.md")
@@ -1091,20 +1148,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # `history`, not `stats`: this is what YOU played on this machine, and the
     # name has to stop reading like a sibling of the standings.
-    s = sub.add_parser("history",
-                       help="what you have played on this machine (not comparable)")
+    s = sub.add_parser("history")
     s.add_argument("-d", "--explain", action="store_true",
                    help="explain what each column means")
     s.add_argument("--recent", type=int, default=0, help="also show the last N runs")
     s.add_argument("--bot", default=None, help="filter the recent list by bot")
     s.set_defaults(func=cmd_stats)
-
-    # The flat names, kept working and not advertised. No `help=`, so they do not
-    # appear in the listing.
-    _bot_new_args(sub.add_parser("new-bot"))
-    _bot_bench_args(sub.add_parser("bench"))
-    sub.add_parser("leaderboard").set_defaults(func=cmd_leaderboard)
-    _model_bench_args(sub.add_parser("llm-bench"))
 
     args = p.parse_args(_with_default_verb(list(argv) if argv is not None else sys.argv[1:]))
     return args.func(args)

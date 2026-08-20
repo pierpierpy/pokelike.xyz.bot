@@ -71,5 +71,5 @@ RUN uv sync --frozen
 # writes -- so anything else would produce output that dies with the container.
 # Baking the subcommand in means `docker compose run bench --harness v0 ...`
 # rather than an invitation to run something whose results would be lost.
-ENTRYPOINT ["uv", "run", "--frozen", "pokelike", "llm-bench"]
+ENTRYPOINT ["uv", "run", "--frozen", "pokelike", "model", "bench"]
 CMD ["--help"]

@@ -22,17 +22,49 @@ def _cli(*argv) -> tuple[int, str]:
     return r.returncode, r.stdout + r.stderr
 
 
+COMMANDS = ("setup", "mirror", "play", "api", "schema", "history", "bot", "model")
+VERBS = (("bot", "new"), ("bot", "run"), ("bot", "bench"), ("bot", "board"),
+         ("model", "bench"), ("model", "board"))
+
+
 def test_help_lists_every_command():
+    """argparse's own subcommand listing is suppressed, so this is the only listing.
+
+    The three boxes in the epilog are written by hand, which means a command added
+    to the parser and forgotten there would be invisible. This is what notices.
+    """
     code, text = _cli("--help")
     assert code == 0
-    for command in ("setup", "mirror", "play", "bot", "api", "history"):
+    for command in COMMANDS:
         assert command in text, f"command {command} is missing from the help"
+    for family, verb in VERBS:
+        assert verb in text, f"{family} {verb} is missing from the help"
 
 
-@pytest.mark.parametrize("command", ["setup", "mirror", "play", "bot", "api", "history"])
+@pytest.mark.parametrize("command", COMMANDS)
 def test_every_command_has_its_own_help(command):
     code, _ = _cli(command, "--help")
     assert code == 0
+
+
+@pytest.mark.parametrize("family,verb", VERBS)
+def test_every_verb_has_its_own_help(family, verb):
+    code, _ = _cli(family, verb, "--help")
+    assert code == 0
+
+
+@pytest.mark.parametrize("gone", ["bench", "leaderboard", "llm-bench", "new-bot"])
+def test_the_flat_names_are_gone(gone):
+    """One command per job. The old names were removed rather than kept as aliases."""
+    code, _ = _cli(gone, "--help")
+    assert code != 0, f"{gone} still resolves"
+
+
+def test_a_family_with_only_flags_still_works():
+    """`pokelike bot --bot mine` means `bot run`, so the verb is optional there."""
+    code, text = _cli("bot", "--help")
+    assert code == 0
+    assert "board" in text, "a bare family must show the family, not its default verb"
 
 
 def test_no_command_exits_with_an_error():

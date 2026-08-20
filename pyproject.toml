@@ -7,7 +7,7 @@ name = "pokelike.xyz.bot"
 version = "0.1.0"
 description = "Let bots play pokelike.xyz, headless, from a CLI or an HTTP API"
 requires-python = ">=3.10"
-dependencies = ["playwright>=1.55", "tqdm>=4.66"]
+dependencies = ["playwright>=1.55", "tqdm>=4.66", "rich-argparse>=1.8,<2"]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
