@@ -15,6 +15,10 @@ dist/
 # working list, not documentation
 TODO.md
 
+# personal notes on how the pieces fit together, written to be reread, not
+# published: it names the open holes in the benchmark before they are fixed.
+ARCHITECTURE.md
+
 # Source recordings. The GIFs beside them are what ships; a 200 MB mp4 is past
 # GitHub's 100 MB file cap anyway. (gitignore has no trailing comments, so this
 # note goes on its own line.)
