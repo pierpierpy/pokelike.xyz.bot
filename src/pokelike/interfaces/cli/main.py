@@ -656,8 +656,13 @@ def cmd_llm_bench(args) -> int:
             server.stop()
 
     if not (args.dry_run or partial):
-        llmbench.write_readme()
-        print(f"\n{llmbench.format_table(args.harness)}")
+        # WITH the price list. Without it every `$` and `$/run` cell is written as a
+        # dash, and since this regeneration runs at the end of every recorded pass it
+        # would silently wipe the money columns that `--table` had just filled in --
+        # which it did, three times, before anyone noticed the two paths disagreed.
+        money = llmbench.prices()
+        llmbench.write_readme(money)
+        print(f"\n{llmbench.format_table(args.harness, money)}")
     return 0
 
 

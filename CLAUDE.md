@@ -482,31 +482,68 @@ providers change models behind a fixed name and sampling is stochastic.
 
 **`llm-bench/*/harness/bot.py` is not editable once a result exists beside it.**
 Every recorded row is a claim about exactly that file; changing it makes the claim
-false, and no error would ever say so. An improvement is a new directory, `v2/`,
-and the old rows stay valid under the version where they were earned. That is why
-the version is in the path and not in a variable.
+false, and no error would ever say so. An improvement is a new directory, and the old
+rows stay valid under the version where they were earned. That is why the version is
+in the path and not in a variable.
 
-They are mechanical copies of `bot/llm.py`, not imports of it, so that improving
-the shared harness for `bots/` cannot silently change what a recorded score meant.
-Two consequences worth knowing before touching anything:
+They are mechanical copies of `bot/llm.py`, not imports of it, so that improving the
+shared harness for `bots/` cannot silently change what a recorded score meant.
 
-- **`pokelike.core.render` is imported, not copied**, and it is behaviour rather
-  than an interface. Every pass records a sha256 of the harness *and* of the render
-  module, and the table marks a row when either stops matching disk. Changing
-  `render.py` is allowed; it just gets caught.
-- **`pokelike.leaderboard.Artifact` and `pokelike.bot.base.Bot` are frozen public
-  API.** Both harnesses import them, as do five submitted bots whose files are
-  fingerprinted against their scores. Those import paths cannot move without a
-  permanent shim.
+### What each version asks
 
-`v1` carries the model's notes between runs, so its runs are not independent: it
-refuses `--workers > 1` rather than producing a pass that depends on how the seeds
-were dealt. A harness declares this with `CROSS_RUN_MEMORY = True`, and `llmbench`
-asks the harness rather than hardcoding versions.
+| | loop | memory | tokens |
+|---|---|---|---|
+| `v0` | one call a turn, 4 tools, 4 rounds | last 6 moves, within the run | 1500 |
+| `v1` | v0 | plus 12 notes surviving the run: `remember`/`revise`/`forget` | 1500 |
+| `v2` | plus the last 3 turns carried verbatim, a `plan` tool, 6 rounds | v1's notes | 4000 |
 
-One naming trap in those files: `self.memory` is the journal-trim size, `MEMORY`
-turns of history. The notes the model writes are `self.notebook`. They are two
-different memories and mixing them up crashes `_commit`.
+`v0`'s prompt holds facts and no strategy on purpose: advice in a prompt measures how
+well models follow OUR advice. `v2` breaks that deliberately, because measurement
+forced it — under v0's prompt two models played fifty runs each and called `remember`
+zero times, and "memory does not help" and "the models never used it" are different
+findings. So v0 and v2 ask genuinely different questions and their rows are never
+ranked together.
+
+### Three things to know before touching any of it
+
+- **`pokelike.core.render` is imported, not copied**, and it is behaviour rather than
+  an interface. Every pass records a sha256 of the harness *and* of the render module,
+  and the table marks a row ⚠︎ when either stops matching disk. Changing `render.py`
+  is allowed; it just gets caught. The fingerprint is taken when a pass STARTS, not
+  when it records, so an edit mid-pass cannot yield a row certifying code it never ran.
+- **`pokelike.leaderboard.Artifact` and `pokelike.bot.base.Bot` are frozen import
+  paths.** All three harnesses import them, as do five submitted bots whose files are
+  fingerprinted against their scores. They cannot move without a permanent shim.
+- **`CROSS_RUN_MEMORY` is asked of the harness, never hardcoded.** A version carrying
+  notes between runs has no independent runs, so `--workers > 1` is refused and the
+  `learn` column appears. Adding a version needs no edit in `llmbench.py` or `run.sh`.
+
+### What a run writes, and where
+
+One directory per command, `llm-bench/<version>/logs/<stamp>/`:
+
+| file | what it holds |
+|---|---|
+| `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential** — `record_command` refuses a payload with a credential-shaped key |
+| `<model>-passN.log` | one line per finished run, flushed as it happens. What you `tail -f` |
+| `<model>-passN.jsonl` | one object per decision: the option taken, the options it had, the reason, tokens at turn/run/pass level. No prompts — reconstructible from the harness plus the seed |
+| `-notebook.log` | under `v1`/`v2`: the notes as they stood at the end of each run, `unchanged` when nothing moved |
+| `-plan.log` | under `v2`: the route it planned for each map |
+
+Results live **apart**, `results/<model>.json`, one file per model with every pass
+appended — that is the comparable record, and ten commands over three days build one
+model's history. Only a pass over the standard fifty seeds may be recorded, compared
+BY VALUE: `records()` is a function with a test because the version that compared
+lengths would have recorded fifty seeds of somebody's own choosing.
+
+Logs are gitignored. Every statistic in the table is derived from the rows at print
+time, so nothing recomputable is stored — which is why cost is never written into a
+result, and why regenerating the table after deleting or recording anything is on you.
+
+One naming trap: `self.memory` is the journal-trim size, `MEMORY` moves of history.
+The notes are `self.notebook`, the plan is `self.plan`, the carried exchanges are
+`self.scratch`. Two harnesses have been generated mechanically from an earlier one and
+both times the rename was where the bugs were.
 
 ## Secrets
 

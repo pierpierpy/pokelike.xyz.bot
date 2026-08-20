@@ -7,20 +7,20 @@ is easy to get wrong is marked, and the rule that catches people out has
 ---
 
 **The six steps**
-[1 Set up](#1-set-up-once) ·
-[2 See the state](#2-look-at-what-a-bot-receives) ·
-[3 Create it](#3-create-it) ·
-[4 Write it](#4-write-it) ·
-[5 Measure it](#5-measure-it) ·
-[6 Submit](#6-submit)
+- [1 Set up](#1-set-up-once) 
+- [2 See the state](#2-look-at-what-a-bot-receives) 
+- [3 Create it](#3-create-it) 
+- [4 Write it](#4-write-it) 
+- [5 Measure it](#5-measure-it) 
+- [6 Submit](#6-submit)
 
 **Then**
-[The optional hooks](#the-optional-hooks) ·
-[The rule that is not obvious](#the-rule-that-is-not-obvious) ·
-[Two people, one name](#two-people-one-name) ·
-[Where to experiment](#where-to-experiment) ·
-[Pushing your experiments too](#pushing-your-experiments-too) ·
-[What counts as a bot](#what-counts-as-a-bot)
+- [The optional hooks](#the-optional-hooks) 
+- [The rule that is not obvious](#the-rule-that-is-not-obvious) 
+- [Two people, one name](#two-people-one-name) 
+- [Where to experiment](#where-to-experiment) 
+- [Pushing your experiments too](#pushing-your-experiments-too) 
+- [What counts as a bot](#what-counts-as-a-bot)
 
 ---
 
