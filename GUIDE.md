@@ -26,7 +26,7 @@ is easy to get wrong is marked, and the rule that catches people out has
 
 ## 1. Set up, once
 
-Fork this repo on GitHub first, then clone **your** fork — not this one. That way
+Fork this repo on GitHub first, then clone **your** fork, not this one. That way
 `origin` is somewhere you can push, which is what step 6 needs:
 
 ```bash
@@ -79,12 +79,12 @@ That writes a folder, and the folder **is** the bot:
 ```
 bots/mine/
 ├── bot.py        one class inheriting from Bot
-├── artifacts/    weights, prompts, tables — whatever yours needs
+├── artifacts/    weights, prompts, tables, whatever yours needs
 └── README.md     one line on how it decides
 ```
 
 Nothing to register anywhere. `--bot mine` finds it because the folder is there.
-A prefix works too as long as it is unique — `--bot mi` is fine until someone
+A prefix works too as long as it is unique, so `--bot mi` is fine until someone
 adds `mine-v2`, at which point it becomes an error naming both rather than a
 guess.
 
@@ -102,11 +102,11 @@ different loops are two harnesses being compared, and the model is the smaller
 half of that difference.
 
 If the prompt is not where your idea lives, you can go further without leaving
-the harness. `STATE_VIEW` decides what the model reads each turn — the rendered
+the harness. `STATE_VIEW` decides what the model reads each turn, the rendered
 view by default, or `"json"` for the whole state dict, or a list of the keys you
 want; `view(state)` is there when none of those fit. `EXTRA_TOOLS` and
 `run_tool` give the model something the shared tools do not offer, and
-overriding `_call` puts a different model behind it —
+overriding `_call` puts a different model behind it.
 a local one, or anything that is not an HTTP endpoint at all. Both are recorded
 in your result, so your row says what it actually was.
 
@@ -157,7 +157,7 @@ defining two of them is refused rather than guessed at.
 ## 5. Measure it
 
 One measurement, the official benchmark: the 50 fixed seeds everyone is scored
-on. There is deliberately no second protocol — runs vary enormously by luck, so
+on. There is deliberately no second protocol, because runs vary enormously by luck, so
 a hand-picked seed set mostly measures who drew the nicer maps, and the same
 weights can score 1.60 on one set and 1.10 on the official 50.
 
@@ -166,7 +166,7 @@ uv run pokelike bench --bot mine --dry-run                       # nothing recor
 uv run pokelike bench --bot mine --author YOUR-HANDLE --category rules
 ```
 
-If yours calls a model, the credentials can come from flags instead of exports —
+If yours calls a model, the credentials can come from flags instead of exports.
 `--api-key @path` reads a file, so the key never reaches your shell history:
 
 ```bash
@@ -175,8 +175,8 @@ uv run pokelike bench --bot mine --dry-run \
 ```
 
 > **Easy to get wrong, and now it cannot be.** Only a **complete** run records a
-> result. `--runs N` is a practice run by definition — a score over 5 seeds is
-> not comparable to one over 50 — and `--dry-run` plays all 50 and records
+> result. `--runs N` is a practice run by definition, since a score over 5 seeds is
+> not comparable to one over 50, and `--dry-run` plays all 50 and records
 > nothing. Neither leaves anything behind for a stray `git add` to pick up.
 
 A recorded result lands in `bots/mine/result.json`, next to the code that earned
@@ -208,7 +208,7 @@ costs you nothing:
 
 | hook | what it is for |
 |---|---|
-| `rearrange(state)` | who leads the next battle. Free — it does not use the turn |
+| `rearrange(state)` | who leads the next battle. Free, it does not use the turn |
 | `explain()` | one line under each decision in the log |
 | `on_start(seed)` / `on_end(state, score)` | a bot with memory across turns |
 | `artifacts()` | weights and config to record beside your result |
@@ -230,19 +230,19 @@ Two reasons, and the second is the one people underestimate.
 
 A trained policy is only meaningful under the exact encoding it was trained with.
 If `bot.py` imported its feature code from your training scripts, improving those
-scripts would silently change what your own past score meant — and the
+scripts would silently change what your own past score meant, and the
 fingerprint would not catch it, because the file you measured did not change.
 
 And a bot is meant to be handed around, re-run and checked by someone who has
 none of your setup. A folder that only works on the machine that made it is not
 a submission, it is a screenshot.
 
-[`bots/dyna-q/`](bots/dyna-q/) is the small worked example — an encoding frozen
+[`bots/dyna-q/`](bots/dyna-q/) is the small worked example, with an encoding frozen
 beside its weights. [`bots/sarsa-v2/`](bots/sarsa-v2/) is the large one, 100
 feature definitions carried inline for exactly this reason.
 
 **The one exception is `pokelike.bot.llm`**, the harness the `llm-*` bots share.
-It is shared knowingly, so editing it *does* reach every LLM bot ever measured —
+It is shared knowingly, so editing it *does* reach every LLM bot ever measured.
 which is why it carries a `HARNESS` number that is written into every result, and
 why a row measured under an older one is flagged instead of being ranked as
 though it had been asked the same question.
@@ -250,7 +250,7 @@ though it had been asked the same question.
 ### Two people, one name
 
 `bots/` is flat, so two submissions cannot share a folder name. Git will say so
-on your pull request and one of you renames — a plain conflict, visible, nothing
+on your pull request and one of you renames. A plain conflict, visible, nothing
 auto-resolved. The `--author` you pass to `bench` is what tells people apart in
 the standings. The fingerprint is not a name and is deliberately not used as one:
 it comes from the content, so it would change every time you retrained.
@@ -261,8 +261,8 @@ it comes from the content, so it would change every time you retrained.
 
 `experiments/` is a scratch area and **nothing you add there is tracked by
 default**: everything under it is gitignored apart from the shared `env/` and our
-own worked examples. Whatever you try — training runs, sweeps, prompts, dead ends
-— stays on your machine unless you say otherwise, and a pull request that adds a
+own worked examples. Whatever you try, from training runs and sweeps to prompts and dead
+ends, stays on your machine unless you say otherwise, and a pull request that adds a
 bot cannot drag a training run along with it by accident.
 
 ```bash
@@ -270,7 +270,7 @@ cp -r experiments/example experiments/mine
 uv run python -m experiments.example.train --episodes 20   # the shape of one
 ```
 
-And you measure a candidate right where it lives — write a `bot.py` in your
+And you measure a candidate right where it lives. Write a `bot.py` in your
 experiment folder and point the benchmark at it:
 
 ```bash
@@ -284,7 +284,7 @@ That is the split, and it is the whole answer to "what do I have to reveal":
 
 **You show what your bot does. Not how you arrived at it.**
 
-Submitting a folder does reveal the bot — that is the only reason the number
+Submitting a folder does reveal the bot, and that is the only reason the number
 beside it means anything, since a leaderboard where the code is hidden is a list
 of claims. It reveals nothing about the sweeps, the rewards you tried, or the
 twenty runs that went nowhere.
@@ -293,7 +293,7 @@ twenty runs that went nowhere.
 
 That default is a **default, not a rule**. The research is yours, which means it
 is yours to publish as much as it is yours to keep. Ours are checked in for
-exactly that reason — they are meant to be read — and if you want the same for
+exactly that reason, because they are meant to be read, and if you want the same for
 yours, it is one line.
 
 Add a negation for your folder in `.gitignore`, next to the ones already there:
@@ -314,8 +314,8 @@ experiments/*/logs/         what each run printed
 experiments/*/artifacts/    the weights a candidate bot.py reads
 ```
 
-So a whitelisted experiment commits its **code and its README** — the loop, the
-features, the reasoning, the results you wrote down — and never the hundreds of
+So a whitelisted experiment commits its **code and its README** (the loop, the
+features, the reasoning, the results you wrote down) and never the hundreds of
 megabytes a run produced. That split is deliberate: `artifacts/` is in the ignored
 list because an experiment's `bot.py` is a *candidate*, and its weights only
 become something to commit when the bot earns a folder under `bots/` and is
@@ -329,8 +329,8 @@ git check-ignore -v experiments/mine/output/whatever.json   # should print the r
 ```
 
 Two things worth knowing if you put an experiment in a pull request. It is a
-larger thing to ask of a reviewer than a bot is — a bot is one folder with one
-method and a score, an experiment is a claim about *why* something works — so say
+larger thing to ask of a reviewer than a bot is. A bot is one folder with one
+method and a score, an experiment is a claim about *why* something works, so say
 in the description what question it asks and what the answer turned out to be,
 the way [`experiments/`](experiments/) does. And it is entirely separable: a pull
 request that adds only `bots/mine/` is complete on its own, and nobody will ask

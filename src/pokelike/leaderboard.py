@@ -240,7 +240,7 @@ def as_markdown(index: dict[str, Any]) -> str:
     """The standings as a markdown table, ranked by badges."""
     rows = index.get("entries") or []
     if not rows:
-        return ("_No bots measured yet._ Yours would be the first — see "
+        return ("_No bots measured yet._ Yours would be the first, see "
                 "[GUIDE.md](../GUIDE.md).\n")
     out = [
         "| # | bot | author | how | runs | badges~ | badges+ | score~ | best | code |",
@@ -277,11 +277,11 @@ def as_markdown(index: dict[str, Any]) -> str:
                 "An LLM result is **not reproducible**: providers change models behind a "
                 "fixed name and sampling is stochastic. `fallback rate` is the share of "
                 "turns the model did not decide, played instead by the harness's backup "
-                "heuristic — **⚠︎ above 0.1 means the row is measuring us more than the "
+                "heuristic. **⚠︎ above 0.1 means the row is measuring us more than the "
                 "model**. `harness` is the version of the shared loop in "
                 "`pokelike/bot/llm.py`; rows measured under different numbers were not "
                 "asked the same question. `tools` says whether the model was "
-                "offered the shared four or a set of the bot's own — **own ⚠︎ is "
+                "offered the shared four or a set of the bot's own. **Own ⚠︎ is "
                 "not a fault**, it is a different question, and comparing it "
                 "with the rest as though it were the same one is."]
     out += [
@@ -322,9 +322,9 @@ def format_table(index: dict[str, Any]) -> str:
     # Said above the table, because this one and `pokelike stats` print columns
     # with the same names and mean entirely different things. One is the fixed 50
     # seeds everybody is scored on; the other is whatever you happened to play on
-    # this machine. Confusing them is not hypothetical — the same weights scored
+    # this machine. Confusing them is not hypothetical, since the same weights scored
     # 1.60 on 25 seeds picked during development and 1.10 on the official 50.
-    out = ["THE OFFICIAL BENCHMARK — the same 50 seeds for everyone, so these "
+    out = ["THE OFFICIAL BENCHMARK, the same 50 seeds for everyone, so these "
            "numbers are comparable.", "", head, "-" * len(head)]
     for r in rows:
         v = lambda k: r[k] if r.get(k) is not None else "-"  # noqa: E731

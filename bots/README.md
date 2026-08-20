@@ -64,12 +64,12 @@ handing you a directory.
 bots/<name>/
 ├── bot.py        one class inheriting from Bot. The only method it must have
 │                 is choose(state) -> int
-├── artifacts/    weights, prompts, tables — whatever it needs to play
+├── artifacts/    weights, prompts, tables, whatever it needs to play
 └── result.json   what the benchmark measured, written by `pokelike bench`
 ```
 
 **It has to be self-contained.** Everything `bot.py` needs is either in the
-`pokelike` package or in its own folder — nothing reaches into `experiments/`,
+`pokelike` package or in its own folder, and nothing reaches into `experiments/`,
 and nothing reaches into another bot. Two reasons, and the second is the one
 people underestimate:
 
@@ -103,19 +103,19 @@ uv run pokelike new-bot my-prompt --llm
 ### If someone already took the name
 
 `bots/` is flat and the folder name is the bot, so two submissions cannot share
-one. Git will say so on your pull request — a plain conflict, and one of you
+one. Git will say so on your pull request, a plain conflict, and one of you
 renames. Nothing is hidden and nothing is auto-resolved, which is the point.
 
 The `--author` you pass to `bench` is what distinguishes people in the standings;
 the fingerprint in `result.json` is a different mechanism answering a different
-question, and is deliberately **not** used as a name — it is derived from the
+question, and is deliberately **not** used as a name, because it is derived from the
 content, so it would change every time you retrained and take every link to your
 bot with it.
 
 ## What makes results comparable
 
 **The same 50 seeds.** `pokelike bench` plays a fixed list, identical for
-everyone, so nobody wins by drawing kinder maps. A partial run — `--runs N` — or
+everyone, so nobody wins by drawing kinder maps. A partial run (`--runs N`) or
 `--dry-run` prints the result and records nothing: a score over 5 seeds is not
 comparable to one over 50, so it is not a submission.
 
@@ -138,14 +138,14 @@ recording it, a table mixes them silently.
 
 **The code is fingerprinted.** `result.json` carries a sha256 over `bot.py` and
 every artifact. `pokelike leaderboard` recomputes it on read and marks a row
-**⚠︎** when the files have changed since the score was measured — so a row can
+**⚠︎** when the files have changed since the score was measured, so a row can
 never quietly claim a number for code that no longer exists. A **?** means the
 result carries no fingerprint at all and cannot be checked either way, which is
 reported rather than folded into "fine". Re-running the benchmark clears both.
 
 **And the run has to reproduce.** The fingerprint proves the code has not changed;
 it cannot prove the score was earned. Same seed and same bot must mean the same
-run, and for a while that was not true — an option's label carried a pictograph
+run, and for a while that was not true, since an option's label carried a pictograph
 the game substitutes for a missing sprite, the feature sets parse labels, and
 whether the substitution had arrived depended on timing. Five of one entry's fifty
 rows stopped reproducing, including the one that put it top. If you cannot replay
@@ -192,7 +192,7 @@ uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini
 
 **Results are not re-run for you.** A number in the table is one somebody
 reported from their own machine, and the fingerprint only proves the code has not
-changed since — not that the run happened.
+changed since, not that the run happened.
 
 What makes it checkable is that everything needed is here. The bot, its weights,
 the seeds, the game hash. Anyone can do this and compare:

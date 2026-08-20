@@ -1,9 +1,9 @@
-# CLAUDE.md — pokelike.xyz.bot
+# CLAUDE.md, pokelike.xyz.bot
 
 Notes for agents working on this repo.
 
 **Read [README.md](README.md) as well.** It explains what the project does, how
-it is installed and how it is used — everything you need to guide a user. This
+it is installed and how it is used, everything you need to guide a user. This
 file only adds what someone *changing* the code needs: internals, pitfalls, and
 the reasoning behind decisions that look odd.
 
@@ -68,12 +68,12 @@ uv run pokelike bench --bot experiments/mine --dry-run       # measure a candida
 ```
 site/                    the downloaded game (gitignored, ~130 MB)
 src/pokelike/
-├── core/                SHARED LOGIC — the only part that knows how to play
+├── core/                SHARED LOGIC, the only part that knows how to play
 │   ├── bridge.js          injected into the page: observes and acts
 │   ├── browser.py         Playwright headless, pinned seed, flattened animations
 │   ├── game.py            class Game: reset/state/step/score/reorder
 │   └── render.py          ASCII map, team, actions
-├── bot/                 WHAT RUNS A BOT — not the bots themselves
+├── bot/                 WHAT RUNS A BOT, not the bots themselves
 │   ├── base.py            abstract Bot: only choose() is required
 │   ├── catalogue.py       finds and loads a bot from its folder in bots/
 │   ├── llm.py             the harness every llm-* bot shares: tools, agentic
@@ -109,7 +109,7 @@ llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
                            and a .jsonl of decisions per pass. Results stay one
                            file per model, outside, because that is the record
 experiments/             research. OURS are tracked as worked examples; anything
-│                        else anyone creates here is gitignored by default — one
+│                        else anyone creates here is gitignored by default. One
 │                        `!experiments/<name>/` line opts a folder in, and
 │                        output/, logs/ and artifacts/ stay out regardless
 ├── env/                   the game as an RL problem: environment, rewards,
@@ -120,13 +120,13 @@ experiments/             research. OURS are tracked as worked examples; anything
 └── llm/                   prompt strategies compared on identical seeds
 
 Every experiment has the same shape: README, agent, train, output/, logs/. Keep
-it that way when adding one. There is ONE way to measure a candidate — the
+it that way when adding one. There is ONE way to measure a candidate, namely the
 official benchmark, by path: `pokelike bench --bot experiments/mine --dry-run`.
 Do not add per-experiment evaluation scripts with their own seed sets: a seed
 set picked during development mis-ranks models (the same weights score 1.60 on
 one such set and 1.10 on the official 50).
 
-**An experiment is named after the bot it produces** — `dyna-q/` → `dyna-q/`,
+**An experiment is named after the bot it produces**, so `dyna-q/` → `dyna-q/`,
 `sarsa/` → `sarsa-v1/` and `sarsa-v2/`, `llm/` → `llm-*/`. Hyphens work in a
 folder name despite not being valid identifiers: `-m` takes a string and goes
 through the path finder, so `python -m experiments.dyna-q.train` runs and the
@@ -139,7 +139,7 @@ because that is what produced those weights. Rewriting a record to match a later
 rename is what the fingerprint exists to prevent, and it would mark both rows
 stale for a cosmetic edit.
 bots/                    THE BOTS. One folder each: bot.py, artifacts/,
-│                        result.json. Nothing registers them — the folder being
+│                        result.json. Nothing registers them. The folder being
 │                        there is what makes `--bot <name>` work
 ├── random/                the baseline, as a folder like everything else
 ├── dyna-q/                tabular RL. LOST to random, and kept for that
@@ -175,7 +175,7 @@ it clean would be the silence the fingerprint exists to prevent.
 **Only three things are structural, and `bot/llm.py` is the awkward one.** The
 test is whether something is built *on* or *competes*: `Bot` and `LLMBot` are
 built on, `RandomBot` is the yardstick, everything else goes in `bots/`. But
-`llm.py` being shared means editing it reaches every LLM bot ever measured —
+`llm.py` being shared means editing it reaches every LLM bot ever measured.
 exactly what self-containment exists to prevent, only from the other side. It is
 shared anyway, because two bots with different loops are two harnesses being
 compared and the model is the smaller half of that difference. `HARNESS` is what
@@ -185,13 +185,13 @@ keeps it honest: written into every result, flagged when it no longer matches.
 **Three things an LLM bot owns, and all three are recorded.** The prompt, the
 state view (`STATE_VIEW` / `view()`), and the tools (`EXTRA_TOOLS` /
 `run_tool()`). Each is a genuine experimental variable, so each goes into
-`result.json` and into the standings — two rows with different views are no more
+`result.json` and into the standings, because two rows with different views are no more
 comparable than two with different tools. `_situation()` deliberately is NOT the
 hook: it owns the journal and the "pick an index" line, so replacing the view
 cannot silently cost a bot its memory or drop the instruction. Keep that split.
 
 **Bot names resolve by exact match, then unique prefix.** An ambiguous prefix is
-an error naming the candidates, never a guess — `--bot sarsa` with both versions
+an error naming the candidates, never a guess. `--bot sarsa` with both versions
 on disk would otherwise benchmark one of them and produce a wholly plausible
 number about the wrong bot.
 
@@ -202,7 +202,7 @@ Decision logging lives in `runner.play_run` for the same reason: recorded once,
 in the shared loop, so a log means the same thing whatever is playing. Bots add
 at most one line through the optional `explain()` hook.
 
-`bot/` is deliberately not under `interfaces/`. The interfaces are entry points —
+`bot/` is deliberately not under `interfaces/`. The interfaces are entry points.
 something outside drives the game through them. A bot is an extension point: you
 write one, and the interfaces run it. Filing the concrete bots (random, llm,
 dyna-q) under `interfaces/` would blur that.
@@ -230,8 +230,8 @@ its handler.
 
 **Team order is a third thing, and it is not an action.** Slot 0 leads the next
 battle, so the order is a real decision, but reordering does not consume the
-turn. It is exposed as its own verb — `Game.reorder(a, b)`, `Bot.rearrange()`,
-`POST /reorder`, `w a b` in the REPL — and advertised in the state as
+turn. It is exposed as its own verb (`Game.reorder(a, b)`, `Bot.rearrange()`,
+`POST /reorder`, `w a b` in the REPL) and advertised in the state as
 `can_reorder`. Folding it into `actions` would put fifteen swap pairs next to
 the moves at every map node and make the turn count mean something else.
 
@@ -252,7 +252,7 @@ Constraints that do not announce themselves. Worth rereading before changing
 anything:
 
 - **A label must not carry a sprite fallback.** When an image fails to load the
-  engine writes a pictograph in its place — "🤍 Silk Scarf" for an item whose icon
+  engine writes a pictograph in its place, such as "🤍 Silk Scarf" for an item whose icon
   is missing from `site/`, and holes are allowed there. Whether it is present
   depends on a 404 coming back, so the same decision read two ways depending on
   timing, and differently again on a machine with different holes. That is not
@@ -262,7 +262,7 @@ anything:
   astral-plane pictographs; a shiny's ★ stays, because that one is engine data.
   Anything new that reads label text inherits this, so check it stays stripped.
 - **A failed reset used to be silent.** Two blind 300 ms sleeps clicked into Story
-  mode, and if a click did not land the caller played on — in the PREVIOUS run,
+  mode, and if a click did not land the caller played on, in the PREVIOUS run,
   whose badges were then filed under the new seed. `reset` now waits for a
   positive signal and then checks the invariant: a fresh run is the trainer screen
   with no badges and no team. It raises rather than returning something plausible.
@@ -284,12 +284,12 @@ anything:
   `bridge.js`: you shadow it and rewrite the wrong copy. Symptom:
   `Assignment to constant variable` that has nothing to do with `const`.
 - **Two Playwright sync instances cannot live in the same thread.** One `Game` per
-  thread, full stop — this is why the API tests reuse the session-wide fixture.
+  thread, full stop. This is why the API tests reuse the session-wide fixture.
 - **The sync API is bound to its creating thread**, so `api/server.py` is
   single-threaded by necessity: `serve_forever()` must run on the thread that owns
   the game, or you get `greenlet.error: Cannot switch to a different thread`.
 - **Playwright's sync API refuses to start inside a running asyncio loop**, which
-  is exactly what Jupyter keeps open — it checks `loop.is_running()` and raises
+  is exactly what Jupyter keeps open. It checks `loop.is_running()` and raises
   `It looks like you are using Playwright Sync API inside the asyncio loop`, so
   `nest_asyncio` does not help. `interfaces/python/driver.py` does not fight the
   loop, it leaves it: when one is running, the game is built and driven on a
@@ -300,11 +300,11 @@ anything:
   only watches `.screen` elements gets stuck there forever.
 - **And it is not the only one.** The engine builds two more interactive layers
   straight onto `document.body`, neither a `.screen`: `#eevee-choice-overlay`
-  (`showBranchingChoice` — Eevee, Gloom, Poliwhirl, Slowpoke and friends, a real
+  (`showBranchingChoice`, for Eevee, Gloom, Poliwhirl, Slowpoke and friends, a real
   2-8 way player choice) and `#egg-overlay` (`playEggReveal`, tap to continue,
   reached by buying an egg at the Poke Mart). Both are `await`ed, so they do not
   merely hide a choice, they stall the run until something clicks. Screen-id
-  lists cannot fix these — see `TODO.md`. The lesson from the equip modal was
+  lists cannot fix these, see `TODO.md`. The lesson from the equip modal was
   written down once and did not generalise; assume any new interaction is NOT a
   `.screen` until checked.
 - **The map is SVG**: nodes have no `.click()`.
@@ -322,7 +322,7 @@ anything:
   is that the game greets a first-time player on every run. A human clicks the
   callouts away; a bot never does, so they stack up, one per team slot, over the
   map and the battle screen alike. `HIDE_TUTORIAL_CSS` in `browser.py` hides
-  them. Purely cosmetic — they sit outside every `.screen` so they were never
+  them. Purely cosmetic, since they sit outside every `.screen` so they were never
   offered as actions, and actions are applied by dispatching an event on the
   element rather than clicking a coordinate, so they never intercepted anything
   either.
@@ -331,15 +331,15 @@ anything:
   for an hour injects whatever is on disk NOW, while `INIT_SCRIPT` is the string
   it imported when it started. `git pull` mid-run therefore pairs a new bridge
   with an old init script. **Anything bridge.js needs from `INIT_SCRIPT` must
-  degrade when it is absent** — `__pk_settle` falls back to `performance.now`
+  degrade when it is absent**. `__pk_settle` falls back to `performance.now`
   when `__pk_realNow` is missing, which is also correct: an old init script
   does not virtualise the clock, so there the real one is the right one.
   Without that degradation, every long-running training breaks on pull.
 - **`INIT_SCRIPT` is substituted with `str.replace`, not `%`.** It is full of
   prose, and a comment mentioning a percentage made `INIT_SCRIPT % cfg` raise
   "not enough arguments for format string" from a line nowhere near the change.
-  The scaffold's bot templates had the same problem for the same reason — an LLM
-  bot template is full of JSON — and both now use plain substitution.
+  The scaffold's bot templates had the same problem for the same reason, since an LLM
+  bot template is full of JSON, and both now use plain substitution.
 - **Seeds are 32-bit.** `(cfg.seed >>> 0) || 1`, so seed 0 is seed 1 and seed
   N is seed N + 2**32. `normalise_seed` rejects anything outside the range
   rather than truncating, because above 2**53 Python's `& 0xFFFFFFFF` and JS's
@@ -365,7 +365,7 @@ anything:
   are dead in Story mode: `mapsCleared` is incremented in exactly one place in
   the bundle, inside `bumpEndlessCounters()`, which only runs on the endless
   path; and `winBonus` needs the whole League beaten. What is left is
-  `5·KO − 10·faints`, and badges do not appear at all — which is how a run with
+  `5·KO − 10·faints`, and badges do not appear at all, which is how a run with
   three badges scores −5. Rank Story runs by **badges**, and see
   `experiments/env/rewards.py` before designing any objective on top of it.
 
@@ -390,7 +390,7 @@ everything else.
 The run seed is `Date.now() ^ (Math.random() * 2**32)` and everything flows from
 the engine's PRNG seeded with it. `browser.py` pins **both** in a script that runs
 before the bundle, caps `setTimeout` at 1 ms, and runs `performance.now()` on a
-virtual clock so animations resolve at once rather than in real time — see
+virtual clock so animations resolve at once rather than in real time, see
 [Performance](#performance) for why that last one is what actually mattered.
 Same seed + same actions = same run, score included.
 
@@ -409,8 +409,8 @@ and another reseed, on every reset.
 ## Tests
 
 The regression net lives in `tests/golden/runs.json`: recorded runs, replayed and
-compared. The fingerprint holds **only engine data** — screen ids, node types,
-Pokémon names, scores — never text we write ourselves. That is what let the whole
+compared. The fingerprint holds **only engine data** (screen ids, node types,
+Pokémon names, scores) and never text we write ourselves. That is what let the whole
 codebase be translated from Italian to English with proof that behaviour did not
 move.
 
@@ -421,7 +421,7 @@ Regenerating it to make a red test go green defeats the point.
 ## Performance
 
 ~3 s per run with a fast policy, a few milliseconds of that ours. Runs are
-independent: to go faster, launch more processes, not more threads — and measured
+independent: to go faster, launch more processes, not more threads, and measured
 on 22 cores, eight collectors is the knee, twelve buy 7%.
 
 **Wait for the game to react; never sleep a guessed interval.** Three fixed sleeps
@@ -430,12 +430,12 @@ were once 43% of a run: 70 ms after every action for something that happens in
 simply be shortened, because what the 70 ms really bought was that `_settle` did
 not read the screen before the engine had left it and hand back a stale state.
 `__pk_apply` returns a signature of the decision it acted on and
-`__pk_await_change` waits for the engine to leave it — safe to poll because it
+`__pk_await_change` waits for the engine to leave it, safe to poll because it
 only reads, unlike `__pk_pump`.
 
 **The virtual clock is what makes that speed, and capping timers is not
 enough.** The engine paces a battle by asking what time it is and working out
-how far along it should be, not by counting ticks — so capping `setTimeout`, or
+how far along it should be, not by counting ticks, so capping `setTimeout`, or
 routing timers and `requestAnimationFrame` through a `MessageChannel` to dodge
 the browser's 4 ms clamp, each buys only 3-6% (measured). `performance.now()`
 therefore jumps `tick` ms on every read (`Session.tick`, 64 by default), which
@@ -444,7 +444,7 @@ run's wall clock is `__pk_settle` waiting on the battle screen for an outcome
 the engine has already decided.
 
 `__pk_realNow` is the true clock, kept for anything that must measure real
-elapsed time — `__pk_settle`'s own timeout budget, which on the virtual clock
+elapsed time, such as `__pk_settle`'s own timeout budget, which on the virtual clock
 would be spent in a few hundred reads. `--watch` sets `tick` to 0: a person
 watching wants to see the battle.
 
@@ -469,7 +469,7 @@ are not obvious and matter:
   what distinguishes people in the standings.
 - **Only a complete benchmark writes an entry.** `--runs N` and `--dry-run` both
   print the result and file nothing: a score over N seeds is not comparable to
-  one over 50, so it is not a submission — and a `--runs 5` sanity check must
+  one over 50, so it is not a submission, and a `--runs 5` sanity check must
   not leave a real entry behind for the next `git add` to pick up.
 - **The benchmark records the game bundle's sha256.** Scores from before and
   after an upstream game update are not comparable, and without the hash a
@@ -499,7 +499,7 @@ shared harness for `bots/` cannot silently change what a recorded score meant.
 
 `v0`'s prompt holds facts and no strategy on purpose: advice in a prompt measures how
 well models follow OUR advice. `v2` breaks that deliberately, because measurement
-forced it — under v0's prompt two models played fifty runs each and called `remember`
+forced it. Under v0's prompt two models played fifty runs each and called `remember`
 zero times, and "memory does not help" and "the models never used it" are different
 findings. So v0 and v2 ask genuinely different questions and their rows are never
 ranked together.
@@ -524,20 +524,20 @@ One directory per command, `llm-bench/<version>/logs/<stamp>/`:
 
 | file | what it holds |
 |---|---|
-| `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential** — `record_command` refuses a payload with a credential-shaped key |
+| `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential**. `record_command` refuses a payload with a credential-shaped key |
 | `<model>-passN.log` | one line per finished run, flushed as it happens. What you `tail -f` |
-| `<model>-passN.jsonl` | one object per decision: the option taken, the options it had, the reason, tokens at turn/run/pass level. No prompts — reconstructible from the harness plus the seed |
+| `<model>-passN.jsonl` | one object per decision: the option taken, the options it had, the reason, tokens at turn/run/pass level. No prompts, since they are reconstructible from the harness plus the seed |
 | `-notebook.log` | under `v1`/`v2`: the notes as they stood at the end of each run, `unchanged` when nothing moved |
 | `-plan.log` | under `v2`: the route it planned for each map |
 
 Results live **apart**, `results/<model>.json`, one file per model with every pass
-appended — that is the comparable record, and ten commands over three days build one
+appended, and that is the comparable record, and ten commands over three days build one
 model's history. Only a pass over the standard fifty seeds may be recorded, compared
 BY VALUE: `records()` is a function with a test because the version that compared
 lengths would have recorded fifty seeds of somebody's own choosing.
 
 Logs are gitignored. Every statistic in the table is derived from the rows at print
-time, so nothing recomputable is stored — which is why cost is never written into a
+time, so nothing recomputable is stored, which is why cost is never written into a
 result, and why regenerating the table after deleting or recording anything is on you.
 
 One naming trap: `self.memory` is the journal-trim size, `MEMORY` moves of history.
@@ -553,5 +553,5 @@ also takes `@path` and reads the file, because a literal key on a command line i
 visible in `ps` to every user of the machine and is saved in shell history.
 
 Never write a credential into code, comments, the README or the run registry. The
-token reaches exactly one place — the `Authorization` header — and must never
+token reaches exactly one place, the `Authorization` header, and must never
 appear in a result, a log or an artifact. `stats/` is gitignored.

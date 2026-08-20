@@ -1,10 +1,10 @@
-# Harness v1 — the model keeps notes
+# Harness v1, the model keeps notes
 
 **An experiment, not an improvement.** Every other version bump promotes something
 that already earned its place in `bots/`. This one asks a question nobody here has
 answered: *does a model that takes notes get better at this game while it plays?*
 
-If the answer is no, v1 stays exactly where it is as the record of that — the same
+If the answer is no, v1 stays exactly where it is as the record of that, the same
 way `experiments/dyna-q` is kept for losing. A version names what the models were
 asked, never how well it went.
 
@@ -17,8 +17,8 @@ asked, never how well it went.
 | tools | `team_details`, `what_lies_ahead`, `set_lead`, `play` | those four plus `remember`, `revise`, `forget` |
 | tool rounds | 4 | **6** |
 | notes | none | up to **12**, of **160** characters, shown every turn |
-| notes cleared | — | at the start of a **pass**, never between runs |
-| workers | any | **1** — refused above that |
+| notes cleared | n/a | at the start of a **pass**, never between runs |
+| workers | any | **1**, refused above that |
 
 Everything else is v0 unchanged: same system prompt of facts without strategy, same
 temperature 0.0, same 1500 tokens an answer, same 6-turn journal, same fallback,
@@ -27,7 +27,7 @@ same three fatal failures, same 50 fixed seeds.
 ### Three tools, not one
 
 The cap is the point. Once twelve notes are held, the only way to record a better
-lesson is to sharpen one or drop one — so `revise` and `forget` are what make the
+lesson is to sharpen one or drop one, so `revise` and `forget` are what make the
 cap interesting rather than merely annoying. Curating a small set of beliefs is the
 skill this version tries to measure; appending to a list is not.
 
@@ -37,7 +37,7 @@ the lesson were saved.
 
 Two deliberate leniencies, both to avoid spending a round on an error message: a
 note longer than 160 characters is **truncated, not rejected**, and an id that does
-not exist is **answered** — "there is no note [9], you have 3" — rather than raised.
+not exist is **answered** ("there is no note [9], you have 3") rather than raised.
 
 There is no tool to *read* the notes, because they are already in the prompt:
 
@@ -80,7 +80,7 @@ of them enforced or reported rather than papered over:
 - **No parallelism.** `--workers > 1` is refused, in the CLI before the pre-flight
   spends a token and again inside `fan_out` where it cannot be bypassed. Eight
   workers would mean eight separate notebooks, each covering a fraction of the pass,
-  and a result that depends on how the seeds were dealt out — in a row that would
+  and a result that depends on how the seeds were dealt out, in a row that would
   look completely ordinary. A pass is about half an hour, and that is the price.
 - **Seed order is part of the harness**, not an implementation detail. Every run
   records `order`, which run of the pass it was; rows are stored sorted by seed, and
@@ -89,7 +89,7 @@ of them enforced or reported rather than papered over:
   `badges~` is still printed, because it is what compares to v0, but a mean over a
   learning curve averages a naive model with a practised one. The column this
   version exists to produce is `learn`: the last ten runs of a pass minus its first
-  ten, computed per pass and then averaged, never pooled across passes — pooling
+  ten, computed per pass and then averaged, never pooled across passes, because pooling
   would compare one lifetime's start against another lifetime's end.
 
 ## What a result carries
@@ -127,7 +127,7 @@ limit and the comparison would stop being about memory.
 Identical to v0, and read [that README](../../v0/harness/README.md) for the full
 argument. In short: `bot.py` here is a mechanical copy, generated from v0 rather
 than transcribed, and it must not be edited once a result exists under
-`../results/`. It imports three things — `pokelike.bot.base.Bot` and
+`../results/`. It imports three things. `pokelike.bot.base.Bot` and
 `pokelike.leaderboard.Artifact`, both interfaces that cannot change what a model is
 asked, and `pokelike.core.render`, which is behaviour and is therefore fingerprinted
 into every result alongside `bot.py`.
@@ -149,7 +149,7 @@ uv run pokelike llm-bench --harness v1 --model <the model id> --repeat 1 \
 ```
 
 No `--workers`. It will not come out identical twice, for the same reasons v0 does
-not — providers change models behind a fixed name, sampling is stochastic — and now
+not, because providers change models behind a fixed name and sampling is stochastic, and now
 also because a different early note leads to a different later run. Every result
 says `reproducible: false`.
 

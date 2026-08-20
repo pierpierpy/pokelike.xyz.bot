@@ -253,7 +253,7 @@ def preflight(version: str, model: str, endpoint: str | None = None,
         out["why"] = (
             "answered, but called no tool. The harness ends a turn by calling "
             "play(), so every turn would exhaust its rounds and fall back to the "
-            "safe heuristic — fifty runs of our heuristic under the model's name. "
+            "safe heuristic, fifty runs of our heuristic under the model's name. "
             "Check that this model supports tool calling on this endpoint."
         )
     return out
@@ -1118,7 +1118,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     out += ["-" * len(head),
             f"harness {version}, {len(STANDARD_SEEDS)} fixed seeds a pass. Two models "
             f"whose means differ by less than about",
-            "twice the ±sem are not distinguishable here — read that column before "
+            "twice the ±sem are not distinguishable here, so read that column before "
             "reading the order."]
     if learns:
         out += [
@@ -1158,7 +1158,7 @@ def markdown_table(version: str,
         if learns:
             d = lc.get("delta")
             cell = (f"| {'—' if d is None else f'{d:+.2f}'} "
-                    f"| {r.get('notes_kept') if r.get('notes_kept') is not None else '—'} ")
+                    f"| {r.get('notes_kept') if r.get('notes_kept') is not None else 'n/a'} ")
         # Total and per-run side by side: the total says what this row cost, the
         # per-run says what another pass of it will cost.
         each = None if usd is None else usd / r["runs"]
@@ -1166,8 +1166,8 @@ def markdown_table(version: str,
             f"| {i} | `{r['model']}`{flag} | {r['passes']} | {r['runs']} | "
             f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} {cell}| "
             f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | "
-            f"{r['fallback_rate']} | {'—' if usd is None else f'{usd:.2f}'} "
-            f"| {'—' if each is None else f'{each:.4f}'} |")
+            f"{r['fallback_rate']} | {'n/a' if usd is None else f'{usd:.2f}'} "
+            f"| {'n/a' if each is None else f'{each:.4f}'} |")
     if learns:
         out += ["", f"`learn` is the last {LEARN_K} runs of a pass minus its "
                     f"first {LEARN_K}, in the order played. This harness lets "

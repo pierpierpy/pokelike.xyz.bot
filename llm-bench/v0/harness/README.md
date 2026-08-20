@@ -14,7 +14,7 @@ One HTTP request per turn to an OpenAI-compatible `/v1/chat/completions`.
 
 | | |
 |---|---|
-| system prompt | the game's rules, 1263 characters. Facts only — no strategy |
+| system prompt | the game's rules, 1263 characters. Facts only, no strategy |
 | user message | the rendered screen, then recent moves, then "pick an index" |
 | tools | `team_details`, `what_lies_ahead`, `set_lead`, `play` |
 | temperature | **0.0** |
@@ -24,7 +24,7 @@ One HTTP request per turn to an OpenAI-compatible `/v1/chat/completions`.
 | retries | 4, on rate limits and the 5xx family, with backoff |
 
 **The prompt contains no strategy, and that is the design.** It states what the
-game is — badges are the goal, choosing a node closes the others on that layer
+game is. Badges are the goal, choosing a node closes the others on that layer
 forever, faints are permanent, battles resolve themselves. It never says what to
 prefer. A benchmark whose prompt contained advice would be measuring how well each
 model follows our advice.
@@ -41,16 +41,16 @@ The one deliberate departure from the shared harness, which ships `0.6`.
 
 Badges vary run to run with a standard deviation near 0.7, so fifty runs already
 carry a standard error near 0.1. Sampling noise on top of that would be measured as
-if it were a difference between models. It cannot be removed — providers are not
+if it were a difference between models. It cannot be removed, since providers are not
 deterministic even at 0, which is why passes are repeated and the spread between
-them is reported — but there is no reason to add to it deliberately.
+them is reported, but there is no reason to add to it deliberately.
 
 ## What it decides, and what it does not
 
 The model chooses where to go on the map, who to catch, which item to take and who
 to hold it, and who leads the next battle. It never chooses moves in a battle: the
 engine plays those out. Team order arrives as a tool (`set_lead`) rather than as an
-action, because reordering does not consume the turn — and it is offered **only on
+action, because reordering does not consume the turn, and it is offered **only on
 the map screen**, because elsewhere the options *are* the team and reordering
 underneath would change what an index means between deciding and playing.
 
@@ -60,8 +60,8 @@ simply gets one more tool. One HTTP call per turn.
 
 ## When the model does not answer
 
-The turn falls back to a safe heuristic — heal if someone is hurt, otherwise widen
-the team — and **the fallback is counted**. Every fallback is a turn our heuristic
+The turn falls back to a safe heuristic (heal if someone is hurt, otherwise widen
+the team) and **the fallback is counted**. Every fallback is a turn our heuristic
 played under the model's name, which is why `fallback_rate` sits beside the score
 and why a row above 0.1 is measuring the harness rather than the model.
 
@@ -73,8 +73,8 @@ token budget the bot set for itself and then exceeded.
 
 `bot.py` is a **copy** of `src/pokelike/bot/llm.py` as it stood when v0 opened,
 generated mechanically, carrying the whole harness inside one class rather than
-inheriting it. The shared file is meant to evolve — it serves the submissions in
-`bots/` — and that is exactly what a benchmark cannot tolerate. Copying breaks the
+inheriting it. The shared file is meant to evolve, since it serves the submissions in
+`bots/`, and that is exactly what a benchmark cannot tolerate. Copying breaks the
 link deliberately; the difference between the two files is what the next version
 is made of.
 
@@ -83,7 +83,7 @@ Three things it still imports, and they are imports rather than copies on purpos
 - `pokelike.bot.base.Bot` and `pokelike.leaderboard.Artifact`. Both are interfaces
   rather than behaviour: one is the shape a bot has, the other is how a bot declares
   what it carries. Neither can change what a model is asked. (`Artifact` is also
-  effectively frozen public API — every submitted bot in `bots/` imports it from
+  effectively frozen public API, because every submitted bot in `bots/` imports it from
   that same path, and those files are fingerprinted against their scores.)
 - `pokelike.core.render`, for `screen()` (the default view) and `team_view()` (the
   `team_details` tool). This one **is** behaviour, and it is shared with the CLI.
@@ -113,5 +113,5 @@ asked, and nothing about them reaches a result.
 
 It will not come out identical, and that is a property of the thing being measured
 rather than a fault: providers change models behind a fixed name and sampling is
-stochastic. Every result says so — `reproducible: false` — which is the reason
+stochastic. Every result says so, `reproducible: false`, which is the reason
 passes are kept whole and the spread between them is published next to the mean.
