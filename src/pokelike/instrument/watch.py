@@ -48,6 +48,8 @@ class Run:
     screen: str = ""
     why: str = ""
     tools: list[dict[str, Any]] = field(default_factory=list)
+    team: list[str] = field(default_factory=list)
+    map_view: str = ""
 
     @property
     def secs(self) -> float:
@@ -88,11 +90,79 @@ class Pass:
 
 def newest(version: str | None = None) -> Path | None:
     """The most recently written pass directory, over one version or all of them."""
+    found = folders(version)
+    return found[0] if found else None
+
+
+def folders(version: str | None = None) -> list[Path]:
+    """Every pass directory that has a trace, most recently written first."""
     versions = [BENCH / version] if version else sorted(BENCH.glob("v*"))
-    dirs = [d for v in versions for d in (v / "logs").glob("*") if d.is_dir()]
-    traced = [d for d in dirs if any(d.glob("*.jsonl"))]
-    return max(traced, key=lambda d: max(f.stat().st_mtime for f in d.glob("*.jsonl")),
-               default=None)
+    dirs = [d for v in versions for d in (v / "logs").glob("*")
+            if d.is_dir() and any(d.glob("*.jsonl"))]
+    return sorted(dirs, key=_touched, reverse=True)
+
+
+def _touched(folder: Path) -> float:
+    return max((f.stat().st_mtime for f in folder.glob("*.jsonl")), default=0.0)
+
+
+def live(version: str | None = None, within: float = 900.0) -> list[Path]:
+    """The passes something might still be writing to.
+
+    Fifteen minutes, and deliberately looser than the five the state uses. One turn of
+    a memory harness sends tens of thousands of tokens, can spend six tool rounds, and
+    gets retried when the provider is busy, so five minutes of silence is not enough to
+    conclude a pass is over. The state column still says `stalled` after five; this only
+    decides what is worth offering as a choice.
+    """
+    now = time.time()
+    return [d for d in folders(version) if now - _touched(d) < within]
+
+
+def pick(version: str | None = None, stamp: str | None = None,
+         model: str | None = None) -> Path | None:
+    """Which pass to follow, from what was asked for and what is running.
+
+    Asked rather than guessed when more than one is live. Following whichever was
+    written to last is not merely arbitrary with two passes going: the last write
+    alternates between them, so the view would flip every couple of seconds and
+    neither pass would be readable.
+    """
+    from rich.console import Console
+    from rich.prompt import IntPrompt
+
+    if stamp or model:
+        for d in folders(version):
+            if stamp and stamp not in d.name:
+                continue
+            if model and model.replace("/", "--") not in " ".join(
+                    f.name for f in d.glob("*.jsonl")):
+                continue
+            return d
+        return None
+
+    running = live(version)
+    if len(running) < 2:
+        return running[0] if running else newest(version)
+
+    console = Console()
+    if not console.is_terminal:
+        # Nobody to ask. The newest is as good an answer as any, and saying which
+        # one it settled on is what stops the number being read as the other pass.
+        console.print(f"[dim]{len(running)} passes running, following "
+                      f"{running[0].name}[/dim]")
+        return running[0]
+
+    console.print(f"{len(running)} passes are running:\n")
+    for i, d in enumerate(running, 1):
+        p = read(d)
+        where = f"{p.done}/{p.wanted or '?'} runs" if p else "?"
+        console.print(f"  [bold]{i}[/bold]  {d.parent.parent.name}  "
+                      f"{p.model if p else '?':<34} {where}   [dim]{d.name}[/dim]")
+    console.print()
+    n = IntPrompt.ask("which one", choices=[str(i) for i in range(1, len(running) + 1)],
+                      default="1", show_default=True)
+    return running[int(n) - 1]
 
 
 def read(folder: Path) -> Pass | None:
@@ -147,6 +217,10 @@ def read(folder: Path) -> Pass | None:
         r.screen = e.get("screen") or ""
         r.why = e.get("why") or ""
         r.tools = e.get("tools") or []
+        r.team = e.get("team") or r.team
+        # Written only when it changed, so the last one seen is the current one. Kept
+        # per run, because a run that ends leaves its own last map behind it.
+        r.map_view = e.get("map_view") or r.map_view
         if str(e.get("why") or "").startswith("(fell back"):
             r.fell += 1
 
@@ -288,6 +362,26 @@ def _turn(p: Pass):
     return Panel(grid, title="this turn", title_align="left", border_style="dim")
 
 
+def _team_and_map(p: Pass):
+    """The team as it stood at the last decision, beside the map it is standing on.
+
+    Side by side because they are one question. A team at half health matters because
+    of what is on the next layer, and a gym two layers down matters because of what
+    the team can take into it.
+    """
+    from rich.columns import Columns
+    from rich.panel import Panel
+
+    r = p.current or (p.runs[-1] if p.runs else None)
+    team = "\n".join(r.team) if r and r.team else "[dim]not in this trace[/dim]"
+    picture = r.map_view if r and r.map_view else "[dim]not in this trace[/dim]"
+    return Columns([
+        Panel(team, title="team", title_align="left", border_style="dim"),
+        Panel(picture, title=f"map {r.map if r else '?'}", title_align="left",
+              border_style="dim"),
+    ])
+
+
 def _memory(p: Pass):
     from rich.panel import Panel
 
@@ -314,7 +408,8 @@ def _containers() -> list[str]:
 def render(p: Pass, containers: list[str]):
     from rich.console import Group
 
-    return Group(_panel(p, containers), _runs_table(p), _turn(p), _memory(p))
+    return Group(_panel(p, containers), _runs_table(p), _turn(p),
+                 _team_and_map(p), _memory(p))
 
 
 def overview(version: str | None = None) -> int:
@@ -328,12 +423,8 @@ def overview(version: str | None = None) -> int:
     from rich.table import Table
 
     console = Console()
-    versions = [BENCH / version] if version else sorted(BENCH.glob("v*"))
-    folders = sorted(
-        (d for v in versions for d in (v / "logs").glob("*")
-         if d.is_dir() and any(d.glob("*.jsonl"))),
-        key=lambda d: max(f.stat().st_mtime for f in d.glob("*.jsonl")), reverse=True)
-    if not folders:
+    folders_found = folders(version)
+    if not folders_found:
         console.print("[dim]no pass has been played on this machine yet[/dim]")
         return 1
 
@@ -346,7 +437,7 @@ def overview(version: str | None = None) -> int:
     t.add_column("badges~", justify="right")
     t.add_column("state")
     t.add_column("last", justify="right")
-    for d in folders:
+    for d in folders_found:
         p = read(d)
         if p is None:
             continue
@@ -354,7 +445,7 @@ def overview(version: str | None = None) -> int:
         mean = (sum(r.badges for r in finished) / len(finished)) if finished else 0.0
         tone = {"running": "green", "done": "cyan", "stalled": "yellow",
                 "FAILED": "red"}.get(p.state, "white")
-        age = time.time() - max(f.stat().st_mtime for f in d.glob("*.jsonl"))
+        age = time.time() - _touched(d)
         t.add_row(d.name, p.version, p.model,
                   f"{p.done}/{p.wanted or '?'}", f"{mean:.2f}",
                   f"[{tone}]{p.state}[/{tone}]",
@@ -369,14 +460,19 @@ def overview(version: str | None = None) -> int:
 
 
 def dashboard(version: str | None = None, once: bool = False,
-              every: float = 2.0) -> int:
-    """The pass that was written to last, redrawn until it ends or you stop it."""
+              every: float = 2.0, stamp: str | None = None,
+              model: str | None = None) -> int:
+    """The pass you chose, redrawn until it ends or you stop it."""
     from rich.console import Console
     from rich.live import Live
 
     console = Console()
-    folder = newest(version)
+    folder = pick(version, stamp=stamp, model=model)
     if folder is None:
+        if stamp or model:
+            console.print(f"no pass here matches {stamp or model}")
+            console.print("what there is:  uv run pokelike model watch --all")
+            return 1
         where = f"llm-bench/{version}/logs" if version else "llm-bench/*/logs"
         console.print(f"nothing to watch: no trace under {where}")
         console.print("start one with:  bash llm-bench/run.sh <model> --harness <v>")
@@ -394,18 +490,17 @@ def dashboard(version: str | None = None, once: bool = False,
         return 0
 
     with Live(render(p, _containers()), console=console, refresh_per_second=4,
-              screen=False) as live:
+              screen=False) as live_view:
         while True:
             time.sleep(every)
-            # The newest directory again, not the one we started on: a sweep moves
-            # to the next model in a new directory, and following the pass you asked
-            # about beats following the one that happened to be first.
-            folder = newest(version) or folder
+            # THE SAME directory, not whichever was written to last. With two passes
+            # going the last write alternates between them, and the view would flip
+            # every couple of seconds with neither one readable.
             fresh = read(folder)
             if fresh is None:
                 continue
             p = fresh
-            live.update(render(p, _containers()))
+            live_view.update(render(p, _containers()))
             if p.state in ("done", "FAILED"):
                 break
     return 0

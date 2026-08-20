@@ -784,11 +784,22 @@ class PassLog:
             "options": e.get("options"),
             "swapped": e.get("swapped"),
             "why": e.get("why"),
+            # The team as it stood at the decision, one short string each. The
+            # runner has always put this in the row and this file always dropped
+            # it, on the grounds that it is rebuildable: it is, by replaying the
+            # seed with a browser, which is not a thing anyone does to answer "did
+            # it walk into that fight with a fainted lead".
+            "team": e.get("team"),
             # Which tools it used to get here, in the order it called them, and
             # for the ones that changed something, what they changed. Absent for a
             # harness that does not report them, rather than an empty list, which
             # would read as "it called nothing".
             **({"tools": e["tools"]} if e.get("tools") else {}),
+            # The map, drawn, and only when it is not the one already on the last
+            # line that carried it. Every turn would be a quarter of a kilobyte of
+            # the same picture; a run visits eight or nine layers and moves one at
+            # a time, so this writes it about as often as it changes.
+            **({"map_view": e["map_view"]} if e.get("map_view") else {}),
             # Three levels of the same two numbers. `turn_*` is the difference
             # against this seed's previous decision, so it covers every HTTP call
             # the turn made -- v0 allows four tool rounds, and what you want to know
@@ -878,22 +889,48 @@ def play_model(game, version: str, model: str, site: Path,
         last[0] = now
         log.run(row)
 
+    # The observation the run loop is about to hand the bot, kept for exactly as
+    # long as it takes to write the decision that came out of it. `run_benchmark`
+    # already calls this before every decision for the progress bar.
+    seen: dict[str, Any] = {}
+
+    def looked(obs: dict[str, Any], _steps: int) -> None:
+        seen["obs"] = obs
+
+    drawn = [""]
+
     def decided(e: dict[str, Any]) -> None:
-        """One decision, with what the bot did to reach it.
+        """One decision, with what the bot did to reach it and what it was looking at.
 
         The tool calls are asked of the BOT and not of the runner: the runner sees
         a bot return an index, and everything between the question and the answer
         happens inside `choose`. Asked with `getattr` because a harness that does
         not keep the list is not broken, it is older.
+
+        The map is drawn with the SHARED renderer, not the harness's frozen copy.
+        This is the log, not the prompt: it says where the run was, and the layer
+        picture is the same in every copy anyway. What the model actually read is
+        fixed by the harness and reproducible from it.
         """
+        extra: dict[str, Any] = {}
         made = getattr(bot, "tool_calls_made", None)
-        log.decision({**e, "tools": made()} if callable(made) else e)
+        if callable(made):
+            extra["tools"] = made()
+        obs = seen.get("obs")
+        if obs and (obs.get("map") or {}).get("nodes"):
+            from ..core import render
+
+            picture = render.map_view(obs["map"])
+            if picture and picture != drawn[0]:
+                extra["map_view"] = picture
+                drawn[0] = picture
+        log.decision({**e, **extra} if extra else e)
 
     try:
         result = run_benchmark(
             game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
             category="llm", description=f"model benchmark, harness {version}",
-            on_run=on_run, on_decision=decided,
+            on_run=on_run, on_decision=decided, on_step=looked,
         )
     except BaseException as e:
         log.fail(f"{type(e).__name__}: {e}")

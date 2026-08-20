@@ -131,6 +131,49 @@ def test_newest_prefers_the_directory_written_to_last(bench):
     assert watch.newest() == new
 
 
+def test_the_map_is_remembered_between_the_lines_that_carry_it(bench):
+    """It is written only when it changes, so the reader has to hold the last one."""
+    d = bench / "v9" / "logs" / "20260820-170000"
+    picture = "  layer  0 | [@]\n  layer  1 | <o> <x>"
+    _trace(d, "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00", team=["Bulbasaur L5 19/19"],
+             map_view=picture),
+        _row(10000, 1, "2026-08-20T17:00:05", team=["Bulbasaur L5 12/19"]),
+    ])
+    r = watch.read(d).runs[0]
+    assert r.map_view == picture, "the map was dropped on the line that omitted it"
+    assert r.team == ["Bulbasaur L5 12/19"], "the team is the one at the last decision"
+
+
+def test_a_trace_without_a_team_says_so_rather_than_inventing_one(bench):
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    r = watch.read(d).runs[0]
+    assert r.team == [] and r.map_view == ""
+
+
+def test_a_pass_can_be_chosen_by_stamp_or_by_model(bench):
+    a = bench / "v9" / "logs" / "20260820-160000"
+    b = bench / "v9" / "logs" / "20260820-170000"
+    _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
+    _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
+    assert watch.pick(stamp="160000") == a
+    assert watch.pick(model="c/d") == b
+    assert watch.pick(stamp="nothing-like-this") is None
+
+
+def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(bench, capsys):
+    """The alternative is a number read as the other pass."""
+    a = bench / "v9" / "logs" / "20260820-160000"
+    b = bench / "v9" / "logs" / "20260820-170000"
+    _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
+    _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
+    assert len(watch.live()) == 2
+    chosen = watch.pick()
+    assert chosen == watch.newest()
+    assert "2 passes running" in capsys.readouterr().out
+
+
 def test_nothing_to_watch_is_an_answer(bench):
     assert watch.dashboard(once=True) == 1
     assert watch.overview() == 1
@@ -145,6 +188,8 @@ def test_it_draws_what_it_read(bench):
         _row(10000, 0, "2026-08-20T17:00:00"),
         # On the run in flight, which is the one the turn panel is about.
         _row(10001, 0, "2026-08-20T17:00:10",
+             team=["Charmander L9 22/26", "Meowth L8 24/24"],
+             map_view="  layer  0 | [@]\n  layer  1 | <o> <x>",
              tools=[{"tool": "remember", "note": "a lesson", "kept": 1},
                     {"tool": "play", "index": 0, "why": "because"}]),
     ])
@@ -154,5 +199,7 @@ def test_it_draws_what_it_read(bench):
     text = out.export_text()
     assert "a/b" in text and "10000" in text
     assert "remember" in text and "a lesson" in text
+    assert "Charmander L9 22/26" in text
+    assert "layer  0" in text
     assert watch.dashboard(once=True) == 0
     assert watch.overview() == 0

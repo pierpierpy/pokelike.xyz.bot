@@ -209,7 +209,13 @@ bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
 `model watch` reads the trace the pass is already writing, so it works the same
 on a container, on a pass started in another terminal, and on one that finished
 last week. It shows the runs that are done, where the model is now, the tools it
-called this turn and the notes it is holding.
+called this turn, the team and the map it is standing on, and the notes and route
+it is holding.
+
+With more than one pass running it asks which. `--stamp 20260820-153310` or
+`--model qwen/qwen3.7-flash` answers in advance, and part of either is enough.
+Once it is following one it stays on it: the newest write alternates between two
+live passes, so following that would flip the view every couple of seconds.
 
 `run.sh` builds, runs detached, names the container after the model, picks the worker
 count the harness allows, and removes it when done. Credentials come from `.env`.

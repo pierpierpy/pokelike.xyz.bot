@@ -566,12 +566,13 @@ def cmd_bench(args) -> int:
 
 
 def cmd_watch(args) -> int:
-    """Follows the pass that is being written to, from its own trace."""
+    """Follows one pass, from the trace it is already writing."""
     from ...instrument.watch import dashboard, overview
 
     if args.all:
         return overview(version=args.harness)
-    return dashboard(version=args.harness, once=args.once)
+    return dashboard(version=args.harness, once=args.once,
+                     stamp=args.stamp, model=args.model)
 
 
 def cmd_llm_bench(args) -> int:
@@ -1114,6 +1115,13 @@ def _model_watch_args(s) -> None:
     s.add_argument("--all", action="store_true",
                    help="every pass on this machine, one row each, instead of "
                         "one pass in detail")
+    # Which pass, when more than one is running. Without either, it asks; with
+    # nothing to ask (a pipe, a script) it follows the newest and says which.
+    s.add_argument("--stamp", default=None, metavar="STAMP",
+                   help="the log directory to follow, e.g. 20260820-153310. Part "
+                        "of the name is enough")
+    s.add_argument("--model", default=None, metavar="ID",
+                   help="follow the pass playing this model")
     s.set_defaults(func=cmd_watch)
 
 
