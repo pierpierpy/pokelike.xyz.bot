@@ -153,15 +153,74 @@
     return own.slice(0, 160);
   };
 
+  // The text the game shows when the pointer rests on a map node: the trainer's
+  // archetype and which types they use, a gym leader's roster with levels, what a
+  // trade or an item node actually does. None of it is in `state.map.nodes`, and
+  // all of it is on screen for anyone playing in a browser, so a headless run was
+  // seeing LESS than a person rather than the same.
+  //
+  // Read by calling the engine's own `getNodeLabel(node)`, which is the function
+  // that builds the tooltip's HTML, so this cannot drift from what is displayed.
+  //
+  // NOT by hovering. Synthesising mousemove over every node would work, and it is
+  // how this was first done on a fork, but it injects events into a game we do not
+  // control and forces a layout read per node. `_settle` exists because pumping
+  // the engine makes it consume its seeded RNG in a different order, and the same
+  // seed then stops replaying the same run; a pure function call cannot do that.
+  //
+  // Cached per (seed, map): the labels of a map do not change while you walk it,
+  // and `Visited` is the one part that does, which is already in `state`.
+  const tipText = (html) => {
+    if (!html) return null;
+    // Each roster line is its own <div>. innerText only inserts breaks for
+    // elements the layout has laid out as blocks, and this one is detached, so
+    // the separators have to be put in by hand or `Onix Lv14` runs into the line
+    // above it.
+    const spaced = String(html)
+      .replace(/<\s*br\s*\/?>/gi, "\u0001")
+      .replace(/<\s*\/\s*(div|p|li|tr)\s*>/gi, "\u0001");
+    const box = document.createElement('div');
+    box.innerHTML = spaced;
+    return (box.innerText || box.textContent || "")
+      .split("\u0001").map((s) => s.replace(/\s+/g, ' ').trim())
+      .filter(Boolean).join(' | ') || null;
+  };
+
+  window.__pk_node_tooltips = () => {
+    const st = g('state');
+    const label = g('getNodeLabel');
+    if (!st || !st.map || typeof label !== 'function') return {};
+    const key = `${st.runSeed}:${st.currentMap}`;
+    window.__pk_tip_cache = window.__pk_tip_cache || {};
+    if (window.__pk_tip_cache[key]) return window.__pk_tip_cache[key];
+
+    const out = {};
+    Object.values(st.map.nodes).forEach((n) => {
+      // An unrevealed node is one a player cannot read either. Every node in
+      // Story mode has come back revealed so far, so this guard has never
+      // fired: it is here because the day it stops being true, the failure
+      // would be the bot quietly knowing what is behind a face-down card.
+      if (!n.revealed) return;
+      try {
+        const t = tipText(label(n));
+        if (t) out[n.id] = t;
+      } catch (e) { /* one unreadable node is not worth losing the others */ }
+    });
+    window.__pk_tip_cache[key] = out;
+    return out;
+  };
+
   window.__pk_choices = () => {
     const { L, nodes, els } = choiceElements();
     if (nodes) {
       const st = g('state');
       if (!st || !st.map) return [];
+      const tips = window.__pk_node_tooltips();
       return Object.values(st.map.nodes)
         .filter((n) => n.accessible && !n.visited)
         .sort((a, b) => (a.layer - b.layer) || (a.col - b.col))
-        .map((n) => ({ kind: 'node', id: n.id, node: n.type, layer: n.layer, col: n.col }));
+        .map((n) => ({ kind: 'node', id: n.id, node: n.type, layer: n.layer,
+                       col: n.col, tooltip: tips[n.id] || null }));
     }
     return (els || []).map((e, i) => ({
       kind: 'element', idx: i, layer: L.id, id: e.id || null,
@@ -469,10 +528,12 @@
         id: i.id, name: i.name, desc: i.desc, usable: !!i.usable,
       }));
       if (st.map) {
+        const tips = window.__pk_node_tooltips();
         o.map = {
           nodes: Object.values(st.map.nodes).map((n) => ({
             id: n.id, kind: n.type, layer: n.layer, col: n.col,
             accessible: !!n.accessible, visited: !!n.visited, revealed: !!n.revealed,
+            tooltip: tips[n.id] || null,
           })),
           edges: st.map.edges.map((e) => [e.from, e.to]),
           current: st.currentNode ? st.currentNode.id : null,

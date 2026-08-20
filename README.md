@@ -865,8 +865,8 @@ state['actions']  ..  THE ONLY THING YOU MUST UNDERSTAND
     layer: 3                        layer: 'catch-screen'
     col:   1
 
-  real: {"kind": "node", "id": "n3_0", "node": "catch", "layer": 3, "col": 0}
-  real: {"kind": "node", "id": "n3_1", "node": "catch", "layer": 3, "col": 1}
+  real: {"kind": "node", "id": "n3_0", "node": "catch", "layer": 3, "col": 0, "tooltip": "Catch Pokemon"}
+  real: {"kind": "node", "id": "n3_1", "node": "catch", "layer": 3, "col": 1, "tooltip": "Catch Pokemon"}
 
   node kinds you will meet:
     start        where the map begins
@@ -1095,7 +1095,8 @@ JSON you can paste somewhere and read.
     "col": 0,
     "accessible": false,
     "visited": true,
-    "revealed": true
+    "revealed": true,
+    "tooltip": "Visited"
    },
    {
     "id": "n1_0",
@@ -1104,7 +1105,8 @@ JSON you can paste somewhere and read.
     "col": 0,
     "accessible": false,
     "visited": true,
-    "revealed": true
+    "revealed": true,
+    "tooltip": "Catch Pokemon"
    },
    {
     "id": "n1_1",
@@ -1113,7 +1115,8 @@ JSON you can paste somewhere and read.
     "col": 1,
     "accessible": false,
     "visited": false,
-    "revealed": true
+    "revealed": true,
+    "tooltip": "Wild Battle \u2014 +1 level"
    },
    {
     "id": "n2_0",
@@ -1122,7 +1125,8 @@ JSON you can paste somewhere and read.
     "col": 0,
     "accessible": false,
     "visited": true,
-    "revealed": true
+    "revealed": true,
+    "tooltip": "Officer \u2014 +2 Levels \u2014 Fire Pokemon"
    },
    "... 19 more nodes"
   ],
@@ -1207,14 +1211,16 @@ JSON you can paste somewhere and read.
    "id": "n3_0",
    "node": "catch",
    "layer": 3,
-   "col": 0
+   "col": 0,
+   "tooltip": "Catch Pokemon"
   },
   {
    "kind": "node",
    "id": "n3_1",
    "node": "catch",
    "layer": 3,
-   "col": 1
+   "col": 1,
+   "tooltip": "Catch Pokemon"
   }
  ],
  "steps": 5,

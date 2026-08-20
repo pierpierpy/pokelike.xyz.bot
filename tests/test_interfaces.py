@@ -155,3 +155,46 @@ def test_api_refuses_an_illegal_action(game):
 
     r = _with_api(game, 22, steps, port=8554)
     assert r.get("code") == 409, "an illegal action is a conflict, not a server error"
+
+
+
+@pytest.mark.slow
+def test_the_node_tooltips_reach_every_interface(game):
+    """What the game says a node is, over HTTP as well as in Python and the CLI.
+
+    The text the browser shows on hover carries the trainer's archetype and which
+    types they use, a gym leader's roster with levels, what a trade does. None of
+    it was in the state, so a headless run saw LESS than a person rather than the
+    same thing. Added in the bridge, which is the only place that can: no view()
+    and no tool can invent data the bridge never read.
+
+    Checked on all three faces together because they are one decision. Putting it
+    in the state and rendering it for only one of them is the shape of bug that
+    goes unnoticed for months.
+    """
+
+    def steps(get, post):
+        post("/new", {"seed": 10000})
+        for _ in range(8):
+            state = get("/state")
+            if state.get("map"):
+                break
+            post("/action", {"index": 0})
+        tips = [n.get("tooltip") for n in (state.get("map") or {}).get("nodes", [])]
+        return {
+            "on_nodes": [t for t in tips if t],
+            "on_actions": [a.get("tooltip") for a in state["actions"]
+                           if a.get("kind") == "node"],
+            "view": state.get("view", ""),
+        }
+
+    r = _with_api(game, 10000, steps)
+    assert "error" not in r, r.get("error")
+
+    assert r["on_nodes"], "the state carries no tooltip: the bridge did not read it"
+    assert any(t for t in r["on_actions"]), "the legal options carry no tooltip"
+
+    # The rendered view is what the CLI prints and what a bot reads by default,
+    # so the same fact has to be legible there and not only in the JSON.
+    shown = [t for t in r["on_actions"] if t and t in r["view"]]
+    assert shown, f"none of {r['on_actions']} is in the printed view"

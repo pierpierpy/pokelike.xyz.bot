@@ -242,12 +242,24 @@ def team_view(team: list[dict] | None) -> str:
 
 
 def actions_view(actions: list[dict]) -> str:
+    """The numbered options, with what the game says each one is.
+
+    The `tooltip` is the text the game puts on screen when the pointer rests on
+    that node: the trainer's archetype and which types they use, a gym leader's
+    roster with levels, what a trade does. Someone playing in a browser reads it
+    before choosing, so a terminal that left it out was the poorer view, not the
+    equal one.
+
+    Absent on anything that is not a map node, and absent on older recordings,
+    hence the `.get`.
+    """
     if not actions:
         return "  (no actions)"
     rows = []
     for i, a in enumerate(actions):
         if a["kind"] == "node":
-            rows.append(f"  [{i}] go to node {a['id']:<6} ({a['node']})")
+            tip = f"  {a['tooltip']}" if a.get("tooltip") else ""
+            rows.append(f"  [{i}] go to node {a['id']:<6} ({a['node']}){tip}")
         else:
             rows.append(f"  [{i}] {a['label']}")
     return "\n".join(rows)
