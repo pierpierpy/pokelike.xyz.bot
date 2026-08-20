@@ -168,6 +168,19 @@ llm-bench/v0/
     └── glm-5.2-nvfp4.json           one file per MODEL, every pass inside
 ```
 
+Under `v1` and `v2` two more files appear beside each pass, because those harnesses
+let the model write things and the question *how did it write them* wants them alone
+and in order rather than buried in fifty run rows:
+
+```
+    ├── <model>-pass1-notebook.log    the notes it kept between runs
+    └── <model>-pass1-plan.log        the route it planned for each map
+```
+
+One block per finished run, `unchanged` when nothing moved — fifty identical blocks
+would bury the three runs where it actually learned something. Both are also in the
+run rows; these are for reading.
+
 ```bash
 ls -t llm-bench/v0/logs/                        # your commands, newest first
 tail -f llm-bench/v0/logs/20260819-144219/*.log # follow one of them

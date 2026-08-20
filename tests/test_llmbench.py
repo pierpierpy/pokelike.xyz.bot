@@ -258,6 +258,57 @@ def test_notes_reported_per_run_are_a_copy(harness_v1):
     assert "mutated" not in harness_v1.notebook
 
 
+def test_the_notes_and_the_plan_get_their_own_files(tmp_path, monkeypatch):
+    """Readable on their own, because the question is how the model WROTE them.
+
+    `unchanged` rather than a reprint when nothing moved: fifty identical blocks
+    would bury the three runs where it actually learned something.
+    """
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    log = L.PassLog("v2", "vendor/m", [10000, 10001, 10002], workers=1, memory=True)
+    for seed, book, plan in (
+        (10000, [], ""),
+        (10001, ["a lesson worth keeping"], "down the left side, heal before the gym"),
+        (10002, ["a lesson worth keeping"], "down the left side, heal before the gym"),
+    ):
+        log.run({"seed": seed, "badges": 1, "steps": 9, "tokens_in": 1, "tokens_out": 1,
+                 "secs": 1.0, "notebook": book, "notes_kept": len(book), "plan": plan})
+    log.close()
+
+    book_text = log.book_path.read_text()
+    assert "a lesson worth keeping" in book_text
+    assert "(empty" in book_text, "a run where it wrote nothing has to say so"
+    assert book_text.count("unchanged") == 1
+
+    plan_text = log.plan_path.read_text()
+    assert "heal before the gym" in plan_text
+    assert "never called plan" in plan_text
+    assert plan_text.count("unchanged") == 1
+
+
+def test_a_harness_without_notes_leaves_no_empty_files(tmp_path, monkeypatch):
+    """Two blank files a pass would be litter that reads like a bug."""
+    monkeypatch.setattr(L, "BENCH", tmp_path)
+    log = L.PassLog("v0", "vendor/m", [10000], workers=1)
+    log.run({"seed": 10000, "badges": 1, "steps": 9, "tokens_in": 1, "tokens_out": 1,
+             "secs": 1.0})
+    log.close()
+    assert not log.book_path.exists()
+    assert not log.plan_path.exists()
+
+
+@pytest.mark.parametrize("version", [v for v in L.versions() if v != "v0"])
+def test_a_memory_harness_reports_the_plan_and_the_notes(version):
+    """The wiring the two files depend on: whatever notes() does not expose cannot
+    reach a log, and both are read off notes() by name."""
+    cls = load_class(L.harness_path(version))
+    bot = cls(seed=0, model="test-model", **OFFLINE)
+    keys = bot.notes()
+    assert "notebook" in keys
+    if version != "v1":          # the plan arrives with v2
+        assert "plan" in keys
+
+
 # --------------------------------------------------------------- the learning curve
 
 

@@ -502,6 +502,7 @@ class PassLog:
         # Last notebook seen, so the log can show what CHANGED rather than
         # reprinting twelve unchanged notes fifty times.
         self.memory = memory
+        self.model = model
         self.book: list[str] = []
         # Per seed, the last (in, out) seen for it. Two jobs from one dict: the
         # difference against the previous reading is what a turn cost, and the sum
@@ -520,6 +521,20 @@ class PassLog:
         # the size of a file whose job is to hold one comparable row per seed.
         self.trace_path = self.path.with_suffix(".jsonl")
         self.tf = self.trace_path.open("w", encoding="utf-8", buffering=1)
+        # The two things the model WRITES, each in its own file, one block per run:
+        # what it decided to keep between runs, and the route it meant to take.
+        # They are in the run rows too, but a result holds fifty of them interleaved
+        # with everything else, and the question these answer -- how did it write
+        # them, and how did they change -- wants them alone and in order.
+        #
+        # Opened on demand rather than up front: v0 has neither, and two empty files
+        # per pass would be litter that reads like a bug.
+        self.book_path = self.path.with_name(self.path.stem + "-notebook.log")
+        self.plan_path = self.path.with_name(self.path.stem + "-plan.log")
+        self.bf: Any = None
+        self.pf: Any = None
+        self._last_book: list[str] | None = None
+        self._last_plan: str | None = None
         self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
         self._say(f"{len(seeds)} seeds, {workers} worker{'s' if workers != 1 else ''}, "
                   f"seeds {seeds[0]}..{seeds[-1]}")
@@ -559,6 +574,8 @@ class PassLog:
             for note in [x for x in self.book if x not in book]:
                 self._say(f"       - {note}")
             self.book = book
+        self._write_notebook(row)
+        self._write_plan(row)
         # A mark every ten runs, with where it is and when it should finish. The
         # point of the whole file: come back after an hour and the last of these
         # lines answers "is this going to take another twenty minutes or another
@@ -602,6 +619,55 @@ class PassLog:
             self._say(f"notes it finished with ({len(self.book)}):")
             for i, note in enumerate(self.book, 1):
                 self._say(f"  [{i}] {note}")
+
+    def _write_notebook(self, row: dict[str, Any]) -> None:
+        """One block a run: the notes as they stood when that run ended.
+
+        `unchanged` rather than a reprint when nothing moved, because fifty
+        identical blocks would bury the three runs where it actually learned
+        something.
+        """
+        book = row.get("notebook")
+        if book is None:
+            return
+        if self.bf is None:
+            self.bf = self.book_path.open("w", encoding="utf-8", buffering=1)
+            self.bf.write(f"notes the model kept between runs — {self.model}\n"
+                          f"one block per finished run, in the order played\n\n")
+        head = f"run {self.n:>2}  seed {row.get('seed')}  ({len(book)} notes)"
+        if book == self._last_book:
+            self.bf.write(f"{head}  unchanged\n")
+        else:
+            self.bf.write(head + "\n")
+            for i, note in enumerate(book, 1):
+                self.bf.write(f"  [{i}] {note}\n")
+            if not book:
+                self.bf.write("  (empty — it wrote nothing)\n")
+            self._last_book = list(book)
+
+    def _write_plan(self, row: dict[str, Any]) -> None:
+        """One block a run: the route it had committed to when the run ended.
+
+        Per run, which is the honest granularity: the harness reports the plan as it
+        stands at the end, so a route replaced twice mid-run shows only its last
+        version. Catching every change would mean the harness recording its own
+        history, and the harness is frozen.
+        """
+        plan = row.get("plan")
+        if plan is None:
+            return
+        if self.pf is None:
+            self.pf = self.plan_path.open("w", encoding="utf-8", buffering=1)
+            self.pf.write(f"the route the model planned for each map — {self.model}\n"
+                          f"as it stood when the run ended\n\n")
+        head = f"run {self.n:>2}  seed {row.get('seed')}"
+        if plan == self._last_plan:
+            self.pf.write(f"{head}  unchanged\n")
+        elif not plan:
+            self.pf.write(f"{head}  (none — it never called plan)\n")
+        else:
+            self.pf.write(f"{head}\n  {plan}\n")
+        self._last_plan = plan
 
     def decision(self, e: dict[str, Any]) -> None:
         """One decision, as JSON. The minimum that answers what and why.
@@ -649,10 +715,9 @@ class PassLog:
         self._say(f"FAILED after {self.n} runs: {why}")
 
     def close(self) -> None:
-        if not self.fh.closed:
-            self.fh.close()
-        if not self.tf.closed:
-            self.tf.close()
+        for fh in (self.fh, self.tf, self.bf, self.pf):
+            if fh is not None and not fh.closed:
+                fh.close()
 
     def __enter__(self) -> "PassLog":
         return self
@@ -709,6 +774,11 @@ def play_model(game, version: str, model: str, site: Path,
             # and later revised away is still in the record.
             row["notebook"] = n["notebook"]
             row["notes_kept"] = n.get("notes_kept", len(n["notebook"]))
+        if "plan" in n:
+            # The route it had committed to when the run ended. Per run, like the
+            # notebook, and for the same reason: the interesting object is how it
+            # changed, not where it landed.
+            row["plan"] = n["plan"]
         last[0] = now
         log.run(row)
 
