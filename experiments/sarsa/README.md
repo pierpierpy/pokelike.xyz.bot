@@ -7,17 +7,17 @@ SARSA(λ) form.
     q̂(s, a, w) = wᵀ x(s, a)
 
 **Contents**
-[Why, after Dyna-Q](#why-after-dyna-q) ·
-[What changes](#what-changes) ·
-[No neural network, on purpose](#no-neural-network-on-purpose)
+- [Why, after Dyna-Q](#why-after-dyna-q)
+- [What changes](#what-changes)
+- [No neural network, on purpose](#no-neural-network-on-purpose)
 
-[Results](#results) ·
-[Which features actually decide anything](#which-features-actually-decide-anything) ·
-[You can read what it learned](#you-can-read-what-it-learned)
+- [Results](#results)
+- [Which features actually decide anything](#which-features-actually-decide-anything)
+- [You can read what it learned](#you-can-read-what-it-learned)
 
-[Layout](#layout) ·
-[Running it](#running-it) ·
-[Where to look if it stalls](#where-to-look-if-it-stalls)
+- [Layout](#layout)
+- [Running it](#running-it)
+- [Where to look if it stalls](#where-to-look-if-it-stalls)
 
 ---
 
@@ -52,7 +52,7 @@ So the problem was never the algorithm. It was that the agent could not see.
 
 ## What changes
 
-**It can see.** Features carry what is on screen — a candidate's types, whether
+**It can see.** Features carry what is on screen, so a candidate's types, whether
 they are new to the team, its bulk against the other two on offer, where a map
 node leads. `features/groups.py` parses the Pokemon card text the tabular agent threw
 away.
@@ -72,7 +72,7 @@ so the five EQUIP buttons are five actions with five feature vectors. The tabula
 agent collapsed them into one `btn:equip` and could not choose *who* to equip.
 
 **It decides the team order** (feature set v2). Slot 0 leads the next battle, and
-reordering costs no turn — so it is modelled as an extra **state** in the MDP with
+reordering costs no turn, so it is modelled as an extra **state** in the MDP with
 reward 0, not an extra action in the existing one. Its options are "leave it" plus
 "bring slot j to the front", scored by the same q̂ and the same weights, and
 SARSA(λ)'s traces carry the credit back through the swap on their own. Available
@@ -87,7 +87,7 @@ groups. Without them, item and tutor screens are invisible to the vector:
 q-values come out identical across a Red Card, a Moon Stone and an Assault
 Vest, and the agent chooses among them at random.
 
-`item:` reads the two things the engine actually keeps structured — the item id,
+`item:` reads the two things the engine actually keeps structured, the item id,
 and `TYPE_ITEM_MAP`, which turns eighteen near-identical "+40% X-type damage"
 items into one question: does this boost a type I field. It deliberately encodes
 no magnitudes: those live inline in the battle code keyed by id, so a table of
@@ -106,7 +106,7 @@ crosses 36, `lookahead` 4, `screen` 7, `mon` 7, `slot` 3, `button` 3, `item` 7,
 
 ## No neural network, on purpose
 
-Not modesty — arithmetic. An episode is ~20 transitions, so 300 episodes is a few
+Not modesty, arithmetic. An episode is ~20 transitions, so 300 episodes is a few
 thousand transitions, and a DQN's usual budget is 10⁵-10⁶: on the order of an hour
 for the low end once collection runs in parallel processes, and a long day for the
 high end. The binding constraint is samples, not model capacity, and hand-built
@@ -150,7 +150,7 @@ flattens but drifts back down as epsilon anneals. Dyna-Q had 400 episodes and
 never left the floor.
 
 **The largest weights cannot change a single choice, and that is not a flaw.**
-`team_size`, `bias`, `map_index`, `badges` — the heaviest weights — are all
+`team_size`, `bias`, `map_index` and `badges`, which carry the heaviest weights, are all
 state-only: they shift every action in a state by the same amount and cancel in
 the argmax. They stay in the feature set because they carry the *level* of the
 return, which the bootstrapped target is built out of; measured, cutting them
@@ -163,7 +163,7 @@ directly is not the same as being useless.
 sarsa/
 ├── agent.py          the algorithm: q̂ = wᵀx, traces, the update
 ├── train.py          the one thing you run
-├── features/         THE REPRESENTATION — the part worth arguing about
+├── features/         THE REPRESENTATION, the part worth arguing about
 │   ├── groups.py       the 100 features, in named groups
 │   └── variants.py     which groups a run carries, and what it is asking
 ├── logs/             what each run printed, written by the run (gitignored)
@@ -176,7 +176,7 @@ switch a group off and leave everything else meaning the same thing.
 
 ## Which features actually decide anything
 
-Train a variant by naming its groups, then measure it like everything else —
+Train a variant by naming its groups, then measure it like everything else.
 the official benchmark, from wherever the weights are:
 
 ```bash
@@ -227,13 +227,13 @@ variance in it than badges over a whole run.
 Two rules follow, and both are load-bearing:
 
 - **Only the official benchmark ranks a model.** The same `full` weights score
-  1.60 on 25 seeds chosen during development and 1.10 on the official 50 — a
+  1.60 on 25 seeds chosen during development and 1.10 on the official 50, a
   gap wider than any in the table.
 - **Runs being compared share `--alpha-norm`.** The default step normalisation
   divides by the count of active features, which is a property of the feature
   set (9.0 per (s, a) for `full`, 1.2 for `minimal`): without a shared
   constant, two variants differ in feature set *and* effective learning rate,
-  and the smaller sets diverge — weights of 10⁹ and beyond.
+  and the smaller sets diverge, with weights of 10⁹ and beyond.
 
 ## Running it
 
@@ -251,7 +251,7 @@ uv run pokelike bench --bot experiments/mine --dry-run    # measure: official 50
 | `--reward` | which reward (see `env/rewards.py`) | progress |
 | `--out` | *train*: file to write in `output/models/` | `sarsa.json` |
 | `--groups` | feature groups to keep, comma separated | all |
-| `--alpha-norm` | shared step divisor — same value across runs you compare | per-feature |
+| `--alpha-norm` | shared step divisor, same value across runs you compare | per-feature |
 
 `--out` deliberately does not default to a name a submitted bot reads. Both
 [`bots/sarsa-v1/`](../../bots/sarsa-v1/) and
@@ -267,10 +267,10 @@ Write the bot inside your experiment folder and point the benchmark at it:
 uv run pokelike bench --bot experiments/mine --dry-run
 ```
 
-A bot measured by path is never recorded — the run prints its numbers on the
+A bot measured by path is never recorded. The run prints its numbers on the
 official 50 seeds and that is all. Compare them with `pokelike leaderboard`.
-When it earns its place, bring it into `bots/` the standard way — `new-bot`, or
-copy your `bot.py` and artifacts into a folder of its own — and bench it there,
+When it earns its place, bring it into `bots/` the standard way, either `new-bot` or
+copying your `bot.py` and artifacts into a folder of its own, and bench it there,
 under its own name. A candidate is never measured under another bot's name.
 
 ## You can read what it learned
@@ -291,7 +291,7 @@ what it leaned on:
 
 That is a policy you can argue with, which a value table of 400 opaque cells is
 not. The first three depend on the state and not the action, so they add the
-same number to every option and cancel in the argmax — see the weights note
+same number to every option and cancel in the argmax, see the weights note
 under *Results* for why they stay anyway.
 
 ## Where to look if it stalls

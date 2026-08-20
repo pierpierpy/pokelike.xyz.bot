@@ -6,21 +6,21 @@ The intent is one variable: the shape of q̂. Same 100 features, same reward, sa
 benchmark.
 
 **Reaching that intent takes a second arm.** Comparing an offline-fitted network
-against `sarsa-v2` moves three things at once — the model, the algorithm
+against `sarsa-v2` moves three things at once, the model, the algorithm
 (on-policy SARSA(λ) online, against fitted Q iteration offline) and the data
 (self-played, against mostly random). Measured, the algorithm and the data cost
 −0.56 badges between them, which is larger than anything the model was expected
 to buy. So q̂ = wᵀx is fitted by the *same* pipeline on the *same* shards, and it
-is that pair which isolates capacity — not the comparison with the leaderboard.
+is that pair which isolates capacity, not the comparison with the leaderboard.
 
 **Contents**
-[What it asks](#what-it-asks) ·
-[Why a network, given the linear model plateaued](#why-a-network-given-the-linear-model-plateaued) ·
-[Why the data comes first](#why-the-data-comes-first) ·
-[Running it](#running-it) ·
-[Layout](#layout) ·
-[What would refute it](#what-would-refute-it) ·
-[What happened](#what-happened)
+- [What it asks](#what-it-asks)
+- [Why a network, given the linear model plateaued](#why-a-network-given-the-linear-model-plateaued)
+- [Why the data comes first](#why-the-data-comes-first)
+- [Running it](#running-it)
+- [Layout](#layout)
+- [What would refute it](#what-would-refute-it)
+- [What happened](#what-happened)
 
 ---
 
@@ -41,8 +41,8 @@ limit. What is left is what the model can express given them.
 
 ## Why a network, given the linear model plateaued
 
-Read the weights the linear model learns and the largest by far — `team_size`,
-`bias`, `map_index`, `badges` — are all state-only. They read the same for
+Read the weights the linear model learns and the largest by far, namely `team_size`,
+`bias`, `map_index` and `badges`, are all state-only. They read the same for
 every action available in a state, so they shift each option by the same amount
 and cancel in the argmax: they cannot change a single decision. Measured on a
 real state, 8 of the 17 active features are in that position and they carry 475
@@ -51,7 +51,7 @@ of the 552 total weight.
 The obvious conclusion, that they are dead weight, is wrong: dropping them
 scores 1.36 against 1.38, which is the same. They are not useless and they are
 not policy. What they are is a term that only means anything **crossed with the
-action** — how much a trainer node is worth depends on how small the team is.
+action**, since how much a trainer node is worth depends on how small the team is.
 
 A linear model can only carry such a cross if a person writes the product down,
 and three are written down today (`node:trainer*small_team` and two others; one
@@ -64,7 +64,7 @@ combine them.**
 ## Why the data comes first
 
 Collecting and fitting are bound by different things. Playing is bound by the
-browser — one per process, about a quarter of a second a decision — while fitting
+browser (one per process, about a quarter of a second a decision) while fitting
 a small network to a fixed array is bound by arithmetic and wants everything in
 memory at once. Split, one machine collects with every core it can keep busy and
 then fits as often as it likes.
@@ -75,7 +75,7 @@ waiting the work is CPU-bound and the cores are full. 4000 episodes took 55
 minutes and produced 107k transitions.
 
 So: collect once in parallel, then fit offline as many times as you like. Thirty
-rounds of fitted Q iteration over the whole dataset take 1.6 minutes — about
+rounds of fitted Q iteration over the whole dataset take 1.6 minutes, about
 fifteen episodes of play, against the hour the dataset cost. That ratio is the
 whole reason for the split: the variants are nearly free, the data is not.
 
@@ -83,7 +83,7 @@ Fitted Q iteration (Ernst, Geurts & Wehenkel, JMLR 2005) treats improvement as a
 sequence of ordinary regressions: round *k* builds `y = r + γ·max_a' Q_{k-1}(x')`
 for every transition and fits `Q_k` to it. This is why collection records the
 features of **every** action available at the next decision point, not just the
-one that was taken — the max needs them, and a dataset without them can only
+one that was taken. The max needs them, and a dataset without them can only
 evaluate the policy that produced it.
 
 The behaviour policy is deliberately mixed, half guided and half random. Data
@@ -92,7 +92,7 @@ lead, which is precisely what a max over actions has to know.
 
 Between rounds the network can be periodically re-initialised while the data is
 kept, on the argument that reusing one dataset overfits a network to whatever it
-saw first — the primacy bias (Nikishin et al., arXiv:2205.07802).
+saw first, the primacy bias (Nikishin et al., arXiv:2205.07802).
 
 **That argument does not survive contact with this loop, and the reason is worth
 writing down.** The improvement is *not* carried by the targets, because the
@@ -101,22 +101,22 @@ the model cannot re-fit immediately is thrown away, not banked. Measured on the
 linear arm, where six epochs cannot re-fit what was discarded, the loss spikes
 from 625 to 2838, mean q collapses from 48.6 to 8.5, and round 29 finishes
 *below* round 9. The next round's targets are then built from the damaged net, so
-the loss compounds. The 64·64 net absorbs it — loss 353 to 488, mean q barely
-dipping — which is why it went unnoticed. `--reset-every 0` for anything whose
+the loss compounds. The 64·64 net absorbs it, loss 353 to 488 with mean q barely
+dipping, which is why it went unnoticed. `--reset-every 0` for anything whose
 capacity is small enough to notice.
 
 ## Running it
 
-Numpy is not a project dependency — a bot has to load in any checkout — so it
+Numpy is not a project dependency, because a bot has to load in any checkout, so it
 comes in for the command and leaves again:
 
 ```bash
-# 1. collect, in parallel, once — 55 minutes on 22 cores
+# 1. collect, in parallel, once. 55 minutes on 22 cores
 uv run --with numpy python -m experiments.drrn.collect \
     --episodes 4000 --workers 8 --tag mixed \
     --weights bots/sarsa-v2/artifacts/weights.json
 
-# 2. fit, offline, as often as you like — under 2 minutes a round-trip
+# 2. fit, offline, as often as you like. Under 2 minutes a round-trip
 uv run --with numpy python -m experiments.drrn.train --data mixed --iters 30
 uv run --with numpy python -m experiments.drrn.train --data mixed --iters 30 \
     --hidden '' --reset-every 0 --out linear.json      # the control arm
@@ -128,7 +128,7 @@ uv run pokelike bench --bot experiments/drrn
 
 Every command is run from the repository root, including the `cp`: `-m` needs it,
 so the paths are written out in full rather than relative to this folder. `bench`
-needs no `--dry-run` here — a bot measured by path records nothing either way.
+needs no `--dry-run` here, since a bot measured by path records nothing either way.
 
 | flag | meaning | default |
 |---|---|---|
@@ -171,7 +171,7 @@ seed by seed resolve about 0.25.
 ## What would refute it
 
 A benchmark number at or below 1.36. That would say the features are the
-ceiling, and that capacity on top of them buys nothing — which would make the
+ceiling, and that capacity on top of them buys nothing, which would make the
 next thing worth trying a change to what the agent can see, not to how it
 combines what it already sees.
 
@@ -188,10 +188,10 @@ official 50 seeds, paired against `sarsa-v2`'s recorded per-seed rows:
 
 | arm | badges~ | steps~ | vs `sarsa-v2`, paired |
 |---|--:|--:|---|
-| `64,64`, `--reset-every 10` — the pre-registered one | 1.18 | 118.7 | −0.18, t = −1.70 |
+| `64,64`, `--reset-every 10`, the pre-registered one | 1.18 | 118.7 | −0.18, t = −1.70 |
 | `64,64`, `--reset-every 0` | 1.16 | 171.5 | −0.20, t = −1.75 |
-| **`wᵀx`, same pipeline — the control** | **0.80** | 21.5 | −0.56, t = −5.62, 0W-28D-22L |
-| `sarsa-v2`, for reference | 1.36 | 19.0 | — |
+| **`wᵀx`, same pipeline, the control** | **0.80** | 21.5 | −0.56, t = −5.62, 0W-28D-22L |
+| `sarsa-v2`, for reference | 1.36 | 19.0 | n/a |
 
 Read against the leaderboard alone, 1.18 says *the features are the ceiling*. The
 control says that is backwards:
@@ -203,7 +203,7 @@ control says that is backwards:
 - **Capacity is worth +0.36 badges**, t = 3.67, 15W-34D-1L, with data, targets,
   rounds, γ and epochs all held fixed. The hidden layer recovers most of what the
   pipeline gave away. It does not fail to help.
-- **The reset is worth nothing to the network**, +0.02, t = 0.24 — and considerable
+- **The reset is worth nothing to the network**, +0.02, t = 0.24, and considerable
   damage to the control, as above.
 
 **And the network is not usable, for a reason unrelated to any of that.** Look at
@@ -226,7 +226,7 @@ the data's 99th percentile (322). Nothing diverged. The error is total but local
 on one action the data does not constrain:
 
 - A cycle pays 0 for ever, so its true value is 0. Thirty rounds of fitted Q
-  iteration propagate consequences thirty steps, and γ³⁰ = 0.55 — a trap that only
+  iteration propagate consequences thirty steps, and γ³⁰ = 0.55, a trap that only
   bites after hundreds of steps is invisible at that depth.
 - Cancelling looks free for one step and lands on a screen whose max is high.
 - The behaviour data contains 2-3 step cycles and never long ones, because random
@@ -236,5 +236,5 @@ on one action the data does not constrain:
 
 Cheapest next test, since it needs no new data: more rounds, and watch whether the
 cycle's value collapses once the propagation is deep enough to reach it. After
-that, a small per-step penalty — but that changes the reward, so `sarsa-v2` would
+that, a small per-step penalty, but that changes the reward, so `sarsa-v2` would
 have to be retrained on it before the comparison meant anything again.

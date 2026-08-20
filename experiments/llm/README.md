@@ -1,8 +1,8 @@
 # Comparing prompts
 
 **Contents**
-[Why paired, again](#why-paired-again) ·
-[What it costs](#what-it-costs)
+- [Why paired, again](#why-paired-again)
+- [What it costs](#what-it-costs)
 
 ---
 
@@ -16,7 +16,7 @@ the same shape as any other: play both on **identical seeds** and compare them
 paired.
 
 Six bots ship on the one harness in `pokelike.bot.llm`, four of them differing in
-nothing but the prompt — which is what makes the four comparable:
+nothing but the prompt, which is what makes the four comparable:
 
 | bot | what it is told to weigh |
 |---|---|
@@ -30,7 +30,7 @@ nothing but the prompt — which is what makes the four comparable:
 `llm-raw` is not a fifth prompt: it is `llm-survivor` with one variable moved, so
 the pair measures the state view rather than the wording.
 
-This compares **the actual bots**, loaded from `bots/` — not a copy of their
+This compares **the actual bots**, loaded from `bots/`, not a copy of their
 prompts. A prompt that wins here is the same file that gets benchmarked, so it
 cannot drift between the two. Add your own with `pokelike new-bot mine --llm` and
 it joins the default set automatically.

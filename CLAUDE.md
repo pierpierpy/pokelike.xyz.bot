@@ -8,21 +8,21 @@ file only adds what someone *changing* the code needs: internals, pitfalls, and
 the reasoning behind decisions that look odd.
 
 **Orientation**
-[What this is](#what-this-is) ·
-[Commands](#commands) ·
-[Architecture](#architecture)
+- [What this is](#what-this-is)
+- [Commands](#commands)
+- [Architecture](#architecture)
 
 **How it works**
-[Talking to the game](#talking-to-the-game) ·
-[Scoring](#scoring) ·
-[Reproducibility](#reproducibility) ·
-[Performance](#performance)
+- [Talking to the game](#talking-to-the-game)
+- [Scoring](#scoring)
+- [Reproducibility](#reproducibility)
+- [Performance](#performance)
 
 **Before you change anything**
-[Real pitfalls](#real-pitfalls) ·
-[Tests](#tests) ·
-[Submissions](#submissions) ·
-[Secrets](#secrets)
+- [Real pitfalls](#real-pitfalls)
+- [Tests](#tests)
+- [Submissions](#submissions)
+- [Secrets](#secrets)
 
 ---
 

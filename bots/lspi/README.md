@@ -16,8 +16,8 @@ uv run pokelike bench --bot lspi --dry-run
 | | |
 |---|---|
 | how it works | `q̂(s,a) = wᵀx(s,a)`, w solved exactly each policy-iteration round rather than nudged by gradient steps |
-| what it scored | see the standings in [bots/README.md](../README.md) — generated from `result.json`, so it cannot go stale |
-| what was tried and dropped | three ways of reusing real transitions harder via extra gradient steps (true online traces + per-episode λ-return replay, cross-episode experience replay buffer) — all measured worse than plain accumulating-trace SARSA(λ) |
+| what it scored | see the standings in [bots/README.md](../README.md), generated from `result.json`, so it cannot go stale |
+| what was tried and dropped | three ways of reusing real transitions harder via extra gradient steps (true online traces + per-episode λ-return replay, cross-episode experience replay buffer), all measured worse than plain accumulating-trace SARSA(λ) |
 
 Trained by the author's own research folder, which is not part of the submission:
 `experiments/` is a scratch area and what you try there stays yours. The bot, its

@@ -19,7 +19,7 @@ uv run pokelike bot --bot llm-example --runs 1 -d \
 ## What one turn actually sends
 
 One HTTP POST to `{FW_ENDPOINT}/v1/chat/completions`. Four things in it are
-prompt, not three — the tool schemas are read by the model like anything else,
+prompt, not three, because the tool schemas are read by the model like anything else,
 and they are re-sent every turn:
 
 | part of the body | where you tune it | `llm-survivor` |
@@ -28,10 +28,10 @@ and they are re-sent every turn:
 | `tools` | `EXTRA_TOOLS`, `tools()` | 1137 char |
 | `messages[1]`, role `user` | `STATE_VIEW` / `view()` | 831 char |
 | role `tool` replies | `run_tool()` | 120–135 char each |
-| `model`, `temperature`, `max_tokens`, `seed` | `MODEL`, `TEMPERATURE`, `MAX_TOKENS` | — |
+| `model`, `temperature`, `max_tokens`, `seed` | `MODEL`, `TEMPERATURE`, `MAX_TOKENS` | n/a |
 
 **3633 characters a turn before the model has asked for anything.** The tool
-definitions cost more than the state does — a fifth tool is not free because
+definitions cost more than the state does. A fifth tool is not free because
 nobody calls it, you pay for its schema every turn of every run.
 
 The `user` message is three pieces, one yours and two the harness's:
@@ -85,7 +85,7 @@ percentage because `#######...` and `17/24` both make the model divide before it
 can compare; the consequence written as a sentence instead of drawn as a graph;
 the exits inline instead of behind a tool call.
 
-That last one is a real trade, not a free win — it is cheaper, and it also
+That last one is a real trade, not a free win. It is cheaper, and it also
 removes the chance to observe whether the model knows to ask.
 
 ## If you are benchmarking models
@@ -118,7 +118,7 @@ Three routes, and two need no code:
 | a local checkpoint | override `_call()` |
 
 For the third, pin the repo id **and a commit sha** in the bot file rather than a
-branch — the fingerprint covers the pointer, not the weights, so a moving branch
+branch, because the fingerprint covers the pointer and not the weights, so a moving branch
 means a row claiming a model that no longer exists.
 
 ## What to copy
@@ -128,4 +128,4 @@ means a row claiming a model that no longer exists.
 | a different strategy | `PROMPT` |
 | the model to see something new | `EXTRA_TOOLS` + `run_tool()` |
 | to change what it reads each turn | `STATE_VIEW`, then `view()` |
-| a model that is not an HTTP endpoint | `_call()` — the one hook this file does not use |
+| a model that is not an HTTP endpoint | `_call()`, the one hook this file does not use |

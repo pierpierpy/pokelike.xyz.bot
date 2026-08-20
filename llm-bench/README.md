@@ -14,14 +14,14 @@ uv run pokelike llm-bench --harness v0 --model openai/gpt-4o-mini \
 That plays fifty games, records the result, and prints a row. Half an hour or so.
 
 **Contents**
-[Standings](#standings) ·
-[Running it](#running-it) ·
-[Flags](#flags) ·
-[Reading the table](#reading-the-table) ·
-[The harnesses](#the-harnesses) ·
-[Where the files go](#where-the-files-go) ·
-[In Docker](#in-docker) ·
-[Why it is frozen](#why-it-is-frozen)
+- [Standings](#standings)
+- [Running it](#running-it)
+- [Flags](#flags)
+- [Reading the table](#reading-the-table)
+- [The harnesses](#the-harnesses)
+- [Where the files go](#where-the-files-go)
+- [In Docker](#in-docker)
+- [Why it is frozen](#why-it-is-frozen)
 
 ---
 
@@ -159,7 +159,10 @@ across them.
   explains all of it and how to play. Sequential only.
 
 Each has its own README with exactly what it asks a model:
-[v0](v0/harness/README.md) · [v1](v1/harness/README.md) · [v2](v2/harness/README.md).
+
+- [v0](v0/harness/README.md)
+- [v1](v1/harness/README.md)
+- [v2](v2/harness/README.md)
 
 ## Where the files go
 

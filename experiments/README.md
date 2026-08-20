@@ -10,8 +10,8 @@ done rather than a description of it.
 
 ```
 experiments/          research                 bots/          what it produced
-├── env/       the problem, shared by all      —
-├── example/   the smallest complete one       —              start here
+├── env/       the problem, shared by all
+├── example/   the smallest complete one                      start here
 ├── dyna-q/    tabular RL. It lost             dyna-q/        kept because it lost
 ├── sarsa/     linear FA. The one that worked  sarsa-v1/ -v2/ 81 and 100 features
 ├── llm/       comparing prompts               llm-*/         one harness, six bots
@@ -19,7 +19,7 @@ experiments/          research                 bots/          what it produced
 ```
 
 **An experiment is named after the bot it produces**, so you never have to work
-out which folder trained what — `dyna-q/` trains `bots/dyna-q/`, `sarsa/` trains
+out which folder trained what. `dyna-q/` trains `bots/dyna-q/`, `sarsa/` trains
 both `sarsa-v*`, `llm/` compares the `llm-*` bots.
 
 Hyphens are fine in a folder name even though they are not valid in an
@@ -41,13 +41,13 @@ Every one of them has the same shape, so moving between them costs nothing:
 Copy the one closest to your idea into `experiments/mine/` and work there.
 
 **Contents**
-[What you have to show, and what you do not](#what-you-have-to-show-and-what-you-do-not) ·
-[What the area is for](#what-the-area-is-for)
+- [What you have to show, and what you do not](#what-you-have-to-show-and-what-you-do-not)
+- [What the area is for](#what-the-area-is-for)
 
-[`env/`](#env--the-game-as-an-rl-problem) ·
-[`example/`](#example--the-shape-with-nothing-clever-in-it) ·
-[Findings](#findings) ·
-[Measuring anything](#measuring-anything)
+- [`env/`](#env--the-game-as-an-rl-problem)
+- [`example/`](#example--the-shape-with-nothing-clever-in-it)
+- [Findings](#findings)
+- [Measuring anything](#measuring-anything)
 
 ---
 
@@ -58,7 +58,7 @@ hashes it, and that is the only reason the number beside it means anything. A
 leaderboard where the code is hidden is a list of claims.
 
 Submitting does **not** reveal how you got there. The sweeps, the rewards you
-tried, the prompts you threw away, the twenty runs that went nowhere — that is
+tried, the prompts you threw away, the twenty runs that went nowhere, and that is
 research, it lives here, and it stays yours.
 
 You have to show what your bot does. Not how you arrived at it.
@@ -68,17 +68,17 @@ You have to show what your bot does. Not how you arrived at it.
 ## What the area is for
 
 A bot is one method: given the state, say which move to take. Everything that
-goes into *deciding what that method should do* belongs here — training a policy,
+goes into *deciding what that method should do* belongs here, so training a policy,
 comparing prompts, sweeping hyperparameters, measuring whether an idea helps.
 
 Nothing in `src/pokelike/` imports anything from here, and that is a rule rather
 than an accident. The package is the environment; this is the research on top of
 it. A submitted bot has to stand on its own, so if yours carries trained weights
 the state encoding is frozen **inside the bot file** rather than imported from
-here — otherwise improving your training code would silently change what your
+here, because otherwise improving your training code would silently change what your
 own past results meant. See [GUIDE.md](../GUIDE.md).
 
-## `env/` — the game as an RL problem
+## `env/`, the game as an RL problem
 
 The part every experiment shares, whatever it is doing.
 
@@ -89,7 +89,7 @@ The part every experiment shares, whatever it is doing.
 | `encoding.py` | observation to a discrete state key, for tabular methods |
 | `logs.py` | `tee()`: a run writes its own log into `<experiment>/logs/` |
 
-**An MDP** — a Markov Decision Process — is the standard way of stating a problem
+**An MDP**, a Markov Decision Process, is the standard way of stating a problem
 so Reinforcement Learning applies to it: states, the actions available in each,
 and a reward. That is all `env/` is.
 
@@ -109,19 +109,18 @@ uv run python -m experiments.example.train --reward badges
 | `composite` | a weighted mix |
 
 Careful with `game`. The engine's score formula was written for the Battle Tower
-and two of its six terms never fire in Story mode, leaving `5·KO − 10·faints` —
+and two of its six terms never fire in Story mode, leaving `5·KO − 10·faints`,
 a number that rewards fighting rather than getting further. It is why a run with
 three badges can score −5.
 
-## `example/` — the shape, with nothing clever in it
+## `example/`, the shape with nothing clever in it
 
 ```bash
 uv run python -m experiments.example.train --episodes 20
 ```
 
 It learns one number per node kind: how much that kind of node seems to be
-worth. No state at all, so it will not beat much. It is here for the loop —
-play, score, update, save — which is what every experiment in this project has
+worth. No state at all, so it will not beat much. It is here for the loop (play, score, update, save) which is what every experiment in this project has
 been, with something better in the middle.
 
 ---
@@ -154,7 +153,7 @@ This is why there is exactly one measurement (below).
 
 **A result you cannot replay is not a measurement.** An option's label carried a
 pictograph the game substitutes when a sprite is missing from `site/`, and the
-linear feature sets parse labels — so whether a 404 had come back decided a
+linear feature sets parse labels, so whether a 404 had come back decided a
 feature vector, an argmax, and from there the whole run. Five of one entry's fifty
 rows stopped reproducing, one of them by five badges. Before believing any number,
 run the benchmark twice and check it agrees with itself; if the two disagree the
@@ -165,14 +164,14 @@ run to run with a standard deviation near 0.7, so fifty runs carry a standard
 error near 0.1 and two bots need roughly 0.3 badges between them to be told apart.
 Most differences measured here are smaller than that. Four hundred seeds costs
 about ten minutes and resolves ~0.1, which is the difference between ranking
-policies and ranking luck — use the official 50 for submission and a wider block
+policies and ranking luck. Use the official 50 for submission and a wider block
 for deciding what actually helped.
 
 **Training runs being compared must share `--alpha-norm`.** The default step
 normalisation divides by the number of active features, which is a property of
 the feature set: without a shared constant, two variants differ in feature set
 *and* effective learning rate, and the comparison answers neither. Left to the
-default, small sets diverge — weights of 10⁹ and beyond.
+default, small sets diverge, with weights of 10⁹ and beyond.
 
 ## Measuring anything
 
@@ -186,7 +185,7 @@ The 50 fixed seeds everyone is scored on; measured by path it records nothing.
 Compare the number with `uv run pokelike leaderboard`.
 
 There is deliberately no second protocol. Runs vary enormously by luck, so any
-seed set picked during development mostly measures who drew the nicer maps —
+seed set picked during development mostly measures who drew the nicer maps,
 the section above has the demonstration: 1.60 on 25 development seeds, 1.10 on
 the official 50, same weights. When your bot earns its place, bring it into
 `bots/` the standard way and bench it there, under its own name.

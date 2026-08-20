@@ -4,13 +4,13 @@ Every bot that plays this game lives here, one folder each, and the folder is
 the bot: its code, whatever it needs to play, and what it scored.
 
 **Contents**
-[Standings](#standings) ·
-[What a bot is](#what-a-bot-is) ·
-[Adding one](#adding-one) ·
-[What makes results comparable](#what-makes-results-comparable) ·
-[Categories](#categories) ·
-[If someone already took the name](#if-someone-already-took-the-name) ·
-[Verification](#verification)
+- [Standings](#standings)
+- [What a bot is](#what-a-bot-is)
+- [Adding one](#adding-one)
+- [What makes results comparable](#what-makes-results-comparable)
+- [Categories](#categories)
+- [If someone already took the name](#if-someone-already-took-the-name)
+- [Verification](#verification)
 
 New here? **[GUIDE.md](../GUIDE.md)** walks the whole thing end to end, from a
 clone to a pull request. This page is the reference.

@@ -1,15 +1,15 @@
 # Dyna-Q
 
 **Contents**
-[The algorithm](#the-algorithm) ·
-[Why this algorithm first](#why-this-algorithm-first) ·
-[Two departures from the book](#two-departures-from-the-book)
+- [The algorithm](#the-algorithm)
+- [Why this algorithm first](#why-this-algorithm-first)
+- [Two departures from the book](#two-departures-from-the-book)
 
-[Running it](#running-it) ·
-[Where to look when tuning](#where-to-look-when-tuning)
+- [Running it](#running-it)
+- [Where to look when tuning](#where-to-look-when-tuning)
 
-[Results so far](#results-so-far) ·
-[Then it was given more, and it got worse](#then-it-was-given-more-and-it-got-worse)
+- [Results so far](#results-so-far)
+- [Then it was given more, and it got worse](#then-it-was-given-more-and-it-got-worse)
 
 ---
 
@@ -66,7 +66,7 @@ deterministic environment and keeps one `(R, S')` per pair. Battles roll damage,
 so the same `(S, A)` can lead elsewhere. We keep the book's assumption
 deliberately: it is the simplest thing that works, and the compressed state hides
 much of the variation. It is also the first thing to revisit if learning
-plateaus — either stochastic Dyna-Q with outcome counts, or **Dyna-Q+**
+plateaus, either stochastic Dyna-Q with outcome counts, or **Dyna-Q+**
 (section 8.3).
 
 ## Running it
@@ -173,7 +173,7 @@ indistinguishable slots where a player sees a Grass starter, a Fire one and a
 Water one with different stats. **No number of episodes fixes that: the
 information never reaches the table.**
 
-So the diagnosis in the previous section — attack the algorithm — was the wrong
+So the diagnosis in the previous section, attack the algorithm, was the wrong
 call. The limit was the representation. [`sarsa/`](../sarsa/) is
 that hypothesis tested: same reward, same environment, same held-out protocol,
 81 linear features instead of a table (100 since). It won 15 of 25 with no
