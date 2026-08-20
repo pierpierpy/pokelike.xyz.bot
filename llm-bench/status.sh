@@ -58,4 +58,4 @@ free -h | sed -n 2p
 echo "chromium processes: $(ps -eo comm | grep -c chrome)"
 echo
 echo "the table:      uv run pokelike model board --harness <v>"
-echo "one pass live:  tail -f llm-bench/v0/logs/<stamp>/*.log"
+echo "one pass live:  tail -f llm-bench/<v>/logs/<stamp>/*.log"
