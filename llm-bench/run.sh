@@ -37,12 +37,40 @@ fi
 NAME="$(printf '%s' "${MODELS%%,*}" | tr -c 'a-zA-Z0-9' '-' | tr -s '-' | sed 's/^-//;s/-$//')"
 NAME="${NAME}-$(date +%H%M%S)"
 
-# --workers 4 unless you say otherwise: enough to finish a 50-seed pass in half an
-# hour, few enough that a rate-limited provider does not spend the pass retrying.
-case " $* " in *" --workers "*) WORKERS=() ;; *) WORKERS=(--workers 4) ;; esac
+HARNESS_DEFAULT=v0
+
+# The harness comes from the flags if you passed one, so `--harness v2` is not
+# fighting a hardcoded v0 further down the command line.
+HARNESS="$HARNESS_DEFAULT"
+prev=""
+for a in "$@"; do
+    [ "$prev" = "--harness" ] && HARNESS="$a"
+    prev="$a"
+done
+case " $* " in *" --harness "*) HAS_HARNESS=1 ;; *) HAS_HARNESS=0 ;; esac
+
+# Workers: 4 is right for a harness whose runs are independent -- enough to finish a
+# 50-seed pass in half an hour, few enough that a rate-limited provider does not
+# spend the pass retrying. A harness that carries the model's notes between runs has
+# no independent runs to hand out and REFUSES more than one, so asking it for four
+# would fail every launch. Asked of the package rather than hardcoded by version.
+if case " $* " in *" --workers "*) false ;; *) true ;; esac; then
+    if uv run python -c "
+import sys
+from pokelike.llmbench import cross_run_memory
+sys.exit(0 if cross_run_memory('$HARNESS') else 1)" 2>/dev/null; then
+        WORKERS=(--workers 1)
+        echo "note: harness $HARNESS keeps notes between runs, so it runs sequentially."
+    else
+        WORKERS=(--workers 4)
+    fi
+else
+    WORKERS=()
+fi
 
 CMD=(docker compose -f "$COMPOSE" run -d --rm --name "$NAME" bench
-     --harness v0 --models "$MODELS" "${WORKERS[@]}" "$@")
+     "${@:1:0}" "${WORKERS[@]}" --models "$MODELS" "$@")
+[ "$HAS_HARNESS" = "0" ] && CMD=("${CMD[@]}" --harness "$HARNESS_DEFAULT")
 
 if [ -n "${ECHO_ONLY:-}" ]; then printf '%q ' "${CMD[@]}"; echo; exit 0; fi
 
