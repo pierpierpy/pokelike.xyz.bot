@@ -533,9 +533,6 @@ class LLMBot(Bot):
         harness's own data, and the sentence is kept underneath and labelled. The
         reasoning is worth keeping: it is how a model notices it has been trying
         the same idea for five turns. It is just not evidence.
-
-        Found by Massimo Cortesi (github.com/iamjackharper) while building a bot
-        on a fork.
         """
         actions = state.get("actions") or []
         act = actions[index] if 0 <= index < len(actions) else {}

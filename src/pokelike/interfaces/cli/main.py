@@ -99,6 +99,34 @@ def llm_settings(args) -> dict[str, str]:
     return out
 
 
+def _own_bridge(name: str | None) -> Path | None:
+    """A bridge a bot carries, at `<bot>/artifacts/bridge.js`, or None.
+
+    The state is a projection of the game written by hand in `bridge.js`, so a bot
+    that needs the engine to give up something nobody thought to expose has nowhere
+    else to do it: no `view()` and no tool can invent data the bridge never read.
+
+    In `artifacts/` and not the folder root, because the leaderboard hashes `bot.py`
+    plus everything under `artifacts/`. Putting it there makes the score checkable
+    for free, and puts the choice in front of anyone reading the submission.
+
+    Resolves the same way `create()` does, so a path and a unique prefix both work.
+    Returns None rather than raising: the bot has already been built by the time
+    this is called, so a name that does not resolve here is not a new error.
+    """
+    if not name:
+        return None
+    try:
+        from ...bot import resolve
+        from ...bot.catalogue import folder
+
+        base = Path(name) if ("/" in name or "\\" in name) else folder(resolve(name))
+        own = base / "artifacts" / "bridge.js"
+        return own if own.is_file() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _server_and_game(args) -> tuple[AssetServer, Game]:
     if not SITE_ROOT.is_dir() or not (SITE_ROOT / "index.html").is_file():
         print(
@@ -115,14 +143,36 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     # everything flashes past unseen. Headless squashes them to 1 ms because
     # nobody is watching.
     #
-    # A benchmark run drives the game with the bridge and init frozen beside its
-    # harness, not with the shared ones. Only `llm-bench` has a harness, and every
-    # other command wants the current pair: play and bot should follow a fix, not
-    # be pinned away from it.
+    # Which bridge drives the game, in order of precedence.
+    #
+    # A benchmark run uses the pair frozen beside its harness: every model under a
+    # version has to be asked the same question, and the bridge decides what is in
+    # the state at all.
+    #
+    # A bot may carry its own at `bots/<name>/artifacts/bridge.js`. The state is a
+    # projection of the game written by hand, so a bot that wants the engine to
+    # give up something nobody thought to expose has nowhere else to do it: no
+    # `view()` and no tool can invent data the bridge never read. `artifacts/` and
+    # not the folder root, because the leaderboard hashes `bot.py` plus everything
+    # under `artifacts/`, so putting it there makes the score checkable for free.
+    #
+    # `init.js` is deliberately NOT overridable by a bot. It pins Math.random and
+    # Date.now, and a run's seed is built from both, so a bot supplying its own
+    # would play fifty different games while the table said it had played the
+    # standard fifty seeds. More information is fair game and is visible in the
+    # fingerprint; a different game under the same seed is not.
+    #
+    # Everything else gets the shared pair, and should: play and bot follow a fix
+    # rather than being pinned away from one.
     scripts = {}
     if getattr(args, "harness", None):
         from ... import llmbench as _lb
         scripts = _lb.script_paths(args.harness)
+    else:
+        own = _own_bridge(getattr(args, "bot", None))
+        if own is not None:
+            scripts = {"bridge": own}
+            print(f"bridge: {own}")
     game = Game(url=server.url, watch=watch, max_delay=100_000 if watch else 1,
                 **scripts)
     try:

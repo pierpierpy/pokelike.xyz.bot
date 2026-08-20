@@ -807,9 +807,6 @@ class HarnessV3(Bot):
         What was done comes from `state["actions"][index]`, the harness's own data.
         The sentence is kept, because it is how a model notices it has spent five
         turns on one idea; it is just not evidence.
-
-        Found by Massimo Cortesi (github.com/iamjackharper) while building a bot on
-        a fork.
         """
         actions = state.get("actions") or []
         act = actions[index] if 0 <= index < len(actions) else {}

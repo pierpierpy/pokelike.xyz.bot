@@ -742,3 +742,59 @@ def test_explain_describes_the_columns(temp_db):
     short = format_summary(rows)
     long = format_summary(rows, explain=True)
     assert len(long) > len(short)
+
+
+
+def test_a_bot_may_carry_its_own_bridge(tmp_path, monkeypatch):
+    """The state is written by hand, so adding to it needs a file, not a hook.
+
+    `view()`, `EXTRA_TOOLS` and `run_tool()` cover almost everything a bot wants,
+    but none of them can invent data the bridge never read out of the engine. A bot
+    that needs a field nobody thought to expose puts its own `bridge.js` in
+    `artifacts/`, and `artifacts/` specifically, because the leaderboard hashes
+    everything under it: the score stays checkable without a line of new code.
+    """
+    import pokelike.interfaces.cli.main as cli
+    from pokelike.bot import catalogue
+
+    root = tmp_path / "bots"
+    (root / "mine" / "artifacts").mkdir(parents=True)
+    (root / "mine" / "bot.py").write_text(
+        "from pokelike.bot.base import Bot\n"
+        "class MyBot(Bot):\n"
+        "    name = 'mine'\n"
+        "    def choose(self, state): return 0\n"
+    )
+    monkeypatch.setattr(catalogue, "BOTS", root)
+
+    assert cli._own_bridge("mine") is None, "no file, no override"
+
+    own = root / "mine" / "artifacts" / "bridge.js"
+    own.write_text("// mine\n")
+    assert cli._own_bridge("mine") == own
+    assert cli._own_bridge("min") == own, "a unique prefix resolves like everywhere else"
+
+    # A path is how a bot inside an experiment folder is played without moving it.
+    assert cli._own_bridge(str(root / "mine")) == own
+
+    assert cli._own_bridge(None) is None
+    assert cli._own_bridge("no-such-bot") is None, "must not raise: the bot is already built"
+
+
+def test_a_bots_own_bridge_lands_in_its_fingerprint(tmp_path):
+    """Which is the whole reason it goes in artifacts/ rather than beside bot.py."""
+    from pokelike.leaderboard import fingerprint
+
+    d = tmp_path / "mine"
+    (d / "artifacts").mkdir(parents=True)
+    (d / "bot.py").write_text("x = 1\n")
+
+    before = fingerprint(d)
+    (d / "artifacts" / "bridge.js").write_text("// mine\n")
+    after = fingerprint(d)
+    assert before != after, "a custom bridge must not be invisible to the record"
+
+    # Beside bot.py it would NOT be hashed, which is why the convention matters.
+    (d / "artifacts" / "bridge.js").unlink()
+    (d / "bridge.js").write_text("// mine\n")
+    assert fingerprint(d) == before

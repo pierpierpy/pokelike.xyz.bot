@@ -98,9 +98,6 @@ This matters more here than it would have under `v0`, because `v2` added a scrat
 the model already sees its own words from the last three turns verbatim. There were
 two channels carrying its reasoning and one of them was labelled as fact.
 
-Found by [Massimo Cortesi](https://github.com/iamjackharper) while building a bot on a
-fork.
-
 ## What did not change
 
 The prompt, the eight tools, the scratchpad of three turns, twelve notes across runs,
