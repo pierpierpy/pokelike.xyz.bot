@@ -109,14 +109,25 @@ def _touched(folder: Path) -> float:
 def live(version: str | None = None, within: float = 900.0) -> list[Path]:
     """The passes something might still be writing to.
 
-    Fifteen minutes, and deliberately looser than the five the state uses. One turn of
-    a memory harness sends tens of thousands of tokens, can spend six tool rounds, and
-    gets retried when the provider is busy, so five minutes of silence is not enough to
-    conclude a pass is over. The state column still says `stalled` after five; this only
-    decides what is worth offering as a choice.
+    A pass that has said `done` or `FAILED` in its log is not one of them however
+    recently it wrote, which is what a finished dry run looked like before: offered as
+    a choice, three seconds old, with nothing behind it.
+
+    The clock window is deliberately looser than the five minutes that marks a pass
+    stalled. One turn of a memory harness sends tens of thousands of tokens, can spend
+    six tool rounds, and gets retried when the provider is busy, so five minutes of
+    silence is not enough to conclude a pass is over. The state column still says
+    `stalled` after five; this only decides what is worth offering as a choice.
     """
     now = time.time()
-    return [d for d in folders(version) if now - _touched(d) < within]
+    out = []
+    for d in folders(version):
+        if now - _touched(d) >= within:
+            continue
+        p = read(d)
+        if p is not None and p.state not in ("done", "FAILED"):
+            out.append(d)
+    return out
 
 
 def pick(version: str | None = None, stamp: str | None = None,
@@ -149,16 +160,21 @@ def pick(version: str | None = None, stamp: str | None = None,
     if not console.is_terminal:
         # Nobody to ask. The newest is as good an answer as any, and saying which
         # one it settled on is what stops the number being read as the other pass.
-        console.print(f"[dim]{len(running)} passes running, following "
+        console.print(f"[dim]{len(running)} passes going, following "
                       f"{running[0].name}[/dim]")
         return running[0]
 
-    console.print(f"{len(running)} passes are running:\n")
+    console.print(f"{len(running)} passes are going:\n")
     for i, d in enumerate(running, 1):
         p = read(d)
         where = f"{p.done}/{p.wanted or '?'} runs" if p else "?"
+        # The state belongs in the list. A pass whose container is gone still reads
+        # as a candidate for a few minutes, and picking it to find out is worse than
+        # being told here.
+        mark = "" if p is None or p.state == "running" else f"  [yellow]{p.state}[/yellow]"
         console.print(f"  [bold]{i}[/bold]  {d.parent.parent.name}  "
-                      f"{p.model if p else '?':<34} {where}   [dim]{d.name}[/dim]")
+                      f"{p.model if p else '?':<34} {where:<12}"
+                      f"[dim]{d.name}[/dim]{mark}")
     console.print()
     n = IntPrompt.ask("which one", choices=[str(i) for i in range(1, len(running) + 1)],
                       default="1", show_default=True)
@@ -226,19 +242,18 @@ def read(folder: Path) -> Pass | None:
 
     # Whether it is still going is a word in the human log, and nowhere else: a
     # trace that stops looks the same whether the pass finished or the container
-    # was killed.
+    # was killed. Failing that, the clock.
     log = trace.with_suffix(".log")
-    if log.is_file():
-        text = log.read_text(encoding="utf-8", errors="replace")
-        if "\nFAILED" in text or text.startswith("FAILED"):
-            p.state = "FAILED"
-        elif "\ndone " in text:
-            p.state = "done"
-        elif trace.stat().st_mtime < time.time() - 300:
-            # Neither finished nor failed, and nothing written for five minutes.
-            # Saying "running" about a container that is gone is how you wait for
-            # something that will never arrive.
-            p.state = "stalled"
+    text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
+    if "\nFAILED" in text or text.startswith("FAILED"):
+        p.state = "FAILED"
+    elif "\ndone " in text:
+        p.state = "done"
+    elif _touched(folder) < time.time() - 300:
+        # Neither finished nor failed, and nothing written for five minutes. Saying
+        # "running" about a container that is gone is how you wait for something that
+        # will never arrive.
+        p.state = "stalled"
 
     # Never fewer than have been played. `--seeds` takes a range as two numbers in
     # some older command files, and a pass that says it wanted 2 and played 50 reads

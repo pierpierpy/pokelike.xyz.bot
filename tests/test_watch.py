@@ -8,6 +8,7 @@ CI runs in. What is worth testing is the parsing, and that needs a file, not a r
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -171,7 +172,36 @@ def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(bench, capsys)
     assert len(watch.live()) == 2
     chosen = watch.pick()
     assert chosen == watch.newest()
-    assert "2 passes running" in capsys.readouterr().out
+    assert "2 passes going" in capsys.readouterr().out
+
+
+def test_a_finished_pass_is_not_offered_as_a_choice(bench):
+    """A dry run that ended three seconds ago is not something to follow.
+
+    It was, and being offered it was the confusing part: a one-run pass, `done`, top of
+    the list because it had written most recently.
+    """
+    a = bench / "v9" / "logs" / "20260820-160000"
+    b = bench / "v9" / "logs" / "20260820-170000"
+    _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
+    _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
+    (b / "c--d-pass1.log").write_text("header\ndone  1 runs\n", encoding="utf-8")
+    assert [d.name for d in watch.live()] == [a.name]
+    # And with one left there is nothing to ask about.
+    assert watch.pick() == a
+
+
+def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench):
+    import os
+
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    old = time.time() - 600
+    os.utime(d / "a--b-pass1.jsonl", (old, old))
+    assert watch.read(d).state == "stalled"
+    # Still offered, because five minutes of silence is not proof under a harness
+    # whose turns are this big. The state says so in the list.
+    assert [x.name for x in watch.live()] == [d.name]
 
 
 def test_nothing_to_watch_is_an_answer(bench):
