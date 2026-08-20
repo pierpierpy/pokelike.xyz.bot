@@ -403,7 +403,15 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
     if version:
         now = fingerprints(version)
         used = {k: v for p in passes for k, v in (p.get("fingerprint") or {}).items()}
-        out["stale"] = bool(used) and used != now
+        # Compared KEY BY KEY, over the keys the passes actually recorded.
+        #
+        # Whole-dict equality tied the answer to how many files we happen to
+        # fingerprint TODAY, not to whether anything moved: the day a file is
+        # added to `fingerprints()`, every result ever recorded gained a key it
+        # could not have, and every row would claim its code had changed while
+        # nothing had been touched. A key the pass never recorded is not
+        # evidence of drift, it is the absence of evidence.
+        out["stale"] = any(now[k] != v for k, v in used.items() if k in now)
     return out
 
 

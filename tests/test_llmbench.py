@@ -132,6 +132,41 @@ def test_fingerprint_covers_the_harness_and_the_render_it_used():
         assert set(L.fingerprints(v)) == {"bot.py", "render.py"}
 
 
+def test_adding_a_file_to_the_fingerprint_does_not_mark_older_results(monkeypatch):
+    """Comparing key by key, so the check answers "did anything move".
+
+    Whole-dict equality answered "do we hash the same number of files as the day
+    this ran", which is a different question and gets louder every time the
+    fingerprint grows: one new file and every recorded row claims drift.
+    """
+    stamp = L.fingerprints("v0")
+    one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
+                                           "fallbacks": 0}], {}, {}, fingerprint=stamp)
+    assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is False
+
+    monkeypatch.setattr(L, "fingerprints",
+                        lambda v: {**stamp, "bridge.js": "0123456789abcdef"})
+    assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is False
+
+
+def test_a_key_that_moved_is_still_caught_among_keys_that_did_not(monkeypatch):
+    """The looser comparison must not become a way of not noticing."""
+    stamp = L.fingerprints("v0")
+    one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
+                                           "fallbacks": 0}], {}, {}, fingerprint=stamp)
+    moved = {**stamp, "render.py": "ffffffffffffffff", "bridge.js": "0123456789abcdef"}
+    monkeypatch.setattr(L, "fingerprints", lambda v: moved)
+    assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is True
+
+
+def test_a_key_no_longer_fingerprinted_is_not_read_as_drift(monkeypatch):
+    """Dropping a file from the fingerprint is not evidence that it changed."""
+    stamp = {**L.fingerprints("v0"), "gone.py": "aaaaaaaaaaaaaaaa"}
+    one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
+                                           "fallbacks": 0}], {}, {}, fingerprint=stamp)
+    assert L.stats({"model": "m", "passes": [one]}, "v0")["stale"] is False
+
+
 # ------------------------------------------------- credentials stay out of files
 
 
