@@ -35,8 +35,7 @@ definitions cost nearly twice what the state does. A fifth tool is not free beca
 nobody calls it, you pay for its schema every turn of every run.
 
 Every number on this page is measured at one state, the first map turn of seed 10000,
-so they can be checked rather than believed. They moved when the MOVE TUTOR block
-stopped being printed on every turn: the view was 831 characters and the turn 3633.
+so they can be checked rather than believed.
 
 The `user` message is three pieces, one yours and two the harness's:
 

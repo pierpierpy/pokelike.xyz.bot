@@ -64,9 +64,17 @@ handing you a directory.
 bots/<name>/
 ├── bot.py        one class inheriting from Bot. The only method it must have
 │                 is choose(state) -> int
-├── artifacts/    weights, prompts, tables, whatever it needs to play
+├── artifacts/    weights, prompts, tables, whatever it needs to play, and
+│                 optionally a bridge.js of your own
 └── result.json   what the benchmark measured, written by `pokelike bench`
 ```
+
+`artifacts/bridge.js` is the one that surprises people. The state is a projection of
+the game written by hand, so nothing in Python can invent a field it does not carry:
+if your idea needs the engine to give up something nobody thought to expose, put your
+own bridge there and it is used when your bot runs. It lands in the fingerprint along
+with everything else under `artifacts/`, so the score stays checkable. See
+[what you can adjust](../GUIDE.md#what-you-can-adjust).
 
 **It has to be self-contained.** Everything `bot.py` needs is either in the
 `pokelike` package or in its own folder, and nothing reaches into `experiments/`,
