@@ -44,8 +44,8 @@ Copy the one closest to your idea into `experiments/mine/` and work there.
 - [What you have to show, and what you do not](#what-you-have-to-show-and-what-you-do-not)
 - [What the area is for](#what-the-area-is-for)
 
-- [`env/`](#env--the-game-as-an-rl-problem)
-- [`example/`](#example--the-shape-with-nothing-clever-in-it)
+- [`env/`](#env-the-game-as-an-rl-problem)
+- [`example/`](#example-the-shape-with-nothing-clever-in-it)
 - [Findings](#findings)
 - [Measuring anything](#measuring-anything)
 
