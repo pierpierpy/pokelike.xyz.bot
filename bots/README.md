@@ -193,7 +193,7 @@ model. Nothing recorded there appears in these standings, and nothing here is
 compared with it.
 
 ```bash
-uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini
+uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
 ```
 
 ## Verification

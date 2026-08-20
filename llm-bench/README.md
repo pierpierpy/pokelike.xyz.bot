@@ -7,7 +7,7 @@ whole idea, and it is a different question from [`bots/`](../bots/), where the
 prompt is the submission and the model is whatever you happened to point it at.
 
 ```bash
-uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini \
+uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
   --endpoint https://openrouter.ai/api --api-key sk-or-...
 ```
 
@@ -82,7 +82,7 @@ Then:
 
 ```bash
 # one model, the real thing: 50 seeds, recorded
-uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini
+uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
 
 # several models, one after another
 uv run pokelike model bench --harness v0 --models a/b,c/d

@@ -719,7 +719,7 @@ the model is the only thing that changes, so a row says something about the mode
 rather than about who tuned their scaffold hardest.
 
 ```bash
-uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini \
+uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
   --endpoint https://openrouter.ai/api --api-key @~/.key
 uv run pokelike model board --harness v0   # what has been measured there
 ```
