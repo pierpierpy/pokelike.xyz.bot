@@ -125,12 +125,13 @@ limit and the comparison would stop being about memory.
 ## What is frozen, and what is not
 
 Identical to v0, and read [that README](../../v0/harness/README.md) for the full
-argument. In short: `bot.py` here is a mechanical copy, generated from v0 rather
-than transcribed, and it must not be edited once a result exists under
-`../results/`. It imports three things. `pokelike.bot.base.Bot` and
-`pokelike.leaderboard.Artifact`, both interfaces that cannot change what a model is
-asked, and `pokelike.core.render`, which is behaviour and is therefore fingerprinted
-into every result alongside `bot.py`.
+argument. In short: four files here are frozen and must not be edited once a result
+exists under `../results/`, namely `bot.py` (a mechanical copy generated from v0
+rather than transcribed), `render.py`, `bridge.js` and `init.js`. `browser.py`,
+`game.py` and `runner.py` stay shared and are hashed into every result instead.
+
+The header inside `bot.py` still describes the renderer as imported from
+`pokelike.core`; it cannot be corrected without invalidating the rows beside it.
 
 One naming trap worth knowing if you read the file: `self.memory` is **not** the
 notes. It is v0's journal-trim size (`MEMORY = 6`), and `_commit` slices the journal

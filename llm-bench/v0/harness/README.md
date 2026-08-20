@@ -78,23 +78,42 @@ inheriting it. The shared file is meant to evolve, since it serves the submissio
 link deliberately; the difference between the two files is what the next version
 is made of.
 
-Three things it still imports, and they are imports rather than copies on purpose:
+Four files in this directory are frozen, and nothing outside it can reach them:
 
-- `pokelike.bot.base.Bot` and `pokelike.leaderboard.Artifact`. Both are interfaces
-  rather than behaviour: one is the shape a bot has, the other is how a bot declares
-  what it carries. Neither can change what a model is asked. (`Artifact` is also
-  effectively frozen public API, because every submitted bot in `bots/` imports it from
-  that same path, and those files are fingerprinted against their scores.)
-- `pokelike.core.render`, for `screen()` (the default view) and `team_view()` (the
-  `team_details` tool). This one **is** behaviour, and it is shared with the CLI.
-  Rather than copy two hundred more lines, every result records a sha256 of this
-  file *and* of the render module, and the table marks a row when either stops
-  matching disk. Drift gets caught rather than absorbed.
+| file | decides |
+|---|---|
+| `bot.py` | the loop, the prompt, the tools |
+| `render.py` | the text the model reads |
+| `bridge.js` | what is in the state, and the order `actions` come in |
+| `init.js` | the seeded `Math.random` and the pinned clock |
 
-**Do not edit this directory.** Once a result exists under `../results/`, editing
-`bot.py` makes every one of those rows a claim about code that no longer exists.
-An improvement is `llm-bench/v1/`, a fresh directory. That is why the version is in
-the path and not in a variable.
+`bridge.js` is frozen for a stronger reason than the renderer: a bot answers with an
+**index** into `actions`, so reordering that list does not change what the model sees,
+it changes what its answer means. `init.js` is stronger again, since a run's seed is
+built from `Date.now()` and `Math.random()`.
+
+Two things are still imported, and they are imports rather than copies on purpose.
+`pokelike.bot.base.Bot` and `pokelike.leaderboard.Artifact` are interfaces rather
+than behaviour: one is the shape a bot has, the other is how a bot declares what it
+carries, and neither can change what a model is asked. (`Artifact` is also
+effectively frozen public API, because every submitted bot in `bots/` imports it from
+that same path, and those files are fingerprinted against their scores.)
+
+Three are shared and hashed rather than copied, because freezing them would mean this
+directory carrying its own browser plumbing: `browser.py`, `game.py` and `runner.py`.
+Every result records a sha256 of all seven files, plus the name and hash of the game
+bundle, taken before the first seed is played.
+
+> The header inside `bot.py` describes the arrangement as it was written, when the
+> renderer was imported from `pokelike.core` and watched by the fingerprint rather
+> than copied here. It cannot be corrected: editing the file would make every row
+> under `../results/` a claim about code that no longer exists. This page is the
+> current description.
+
+**Do not edit this directory.** An improvement is a fresh directory, `llm-bench/v4/`.
+That is why the version is in the path and not in a variable, and a continuous
+integration check refuses a pull request that edits a frozen file with results beside
+it.
 
 ## Reproducing a row
 

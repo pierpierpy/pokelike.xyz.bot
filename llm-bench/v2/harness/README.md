@@ -109,8 +109,33 @@ it does for v1, because the notebook is still here.
 `self.memory` is **not** the notes and **not** the scratchpad. It is v0's
 journal-trim size (`MEMORY = 6`), and `_commit` slices the journal with it. The notes
 are `self.notebook`, the plan is `self.plan`, the carried exchanges are
-`self.scratch`. Two harnesses have now been generated mechanically from an earlier
-one, and both times the rename was where the bugs were.
+`self.scratch`. Every harness after v0 was generated mechanically from the one
+before, and each time the rename was where the bugs were.
+
+## What is frozen here
+
+Four files, and nothing outside this directory can reach them: `bot.py` (the loop,
+the prompt, the tools), `render.py` (the text the model reads), `bridge.js` (what is
+in the state, and the order `actions` come in) and `init.js` (the seeded
+`Math.random` and the pinned clock).
+
+`bridge.js` is frozen for a stronger reason than the renderer: a bot answers with an
+**index** into `actions`, so reordering that list does not change what the model
+sees, it changes what its answer means. `init.js` is stronger again, since a run's
+seed is built from `Date.now()` and `Math.random()`, so moving a constant there does
+not mark a recorded score, it voids it.
+
+Shared and hashed rather than copied: `browser.py`, `game.py` and `runner.py`, which
+drive the game. Every result records a sha256 of all seven, plus the name and hash of
+the game bundle, taken before the first seed is played.
+
+> The header inside `bot.py` describes the renderer as imported from
+> `pokelike.core` and watched by the fingerprint rather than copied here. It cannot
+> be corrected: editing the file would make every row under `../results/` a claim
+> about code that no longer exists. This page is the current description.
+
+**Do not edit this directory.** An improvement is a fresh directory, and
+[`v3`](../../v3/harness/README.md) is the one that followed.
 
 ## Running it
 

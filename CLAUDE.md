@@ -75,7 +75,8 @@ src/pokelike/
 │   │                      clock, capped timers. This is what makes a seed replay
 │   ├── browser.py         Playwright headless: launches, injects both, filters
 │   ├── game.py            class Game: reset/state/step/score/reorder
-│   └── render.py          ASCII map, team, actions
+│   └── render.py          state to text. The SAME module prints your terminal
+│                          and feeds an LLMBot by default
 ├── bot/                 WHAT RUNS A BOT, not the bots themselves
 │   ├── base.py            abstract Bot: only choose() is required
 │   ├── catalogue.py       finds and loads a bot from its folder in bots/
@@ -91,7 +92,9 @@ src/pokelike/
 ├── stats/registry.py    SQLite in stats/runs.db
 ├── bench.py             the standard 50-seed benchmark
 ├── runner.py            play_run(): the one loop that plays a run with a bot
-├── schema.py            what a bot receives, described from a live state
+├── schema.py            what a bot receives, generated from a LIVE state and
+│                        self-checking: a field present in a real observation
+│                        and missing from FIELDS is reported as undocumented
 ├── scaffold.py          new-bot: writes a bot folder that already plays
 ├── leaderboard.py       reads bots/*/result.json, ranks, fingerprints
 ├── llmbench.py          the model benchmark: passes, fingerprints, tables, the
@@ -106,8 +109,10 @@ llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
 │                        and the model is the only thing that varies
 ├── docker/                the container long runs happen in. Build context is
 │                          the REPO ROOT, and .dockerignore must stay there
-├── v0/harness/bot.py      FROZEN copy of bot/llm.py. See the rule below
-├── v1/harness/bot.py      v0 plus notes the model keeps between runs
+├── v0..v3/harness/        FOUR FROZEN FILES each, never edited once a result
+│                          exists beside them: bot.py (the loop), render.py (the
+│                          text the model reads), bridge.js (what is in the state)
+│                          and init.js (the seeded RNG). See the rule below
 └── v*/logs/<stamp>/       ONE DIRECTORY PER COMMAND: command.json, plus a .log
                            and a .jsonl of decisions per pass. Results stay one
                            file per model, outside, because that is the record
@@ -178,9 +183,9 @@ it clean would be the silence the fingerprint exists to prevent.
 **Only three things are structural, and `bot/llm.py` is the awkward one.** The
 test is whether something is built *on* or *competes*: `Bot` and `LLMBot` are
 built on, `RandomBot` is the yardstick, everything else goes in `bots/`. But
-`llm.py` being shared means editing it reaches every LLM bot ever measured.
-exactly what self-containment exists to prevent, only from the other side. It is
-shared anyway, because two bots with different loops are two harnesses being
+`llm.py` being shared means editing it reaches every LLM bot ever measured,
+which is exactly what self-containment exists to prevent, only from the other
+side. It is shared anyway, because two bots with different loops are two harnesses being
 compared and the model is the smaller half of that difference. `HARNESS` is what
 keeps it honest: written into every result, flagged when it no longer matches.
 **Bump it whenever a change there could move a decision.**
@@ -205,7 +210,7 @@ Decision logging lives in `runner.play_run` for the same reason: recorded once,
 in the shared loop, so a log means the same thing whatever is playing. Bots add
 at most one line through the optional `explain()` hook.
 
-`bot/` is deliberately not under `interfaces/`. The interfaces are entry points.
+`bot/` is deliberately not under `interfaces/`. The interfaces are entry points:
 something outside drives the game through them. A bot is an extension point: you
 write one, and the interfaces run it. Filing the concrete bots (random, llm,
 dyna-q) under `interfaces/` would blur that.
@@ -321,7 +326,7 @@ anything:
   id (`heldItem.id === 'leftovers'`). There is no stat or multiplier field to
   read. The `id` is the only stable handle, and `__pk_obs` currently drops it.
 - **Clearing localStorage makes the game re-run its tutorial every time.** We
-  clear it in `INIT_SCRIPT` so no saved state leaks between runs, and the price
+  clear it in `init.js` so no saved state leaks between runs, and the price
   is that the game greets a first-time player on every run. A human clicks the
   callouts away; a bot never does, so they stack up, one per team slot, over the
   map and the battle screen alike. `HIDE_TUTORIAL_CSS` in `browser.py` hides
@@ -329,21 +334,21 @@ anything:
   offered as actions, and actions are applied by dispatching an event on the
   element rather than clicking a coordinate, so they never intercepted anything
   either.
-- **`bridge.js` is re-read from disk on every run; `browser.py` is not.**
-  `BRIDGE.read_text()` sits inside `load()`, so a process that has been running
-  for an hour injects whatever is on disk NOW, while `INIT_SCRIPT` is the string
-  it imported when it started. `git pull` mid-run therefore pairs a new bridge
-  with an old init script. **Anything bridge.js needs from `INIT_SCRIPT` must
-  degrade when it is absent**. `__pk_settle` falls back to `performance.now`
-  when `__pk_realNow` is missing, which is also correct: an old init script
-  does not virtualise the clock, so there the real one is the right one.
-  Without that degradation, every long-running training breaks on pull.
-- **`INIT_SCRIPT` is substituted with `str.replace`, not `%`.** It is full of
+- **Both JavaScript files are re-read from disk on every run.** `_init_js()` and
+  `_bridge_js()` are called inside `load()`, so a process that has been running for
+  an hour injects whatever is on disk NOW. A `git pull` mid-run therefore swaps both
+  under a training that is still going, and a mismatched pair is a real state:
+  **anything `bridge.js` needs from `init.js` must degrade when it is absent.**
+  `__pk_settle` falls back to `performance.now` when `__pk_realNow` is missing,
+  which is also the right answer, since an init script that does not virtualise the
+  clock leaves the real one correct. Without that degradation a long training breaks
+  on pull.
+- **`init.js` is substituted with `str.replace`, not `%`.** It is full of
   prose, and a comment mentioning a percentage made `INIT_SCRIPT % cfg` raise
   "not enough arguments for format string" from a line nowhere near the change.
   The scaffold's bot templates had the same problem for the same reason, since an LLM
   bot template is full of JSON, and both now use plain substitution.
-- **Seeds are 32-bit.** `(cfg.seed >>> 0) || 1`, so seed 0 is seed 1 and seed
+- **Seeds are 32-bit.** `init.js` does `(cfg.seed >>> 0) || 1`, so seed 0 is seed 1 and seed
   N is seed N + 2**32. `normalise_seed` rejects anything outside the range
   rather than truncating, because above 2**53 Python's `& 0xFFFFFFFF` and JS's
   `>>> 0` disagree: there is no truncation that records the seed that ran.
@@ -391,8 +396,8 @@ everything else.
 ## Reproducibility
 
 The run seed is `Date.now() ^ (Math.random() * 2**32)` and everything flows from
-the engine's PRNG seeded with it. `browser.py` pins **both** in a script that runs
-before the bundle, caps `setTimeout` at 1 ms, and runs `performance.now()` on a
+the engine's PRNG seeded with it. `core/init.js` pins **both**, runs before the
+bundle, caps `setTimeout` at 1 ms, and runs `performance.now()` on a
 virtual clock so animations resolve at once rather than in real time, see
 [Performance](#performance) for why that last one is what actually mattered.
 Same seed + same actions = same run, score included.
@@ -483,22 +488,25 @@ providers change models behind a fixed name and sampling is stochastic.
 
 ## The frozen harnesses in llm-bench/
 
-**`llm-bench/*/harness/bot.py` is not editable once a result exists beside it.**
-Every recorded row is a claim about exactly that file; changing it makes the claim
+**Nothing in `llm-bench/*/harness/` is editable once a result exists beside it.**
+Every recorded row is a claim about those exact files; changing one makes the claim
 false, and no error would ever say so. An improvement is a new directory, and the old
 rows stay valid under the version where they were earned. That is why the version is
-in the path and not in a variable.
+in the path and not in a variable. A continuous integration check refuses a pull
+request that edits a frozen file with results beside it.
 
-They are mechanical copies of `bot/llm.py`, not imports of it, so that improving the
-shared harness for `bots/` cannot silently change what a recorded score meant.
+`bot.py` and `render.py` are mechanical copies of `bot/llm.py` and `core/render.py`,
+and `bridge.js` and `init.js` of their originals in `core/`, never imports of them, so
+that improving the shared code for `bots/` cannot change what a recorded score meant.
 
 ### What each version asks
 
-| | loop | memory | tokens |
-|---|---|---|---|
-| `v0` | one call a turn, 4 tools, 4 rounds | last 6 moves, within the run | 1500 |
-| `v1` | v0 | plus 12 notes surviving the run: `remember`/`revise`/`forget` | 1500 |
-| `v2` | plus the last 3 turns carried verbatim, a `plan` tool, 6 rounds | v1's notes | 4000 |
+| | loop | memory | sees | tokens |
+|---|---|---|---|---|
+| `v0` | one call a turn, 4 tools, 4 rounds | last 6 moves, within the run | the screen | 1500 |
+| `v1` | v0 | plus 12 notes surviving the run: `remember`/`revise`/`forget` | v0 | 1500 |
+| `v2` | plus the last 3 turns carried verbatim, a `plan` tool, 6 rounds | v1's notes | v0 | 4000 |
+| `v3` | v2 | v2 | plus the node tooltips a person reads on hover, and the tutor block only at a tutor | 4000 |
 
 `v0`'s prompt holds facts and no strategy on purpose: advice in a prompt measures how
 well models follow OUR advice. `v2` breaks that deliberately, because measurement
@@ -519,13 +527,11 @@ ranked together.
   from `Date.now()` and `Math.random()`, so moving a constant there does not mark a
   recorded score, it voids it.
 
-  This used to be `render.py` imported from `pokelike.core` and merely fingerprinted,
-  on the argument that copying it would be worse than the problem. It was not: the
-  transitive closure of what a harness calls is 123 lines of 434, and `graph_view`,
-  the biggest thing in the file, is reached only by the CLI. And fingerprinting it
-  failed the first real case, because the MOVE TUTOR defect could not be fixed for
-  the person at the terminal without marking every score ever recorded. The benchmark
-  was holding the CLI hostage.
+  Copying the renderer costs little, which is why it is copied rather than shared and
+  watched: what a harness reaches from it is 123 lines of the 454, and `graph_view`,
+  the biggest thing in the file, is read only by the CLI. And a shared renderer means
+  a defect in it cannot be fixed for the person at the terminal without marking every
+  score ever recorded, which puts the benchmark in the way of the CLI.
 
   Still shared and hashed rather than copied: `browser.py`, `game.py`, `runner.py`.
   Seven keys in all, plus the game bundle recorded separately. The fingerprint is
@@ -549,8 +555,8 @@ One directory per command, `llm-bench/<version>/logs/<stamp>/`:
 | `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential**. `record_command` refuses a payload with a credential-shaped key |
 | `<model>-passN.log` | one line per finished run, flushed as it happens. What you `tail -f` |
 | `<model>-passN.jsonl` | one object per decision: the option taken, the options it had, the reason, tokens at turn/run/pass level. No prompts, since they are reconstructible from the harness plus the seed |
-| `-notebook.log` | under `v1`/`v2`: the notes as they stood at the end of each run, `unchanged` when nothing moved |
-| `-plan.log` | under `v2`: the route it planned for each map |
+| `-notebook.log` | under any harness that keeps notes: they are opened on demand, so a version with none leaves no empty file. The notes as they stood at the end of each run, `unchanged` when nothing moved |
+| `-plan.log` | same, for the route it planned for each map |
 
 Results live **apart**, `results/<model>.json`, one file per model with every pass
 appended, and that is the comparable record, and ten commands over three days build one
@@ -564,8 +570,9 @@ result, and why regenerating the table after deleting or recording anything is o
 
 One naming trap: `self.memory` is the journal-trim size, `MEMORY` moves of history.
 The notes are `self.notebook`, the plan is `self.plan`, the carried exchanges are
-`self.scratch`. Two harnesses have been generated mechanically from an earlier one and
-both times the rename was where the bugs were.
+`self.scratch`. Every harness after `v0` was generated mechanically from the one
+before, and each time the rename was where the bugs were: a leftover `HarnessV2` in
+`v3` was found by the test suite, not by reading.
 
 ## Secrets
 

@@ -22,6 +22,7 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 - [Where the files go](#where-the-files-go)
 - [In Docker](#in-docker)
 - [Why it is frozen](#why-it-is-frozen)
+- [What the fingerprint covers](#what-the-fingerprint-covers)
 
 ---
 
@@ -227,8 +228,54 @@ Three things about it:
 
 ## Why it is frozen
 
-`v0/harness/bot.py` is a **copy** of `src/pokelike/bot/llm.py`, not an import: the
-shared harness is meant to improve, and a benchmark needs the opposite. So a harness
-is never edited once a result exists beside it. A new idea is a new directory. The
-full argument, and what is *not* frozen, is in
-[CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
+A row here claims something about the **model**, not about whoever tuned the scaffold
+hardest. That only holds if every model was asked the same question, so the scaffold
+cannot move.
+
+Each version therefore carries its own copies rather than importing the shared code,
+which is meant to improve because the CLI and the bots in `bots/` both read it. Four
+files per version, and nothing outside that directory can reach them:
+
+| file | decides |
+|---|---|
+| `bot.py` | the loop, the prompt, the tools |
+| `render.py` | the text the model reads |
+| `bridge.js` | what is in the state, and the order `actions` come in |
+| `init.js` | the seeded `Math.random` and the pinned clock |
+
+They are not equally dangerous. The renderer decides how the state is **shown**;
+`bridge.js` decides what it **is**, and since a bot answers with an *index* into
+`actions`, reordering that list does not change what the model sees, it changes what
+the same answer means. `init.js` is worse again: a run's seed is built from `Date.now()`
+and `Math.random()`, so moving a constant there does not mark a recorded score, it
+voids it. Every seed would map to a different run and the table would carry on
+answering, about a game nobody else can replay.
+
+A harness is never edited once a result exists beside it, and a check on every pull
+request refuses one that tries. A new idea is a new directory.
+
+## What the fingerprint covers
+
+Seven sha256 hashes, taken **before the first seed is played**, so an edit part way
+through a pass cannot produce a row certifying code it never ran:
+
+| | |
+|---|---|
+| the four frozen files | cannot move, because nothing outside the version's directory touches them |
+| `browser.py`, `game.py`, `runner.py` | shared and hashed. They drive the game, and freezing them would mean each version carrying its own browser plumbing |
+
+Plus the game bundle, recorded separately by name and hash, because it is downloaded
+rather than committed and an upstream release changes it.
+
+A row is marked when any recorded hash stops matching disk. The comparison is **key by
+key**, over the keys that pass actually recorded, so adding a file to the fingerprint
+later does not retroactively mark rows that could not have carried it.
+
+**What it does not cover, and what to do about it.** The seed list, which is recorded
+as data in every pass rather than hashed, so it is checkable by reading. And
+`llmbench.py` itself, which builds the bot and drives the pass: a change there is not
+reported, so treat it the way you would treat the frozen files and say what you did in
+the pull request.
+
+The internals, and the reasoning that is only interesting if you are changing the
+code, are in [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
