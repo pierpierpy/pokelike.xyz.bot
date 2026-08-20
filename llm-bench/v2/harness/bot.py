@@ -47,13 +47,36 @@ WHAT CHANGED FROM v1, AND WHY EACH.
   4. Everything v1 added is still here: `remember` / `revise` / `forget` over twelve
      notes that survive the end of a run, and six tool rounds.
 
+  5. A PROMPT THAT EXPLAINS ALL OF IT, AND HOW TO PLAY. This one is a break with
+     v0 and needs saying plainly. v0's prompt held facts and no strategy on purpose:
+     a benchmark whose prompt contains advice measures how well each model follows
+     OUR advice. v2 gives the advice anyway, because measurement said the silence
+     was not neutral -- under v1 and v2 with v0's prompt, `ling-3.0-flash` and
+     `qwen3.7-flash` played fifty runs each and called `remember` ZERO times. Three
+     of eight tools untouched. "Memory does not help" and "the models never used the
+     memory" are different findings, and the silent prompt could only ever produce
+     the second one while looking like the first.
+
+     So the prompt now says what each of the four memories is and how long it
+     lasts, what the notes are for with examples of a good one and a useless one,
+     and six pieces of play advice derived from the rules -- look before closing a
+     door, plan before the first choice, level and heal before the boss, breadth
+     early, the lead is free.
+
+     WHAT THAT CHANGES ABOUT THE QUESTION. v0 asks "how well does this model play
+     when told only the rules". v2 asks "how well does it play when told the rules,
+     given a real loop, and told how to use it". The second is not a purer number
+     than the first, it is a different one, and comparing a v0 row with a v2 row now
+     mixes the loop with the advice. Both are worth knowing; neither is worth
+     pretending to be the other.
+
 WHAT WAS CONSIDERED AND LEFT OUT. Self-critique after a bad run -- Reflexion -- is
 the idea that sounds best and reads worst under stress; the reliability work that
 compares it with plain ReAct puts ReAct ahead when conditions get rough, and a
 fifty-seed benchmark with a wedging browser is rough. It is also already half
 present: the notebook is where a lesson from a lost run goes.
 
-THE COST, AND IT IS NOT ONLY MONEY. Four things changed at once, so a gain here
+THE COST, AND IT IS NOT ONLY MONEY. Five things changed at once, so a gain here
 cannot be attributed to one of them. That is a real loss and it is deliberate:
 attributing it properly means four versions and four passes per model, and there is
 one instrument, not four. What is protected is the thing that matters -- v2 is one
@@ -153,9 +176,71 @@ NODE TYPES
 WHAT ACTUALLY KILLS RUNS
 Losing Pokemon. Every faint is permanent for that run, and once the team is empty
 it is over, no matter how well you were doing.
+
+WHAT YOU REMEMBER, AND FOR HOW LONG
+Four different things, with four different lifetimes. Knowing which is which is
+most of playing this well.
+
+  1. THIS TURN. The screen above, plus anything you ask a tool.
+
+  2. YOUR LAST FEW TURNS, in full. The exchanges of the previous three turns come
+     with you: your own words, the tools you called, what they answered. This is
+     why you do not have to re-derive what you worked out a moment ago -- read it
+     instead. If you wrote "the team is too weak for the boss, level up first",
+     that sentence is still in front of you.
+
+  3. YOUR PLAN FOR THIS MAP, if you write one. Shown every turn until you replace
+     it. It dies with the map.
+
+  4. YOUR NOTES, which OUTLIVE THE RUN. This is the only thing that crosses from
+     one game into the next. Everything else is gone when your team is wiped out.
+
+HOW TO USE YOUR NOTES -- READ THIS, MOST PLAYERS IGNORE IT
+You get twelve notes of 160 characters. They are shown to you every single turn,
+numbered, so you never need to ask for them.
+
+  `remember` -- write a lesson you want to have in the NEXT run, not a reminder for
+      later this turn. Good: "trainer nodes on map 0 are safe with a level 8 lead".
+      "Skipping the pokecenter before a boss lost me the run three times." Useless:
+      "I am on map 1", which will be false in a minute.
+  `revise`   -- sharpen one when you learn it was nearly right. Notes are worth more
+      when they are specific: a number in a note beats an adjective.
+  `forget`   -- delete one that was wrong, or make room for a better one.
+
+The cap is the point. Once you hold twelve, the only way to record something better
+is to improve or drop an old one, so treat them as your twelve most valuable
+beliefs about this game rather than a diary. When you die, the notes are all you
+keep -- so before your team is wiped out, it is worth writing down what killed you.
+
+HOW TO PLAY WELL
+Nobody has told you the optimal strategy, because nobody knows it. What follows is
+sound reasoning from the rules above, and your notes are how you improve on it.
+
+  - LOOK BEFORE YOU CLOSE A DOOR. A map choice closes every alternative on that
+    layer forever AND decides what you can reach next, so call `what_lies_ahead`
+    before choosing on the map. A node that looks worse but keeps two paths open is
+    often better than a slightly better node that funnels you into one.
+  - DECIDE THE ROUTE EARLY. Write a `plan` before your first choice on a map, while
+    every option is still open. Losing usually traces back to a choice made many
+    turns before the turn where you died.
+  - LEVEL BEFORE THE BOSS, NOT DURING. Trainers carry more Pokemon than wild fights
+    and give correspondingly more experience. The gym is at the bottom of the map,
+    you can see it coming, and arriving under-levelled is the common way to stop at
+    one badge.
+  - HEAL BEFORE THE BOSS. The pokecenter is the only thing that restores HP, and a
+    boss fought at half health costs Pokemon you cannot replace.
+  - BREADTH EARLY, DEPTH LATER. Early catches are cheap insurance: a team of one is
+    one faint from the end of the run. Check `team_details` rather than assuming.
+  - THE LEAD MATTERS AND IS FREE. `set_lead` does not consume your turn, so put a
+    healthy, well-matched Pokemon in front before a fight instead of after.
 """
 
-CLOSING = "\nThink briefly, then call `play` with your chosen index. Always call `play`."
+CLOSING = """
+Before you decide: read your notes above, read what you said in your last turns, and
+check your plan. Use `remember` whenever this run teaches you something that will
+still be true in the next one -- that is the only thing you get to keep.
+
+Think briefly, then call `play` with your chosen index. Always call `play`."""
 
 
 # ---------------------------------------------------------------------- tools
