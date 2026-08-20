@@ -1,0 +1,24 @@
+# Who gets asked to review what.
+#
+# GitHub requests these reviewers automatically on any pull request touching a
+# matching path. On its own that is a signal, not a gate: it becomes a gate when
+# branch protection on the default branch has "Require review from Code Owners"
+# turned on, which is available on public repositories.
+#
+# The point is not to keep people out. `bots/` is deliberately absent from this
+# file: a submission is one folder, it is yours, and it needs no owner's opinion.
+# What is listed here is the code that makes every recorded score mean something.
+
+# The shared library. browser.py, game.py and runner.py are hashed into every
+# recorded result because they drive the game, and init.js decides whether a seed
+# replays at all.
+/src/                       @pierpierpy
+
+# The frozen harnesses. Each carries bot.py, render.py, bridge.js and init.js, and
+# none of them is ever edited once a result exists beside it. A new idea is a new
+# directory. See CONTRIBUTING.md.
+/llm-bench/                 @pierpierpy
+
+# The rules themselves, and the thing that enforces them.
+/CONTRIBUTING.md            @pierpierpy
+/.github/                   @pierpierpy

@@ -1,0 +1,84 @@
+# Fails a pull request that edits a harness with results recorded beside it.
+#
+# The rule is in CONTRIBUTING.md and in the header of every harness file, and a
+# contributor should not have to discover it in review after doing the work. This
+# says it on the pull request instead, with the reason.
+#
+# Deliberately narrow. It does NOT complain about touching src/, which is a
+# conversation and not an error, and it does not complain about a new harness
+# directory, which is exactly the right way to change what a model is asked. What it
+# refuses is editing a frozen file that already has recorded rows depending on it.
+name: frozen paths
+
+on:
+  pull_request:
+    paths:
+      - 'llm-bench/**'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: A harness with results beside it must not change
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          git fetch --quiet origin "${{ github.base_ref }}"
+
+          changed="$(git diff --name-only "$base"...HEAD -- 'llm-bench/*/harness/*')"
+          [ -n "$changed" ] || { echo "no harness file touched"; exit 0; }
+
+          bad=""
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            version="$(printf '%s' "$f" | cut -d/ -f2)"
+            # A file that did not exist on the base branch is a new harness, which
+            # is the sanctioned way to change what a model is asked.
+            git cat-file -e "$base:$f" 2>/dev/null || continue
+            results="$(git ls-tree --name-only "$base" "llm-bench/$version/results/" \
+                       | grep -v '\.gitkeep$' || true)"
+            [ -n "$results" ] && bad="$bad  $f (results exist under llm-bench/$version/results/)"$'\n'
+          done <<< "$changed"
+
+          if [ -n "$bad" ]; then
+            {
+              echo "::error::a frozen harness cannot be edited once a result exists beside it"
+              echo
+              echo "These files are frozen:"
+              echo "$bad"
+              echo "Every row under those results is a claim about this exact code. Editing"
+              echo "it makes each of them describe something that no longer exists, and the"
+              echo "scores stop being comparable with each other."
+              echo
+              echo "A new idea is a NEW directory: copy the four frozen files into"
+              echo "llm-bench/v<next>/harness/ and change them there. The old rows stay valid"
+              echo "under the version that earned them. See CONTRIBUTING.md."
+            } >&2
+            exit 1
+          fi
+          echo "harness files touched, and none of them has results depending on it"
+
+      - name: Results are written by the benchmark, not by hand
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          changed="$(git diff --name-only "$base"...HEAD -- 'llm-bench/*/results/*.json')"
+          if [ -n "$changed" ]; then
+            {
+              echo "::error::results are recorded by the benchmark, never edited"
+              echo "$changed"
+              echo
+              echo "If a recorded number is wrong, the run is what was wrong. Say so in an"
+              echo "issue rather than correcting the file."
+            } >&2
+            exit 1
+          fi
+          echo "no recorded result edited"

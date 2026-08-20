@@ -1,0 +1,46 @@
+# The suite, on anything that can change behaviour.
+#
+# Path-filtered so a pull request that only edits prose does not spend ten minutes
+# installing a browser to prove that Markdown still parses. Documentation is checked
+# by reading it.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'bots/**'
+      - 'llm-bench/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Install the browser the engine runs in
+        run: uv run playwright install --with-deps chromium
+
+      # The game is downloaded, not committed: site/ is gitignored and weighs about
+      # 130 MB, so every run mirrors it. Without it most of the suite skips itself
+      # and goes green having checked nothing that touches the engine.
+      - name: Mirror the game
+        run: uv run pokelike setup
+
+      - run: uv run pytest -q
