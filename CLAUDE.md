@@ -54,8 +54,9 @@ uv run pokelike bot bench --bot random --dry-run    # ... without writing an ent
 uv run pokelike bot board                           # the standings, from disk
 
 # THE INSTRUMENT: the scaffold is frozen, the model is the entry
-uv run pokelike model bench --harness v3 --model a/b
-uv run pokelike model board --harness v3            # that version's table
+uv run pokelike model bench --harness v4 --model a/b
+uv run pokelike model bench --harness v4 --model a/b --notes 4   # smaller notebook
+uv run pokelike model board --harness v4            # that version's table
 # --harness is REQUIRED on both: a version is the question a row answers
 # credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
 # (--api-key @path reads a file, keeping the key out of ps and shell history)

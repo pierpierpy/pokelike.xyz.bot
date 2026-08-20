@@ -125,6 +125,19 @@ much a model had bothered to look at, and looking is now worth more.
 **If badges do not move, that is the more interesting result.** It would say the models
 were not losing for want of information, and that the ceiling is somewhere else.
 
+## Models served by OpenAI cannot be measured here
+
+v3 inherits v2's agent loop, and with it the defect
+[described there](../../v2/harness/README.md#models-served-by-openai-cannot-be-measured-here):
+the exchange that ends a turn is stored with the `play` call in it and no reply to
+that call, so from the second turn every request carries an assistant message with
+an unanswered `tool_call_id`. OpenAI's API refuses the whole request.
+`openai/gpt-4o-mini` fell back on 12 turns out of 13, each one an HTTP 400.
+
+Providers that do not check the pairing accept it. It is fixed in
+[v4](../../v4/harness/README.md), which is a new directory precisely because this
+one cannot be edited once a row exists under `../results/`.
+
 ## What is frozen in here
 
 Four files, and nothing outside this directory can reach them:

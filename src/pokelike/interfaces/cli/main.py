@@ -582,6 +582,23 @@ def cmd_llm_bench(args) -> int:
         print(f"no harness {args.harness} here. On disk: "
               f"{', '.join(known) or 'none'}", file=sys.stderr)
         return 2
+    if args.notes:
+        # Checked here, against the harness itself, because the alternative is
+        # finding out after the browser is up and the pre-flight has been paid for.
+        # Older harnesses declare NOTES_MAX and do not accept it as a setting, so
+        # asking the constructor is the only answer that cannot be wrong.
+        from ...bot.catalogue import load_class
+
+        try:
+            load_class(llmbench.harness_path(args.harness))(
+                seed=0, model="x", endpoint="http://x", token="x", notes=args.notes)
+        except TypeError:
+            print(f"--notes: harness {args.harness} does not let the notebook be "
+                  f"capped from outside.\n  It arrived in v4; before that the number "
+                  f"is part of what the version froze.", file=sys.stderr)
+            return 2
+        except Exception:  # noqa: BLE001, anything else is not this flag's business
+            pass
 
     if args.table:
         # Fetched now, not stored: prices are somebody else's changing fact, and a
@@ -723,11 +740,12 @@ def cmd_llm_bench(args) -> int:
                 if args.workers > 1:
                     one = llmbench.fan_out(args.harness, model, seeds, args.workers,
                                            SITE_ROOT, port0=args.port + 10,
-                                           folder=folder, attempt=attempt, **creds)
+                                           folder=folder, attempt=attempt,
+                                           notes=args.notes, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
                                               seeds, folder=folder, attempt=attempt,
-                                              **creds)
+                                              notes=args.notes, **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                       f"(best {s.get('badges_best')}), "
@@ -1055,6 +1073,10 @@ def _model_bench_args(s) -> None:
                    help="pick the seeds yourself: 10010,10011 or 10010-10019. "
                         "Anything other than the standard 50 records nothing, so "
                         "this is for testing and for running two at once")
+    s.add_argument("--notes", type=int, default=0, metavar="N",
+                   help="cap the model's notebook at N notes, where the harness "
+                        "lets it be set. A different cap is a different question, "
+                        "so it is recorded with the pass")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
     s.add_argument("--table", action="store_true", help=argparse.SUPPRESS)

@@ -770,6 +770,10 @@ class PassLog:
         pass_out = sum(v[1] for v in self.spent.values())
 
         self.tf.write(json.dumps({
+            # First, and wall clock rather than elapsed: these lines are read
+            # beside a container log and a provider's dashboard, and neither of
+            # those counts from the start of the pass.
+            "at": datetime.now().isoformat(timespec="seconds"),
             "seed": seed,
             "step": e.get("step"),
             "screen": e.get("screen"),
@@ -780,6 +784,11 @@ class PassLog:
             "options": e.get("options"),
             "swapped": e.get("swapped"),
             "why": e.get("why"),
+            # Which tools it used to get here, in the order it called them, and
+            # for the ones that changed something, what they changed. Absent for a
+            # harness that does not report them, rather than an empty list, which
+            # would read as "it called nothing".
+            **({"tools": e["tools"]} if e.get("tools") else {}),
             # Three levels of the same two numbers. `turn_*` is the difference
             # against this seed's previous decision, so it covers every HTTP call
             # the turn made -- v0 allows four tool rounds, and what you want to know
@@ -813,13 +822,19 @@ class PassLog:
 def play_model(game, version: str, model: str, site: Path,
                seeds: list[int] | None = None, endpoint: str | None = None,
                token: str | None = None, folder: Path | None = None,
-               attempt: int = 1) -> dict[str, Any]:
+               attempt: int = 1, notes: int = 0) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness."""
     from ..bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
-    bot = cls(seed=0, model=model, endpoint=endpoint, token=token)
+    kw: dict[str, Any] = {}
+    if notes:
+        # Refused rather than ignored by a harness that has no cap to set. A flag
+        # that silently does nothing is worse than one that does not exist, since
+        # the pass then answers a question nobody asked.
+        kw["notes"] = notes
+    bot = cls(seed=0, model=model, endpoint=endpoint, token=token, **kw)
     # Taken now, against the code about to play, not at the end against whatever
     # is on disk by then.
     stamp = fingerprints(version)
@@ -863,11 +878,22 @@ def play_model(game, version: str, model: str, site: Path,
         last[0] = now
         log.run(row)
 
+    def decided(e: dict[str, Any]) -> None:
+        """One decision, with what the bot did to reach it.
+
+        The tool calls are asked of the BOT and not of the runner: the runner sees
+        a bot return an index, and everything between the question and the answer
+        happens inside `choose`. Asked with `getattr` because a harness that does
+        not keep the list is not broken, it is older.
+        """
+        made = getattr(bot, "tool_calls_made", None)
+        log.decision({**e, "tools": made()} if callable(made) else e)
+
     try:
         result = run_benchmark(
             game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
             category="llm", description=f"model benchmark, harness {version}",
-            on_run=on_run, on_decision=log.decision,
+            on_run=on_run, on_decision=decided,
         )
     except BaseException as e:
         log.fail(f"{type(e).__name__}: {e}")
@@ -934,7 +960,7 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
 def fan_out(version: str, model: str, seeds: list[int], workers: int,
             site: Path, port0: int = 8500, endpoint: str | None = None,
             token: str | None = None, folder: Path | None = None,
-            attempt: int = 1) -> dict[str, Any]:
+            attempt: int = 1, notes: int = 0) -> dict[str, Any]:
     """The same pass, played by several processes at once."""
     import os
     import queue
@@ -983,6 +1009,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             # single-process path still worked.
             [sys.executable, "-m", __name__, "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
+             *(("--notes", str(notes)) if notes else ()),
              "--seeds", ",".join(str(s) for s in chunk)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))
@@ -1105,11 +1132,14 @@ def _worker() -> int:
     p.add_argument("--model", required=True)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--seeds", required=True)
+    # Passed through by `fan_out`. Without it a parallel pass would run the
+    # harness default while the pass said it ran the cap that was asked for.
+    p.add_argument("--notes", type=int, default=0)
     a = p.parse_args()
 
     seeds = [int(s) for s in a.seeds.split(",") if s]
     cls = load_class(harness_path(a.harness))
-    bot = cls(seed=0, model=a.model)
+    bot = cls(seed=0, model=a.model, **({"notes": a.notes} if a.notes else {}))
     server = AssetServer(ROOT / "site", port=a.port)
     server.start()
     game = Game(url=server.url, **script_paths(a.harness))

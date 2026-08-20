@@ -167,7 +167,12 @@ across them.
   [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
 - **`v3`** — the same loop, seeing what a person sees: the node tooltips the game
   shows on hover, the move tutor block only at the tutor, and a journal that separates
-  what was done from what the model said about it. Sequential only.
+  what was done from what the model said about it. Sequential only, and it inherits
+  v2's limitation: no model served by OpenAI can be measured under it.
+- **`v4`** — the notebook as memory the model runs during the game rather than a
+  lesson for next time, a cap you can set with `--notes N`, every tool call in the
+  trace, and the `play` call answered so any provider accepts the conversation.
+  Sequential only.
 
 Each carries four frozen files, so nothing outside its directory can move under a
 recorded row: `bot.py` (the loop), `render.py` (the text the model reads), `bridge.js`
@@ -181,6 +186,7 @@ Each has its own README with exactly what it asks a model:
 - [v1](v1/harness/README.md)
 - [v2](v2/harness/README.md)
 - [v3](v3/harness/README.md)
+- [v4](v4/harness/README.md)
 
 ## Where the files go
 
