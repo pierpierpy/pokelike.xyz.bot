@@ -477,9 +477,67 @@ def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monk
     bot.journal = ["step 1: [0] went to the trainer"]
     whole = bot._situation(state)
     assert "ONLY MINE" in whole
-    assert "YOUR RECENT MOVES" in whole, "replacing the view cost the bot its memory"
+    assert "step 1: [0] went to the trainer" in whole, \
+        "replacing the view cost the bot its memory"
     assert "Pick an index between 0 and 1" in whole, "the model was not told the range"
     assert bot.view_name() == "custom", "a custom view must be recorded as one"
+
+
+def test_the_journal_records_the_action_not_the_models_sentence(monkeypatch):
+    """The model's own guess must not come back to it as a record of events.
+
+    It used to record `why` alone under a heading reading YOUR RECENT MOVES, so a
+    plan ("a second Pokemon matters more than one more fight this early") read as
+    a thing that had happened, one turn later, with nothing to tell the two apart.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class B(LLMBot):
+        PROMPT = "x"
+
+    bot = B()
+    state = {"steps": 7, "actions": [
+        {"kind": "node", "id": "n2_1", "node": "trainer"},
+        {"kind": "element", "label": "Take Potion"},
+    ]}
+    bot._commit(state, 0, "a second Pokemon matters more than one more fight")
+
+    entry = bot.journal[-1]
+    assert "node n2_1 (trainer)" in entry, "what was done is not in the record"
+    assert "it said:" in entry, "the reasoning is worth keeping, just not as fact"
+    assert entry.index("node n2_1") < entry.index("it said:"), \
+        "the game's record comes first, the talk about it second"
+
+    bot._commit({**state, "steps": 8}, 1, "")
+    assert "Take Potion" in bot.journal[-1], "a non-node action needs its label"
+    assert "(nothing)" in bot.journal[-1], "silence must not look like a missing turn"
+
+
+def test_the_journal_heading_says_which_half_is_evidence(monkeypatch):
+    """Separating them in the data is only half of it: the model has to be told."""
+    from pokelike.bot.llm import LLMBot
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class B(LLMBot):
+        PROMPT = "x"
+
+        def view(self, state):
+            return "V"
+
+    bot = B()
+    bot._commit({"steps": 1, "actions": [{"kind": "node", "id": "n0", "node": "catch"}]},
+                0, "worth a try")
+    whole = bot._situation({"steps": 2, "actions": [{"kind": "node", "id": "n1",
+                                                     "node": "battle"}]})
+    assert "YOUR RECENT MOVES" not in whole, "the old heading claimed too much"
+    assert "not something that has been verified" in whole
 
 
 def test_a_name_matching_two_bots_is_an_error_not_a_guess():

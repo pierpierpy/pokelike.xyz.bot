@@ -513,11 +513,39 @@ class LLMBot(Bot):
 
     def _commit(self, state: dict[str, Any], index: int, why: str) -> int:
         self._last_why = why
-        self.journal.append(f"step {state.get('steps')}: [{index}] {why[:90]}")
+        self.journal.append(self._journal_entry(state, index, why))
         self.journal = self.journal[-self.memory:]
         if self.verbose:
             print(f"   [llm] -> [{index}] {why[:100]}")
         return index
+
+    def _journal_entry(self, state: dict[str, Any], index: int, why: str) -> str:
+        """One past turn, with the action separated from the talk about it.
+
+        This used to record `why` alone, the model's own sentence, under a heading
+        that read YOUR RECENT MOVES. So a model was handed its own guesses back as
+        a record of events: "a second Pokemon matters more than one more fight
+        this early" is a plan, and after a turn it reads as a thing that happened.
+        Nothing in the loop had told it otherwise, and there was no way for it to
+        tell the two apart.
+
+        What was actually done comes from `state["actions"][index]`, which is the
+        harness's own data, and the sentence is kept underneath and labelled. The
+        reasoning is worth keeping: it is how a model notices it has been trying
+        the same idea for five turns. It is just not evidence.
+
+        Found by Massimo Cortesi (github.com/iamjackharper) while building a bot
+        on a fork.
+        """
+        actions = state.get("actions") or []
+        act = actions[index] if 0 <= index < len(actions) else {}
+        if act.get("kind") == "node":
+            did = f"node {act.get('id', '?')} ({act.get('node', 'node')})"
+        else:
+            did = str(act.get("label") or act.get("id") or "action")
+        said = " ".join(str(why or "").split())[:200]
+        return (f"step {state.get('steps')}: [{index}] {did}\n"
+                f"    it said: {said or '(nothing)'}")
 
     def _fall_back(self, state: dict[str, Any], reason: str) -> int:
         self.fallbacks += 1
@@ -684,10 +712,22 @@ class LLMBot(Bot):
         same loop forever, and the instruction line is what tells the model how
         many options there are -- neither is a choice a bot should be able to
         drop by accident while changing something else.
+
+        The journal separates what was done from what was said about it, and the
+        heading says so. It used to read YOUR RECENT MOVES over a list of the
+        model's own sentences, which is the one arrangement that turns a guess
+        into a fact by doing nothing at all.
         """
         parts = [self.view(state)]
         if self.journal:
-            parts += ["", "YOUR RECENT MOVES:", *(f"  {r}" for r in self.journal)]
+            parts += [
+                "",
+                "WHAT YOU DID, AND WHAT YOU SAID AT THE TIME.",
+                "The action on each first line is the game's record. The sentence "
+                "under it is your own from that turn: it is what you meant to do, "
+                "not something that has been verified since.",
+                *(f"  {r}" for r in self.journal),
+            ]
         parts += [
             "",
             f"Pick an index between 0 and {len(state['actions']) - 1} and call play().",
