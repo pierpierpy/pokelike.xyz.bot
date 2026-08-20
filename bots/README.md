@@ -74,7 +74,7 @@ hand, so nothing in Python can add a field it does not carry:
 if your idea needs the engine to give up something nobody thought to expose, put your
 own bridge there and it is used when your bot runs. It lands in the fingerprint along
 with everything else under `artifacts/`, so the score stays checkable. See
-[how much control you want](../GUIDE.md#how-much-control-you-want).
+[everything you can change](../GUIDE.md#everything-you-can-change).
 
 **It has to be self-contained.** Everything `bot.py` needs is either in the
 `pokelike` package or in its own folder, and nothing reaches into `experiments/`,
