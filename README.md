@@ -778,6 +778,7 @@ make them pass or fail spuriously.
 | `bot board` | rebuild the standings from what is measured on disk |
 | `model bench` | a model against one frozen harness (`--harness`, `--models`, `--repeat`) |
 | `model board` | the table for that harness (`--harness`) |
+| `model watch` | follow a running pass, or `--all` for every pass on this machine |
 | `schema` | what a bot receives, printed from a live game |
 | `history` | the runs on this machine (`-d` explains the columns) |
 

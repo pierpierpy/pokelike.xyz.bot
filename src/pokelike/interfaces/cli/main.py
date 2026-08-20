@@ -565,6 +565,15 @@ def cmd_bench(args) -> int:
     return 0
 
 
+def cmd_watch(args) -> int:
+    """Follows the pass that is being written to, from its own trace."""
+    from ...instrument.watch import dashboard, overview
+
+    if args.all:
+        return overview(version=args.harness)
+    return dashboard(version=args.harness, once=args.once)
+
+
 def cmd_llm_bench(args) -> int:
     """Runs one or more models against a frozen harness version."""
     from ...instrument import llmbench
@@ -952,7 +961,8 @@ FAMILIES = (
      "The loop, the text it reads, the state and the seed are frozen, so the model "
      "is the only thing that varies.",
      (("bench", "a model against one frozen harness version"),
-      ("board", "what has been measured, per version"))),
+      ("board", "what has been measured, per version"),
+      ("watch", "follow a pass while it plays"))),
 )
 
 PLAIN_GROUPS = """
@@ -1086,6 +1096,23 @@ def _model_bench_args(s) -> None:
     s.set_defaults(func=cmd_llm_bench)
 
 
+def _model_watch_args(s) -> None:
+    from ...instrument import llmbench as _lbv
+    # Optional here, unlike on `bench` and `board`. Watching is about what is
+    # happening rather than about a question being answered, and with nothing
+    # said it follows whichever pass was written to last.
+    s.add_argument("--harness", default=None,
+                   help="follow a pass of this version, one of: "
+                        f"{', '.join(_lbv.versions()) or 'none on disk'}. "
+                        "Default: whichever was written to last")
+    s.add_argument("--once", action="store_true",
+                   help="draw it once and exit, instead of following it")
+    s.add_argument("--all", action="store_true",
+                   help="every pass on this machine, one row each, instead of "
+                        "one pass in detail")
+    s.set_defaults(func=cmd_watch)
+
+
 def _model_board_args(s) -> None:
     from ...instrument import llmbench as _lbv
     s.add_argument("--harness", default=None,
@@ -1162,6 +1189,12 @@ def main(argv: list[str] | None = None) -> int:
         "bench", help="a model against one frozen harness version"))
     _model_board_args(models.add_parser(
         "board", help="what has been measured, per version"))
+    _model_watch_args(models.add_parser(
+        "watch", help="follow a pass while it plays",
+        description="Redraws what the model is doing from the trace the pass is "
+                    "already writing: the runs it has finished, where it is now, "
+                    "the tools it called this turn and what it has in memory.",
+    ))
 
     s = sub.add_parser("schema")
     s.add_argument("--json", action="store_true", help="print a real observation instead")

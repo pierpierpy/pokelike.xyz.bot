@@ -197,10 +197,17 @@ decision each, with the reason), and under any harness that keeps notes a
 rationale: [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
 
 ```bash
-ls -t llm-bench/v0/logs/                        # your commands, newest first
-tail -f llm-bench/v0/logs/20260819-144219/*.log # follow one
-bash llm-bench/run.sh <model> --harness <v>      # the script for the common case
+uv run pokelike model watch                     # follow the running pass
+uv run pokelike model watch --all               # every pass on this machine
+bash llm-bench/status.sh                        # that, plus containers and memory
+ls -t llm-bench/v0/logs/                        # the directories, newest first
+bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
 ```
+
+`model watch` reads the trace the pass is already writing, so it works the same
+on a container, on a pass started in another terminal, and on one that finished
+last week. It shows the runs that are done, where the model is now, the tools it
+called this turn and the notes it is holding.
 
 `run.sh` builds, runs detached, names the container after the model, picks the worker
 count the harness allows, and removes it when done. Credentials come from `.env`.

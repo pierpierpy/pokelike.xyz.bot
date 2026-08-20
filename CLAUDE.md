@@ -57,6 +57,8 @@ uv run pokelike bot board                           # the standings, from disk
 uv run pokelike model bench --harness v4 --model a/b
 uv run pokelike model bench --harness v4 --model a/b --notes 4   # smaller notebook
 uv run pokelike model board --harness v4            # that version's table
+uv run pokelike model watch                         # follow the running pass
+uv run pokelike model watch --all                   # every pass on this machine
 # --harness is REQUIRED on both: a version is the question a row answers
 # credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
 # (--api-key @path reads a file, keeping the key out of ps and shell history)
