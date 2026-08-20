@@ -319,7 +319,7 @@ def format_table(index: dict[str, Any]) -> str:
         return "no bots measured yet"
     head = (f"{'bot':<20}{'category':>10}{'runs':>6}{'badge~':>8}{'badge+':>8}"
             f"{'score~':>9}{'stdev':>8}{'best':>7}{'done':>6}")
-    # Said above the table, because this one and `pokelike stats` print columns
+    # Said above the table, because this one and `pokelike history` print columns
     # with the same names and mean entirely different things. One is the fixed 50
     # seeds everybody is scored on; the other is whatever you happened to play on
     # this machine. Confusing them is not hypothetical, since the same weights scored

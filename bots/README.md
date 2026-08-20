@@ -69,8 +69,8 @@ bots/<name>/
 └── result.json   what the benchmark measured, written by `pokelike bench`
 ```
 
-`artifacts/bridge.js` is the one that surprises people. The state is a projection of
-the game written by hand, so nothing in Python can invent a field it does not carry:
+`artifacts/bridge.js` is optional. The state is a projection of the game written by
+hand, so nothing in Python can add a field it does not carry:
 if your idea needs the engine to give up something nobody thought to expose, put your
 own bridge there and it is used when your bot runs. It lands in the fingerprint along
 with everything else under `artifacts/`, so the score stays checkable. See

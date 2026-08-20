@@ -102,13 +102,12 @@ request.
 
 ## Proposing a new harness
 
-A better scaffold is a genuinely interesting contribution, and the way in is a new
-directory rather than edits to an old one. `v0`'s rows stay valid under `v0`.
+A better scaffold is a new directory, not edits to an old one. `v0`'s rows stay valid
+under `v0`.
 
-Start with an issue saying what you would ask a model and why, because that is the
-whole substance of a version. Say what you expect to happen before it runs: a harness
-README that predicts a result and is then measured is worth more than one that
-explains a number afterwards.
+Start with an issue saying what you would ask a model and why. That is what a version
+is. Say what you expect before it runs, so the README cannot be adjusted to fit the
+number afterwards.
 
 The mechanics are small. Copy the four frozen files into
 `llm-bench/v<next>/harness/`, change them there, and nothing else needs editing:

@@ -7,7 +7,7 @@ longer exists.
 
     pokelike schema              # human readable reference
     pokelike schema --json       # a real observation, for poking at
-    pokelike schema --markdown   # regenerates the reference inside README.md
+    pokelike schema --markdown   # regenerates the reference inside STATE.md
 """
 
 from __future__ import annotations
@@ -217,7 +217,7 @@ def describe(obs: dict[str, Any]) -> str:
 
 
 def as_markdown(obs: dict[str, Any]) -> str:
-    # Headings start at h3: this is written into a section of README.md, not into
+    # Headings start at h3: this is written into a section of STATE.md, not into
     # a file of its own, so an h1 or h2 here would break the document around it.
     return (
         "_Generated from a live observation. Edit `schema.py`, never this block._\n"

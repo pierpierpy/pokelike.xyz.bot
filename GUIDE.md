@@ -197,7 +197,7 @@ git push origin my-bot
 Then open the pull request GitHub offers you, from your fork to this repo. Your
 whole submission is one folder.
 
-### One folder, and why that is the whole of it
+### What a pull request should contain
 
 A pull request that touches only `bots/` is read as a submission and usually merged
 as is. One that also changes `src/` or `llm-bench/` gets a slower read, because those
@@ -272,8 +272,8 @@ Nine settings need no code:
 | `EXTRA_TOOLS` | tools of your own, on top of the shared four |
 | `STATE_VIEW` | **what the model reads each turn** |
 
-`STATE_VIEW` is the one to think hardest about, because it decides what the model is
-looking at rather than what it is told to do:
+`STATE_VIEW` decides what the model is looking at, as opposed to what it is told to
+do:
 
 | value | the model gets | roughly |
 |---|---|--:|
@@ -328,9 +328,23 @@ The state is not everything the game knows. It is a projection, written by hand 
 `src/pokelike/core/bridge.js`, which reads the engine and lists the fields to expose.
 So there is one thing no Python hook can do: **invent a field the bridge never read.**
 
-If your idea needs the engine to give up something nobody thought to expose, copy
-that file to `bots/<name>/artifacts/bridge.js` and change it there. It is picked up
-automatically when your bot runs, and the run prints which bridge it used.
+If your idea needs a field nobody thought to expose, copy that file to
+`artifacts/bridge.js` beside your bot and change it there. It is picked up when your
+bot runs, and the run prints which bridge it used:
+
+```
+bridge: /home/you/pokelike.xyz.bot/bots/mine/artifacts/bridge.js
+run 1/1  seed 1  steps  21  ...
+```
+
+This works by path, so it works from an experiment folder too, before the bot has
+earned a place in `bots/`:
+
+```bash
+uv run pokelike bench --bot experiments/mine --dry-run
+```
+
+picks up `experiments/mine/artifacts/bridge.js` the same way.
 
 `artifacts/` and not the folder root, because your result's fingerprint covers
 `bot.py` plus everything under `artifacts/`. Putting it there means a custom bridge

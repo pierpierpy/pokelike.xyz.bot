@@ -25,11 +25,11 @@ def _cli(*argv) -> tuple[int, str]:
 def test_help_lists_every_command():
     code, text = _cli("--help")
     assert code == 0
-    for command in ("setup", "mirror", "play", "bot", "api", "stats"):
+    for command in ("setup", "mirror", "play", "bot", "api", "history"):
         assert command in text, f"command {command} is missing from the help"
 
 
-@pytest.mark.parametrize("command", ["setup", "mirror", "play", "bot", "api", "stats"])
+@pytest.mark.parametrize("command", ["setup", "mirror", "play", "bot", "api", "history"])
 def test_every_command_has_its_own_help(command):
     code, _ = _cli(command, "--help")
     assert code == 0
