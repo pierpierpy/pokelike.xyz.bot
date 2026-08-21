@@ -1,22 +1,28 @@
 # Everything a long benchmark run needs, so it is one command rather than six
 # flags that are easy to get wrong.
 #
-# Run from the repository root, pointing at this file:
+# Run from the repository root, pointing at this file. `--build` rebuilds the
+# image first, so the container always runs the code you have on disk NOW (the
+# layer cache makes it a near-no-op when nothing changed). Use it every time and
+# a stale image can never quietly run old code:
 #
 #   cp .env.example .env        # put FW_ENDPOINT and FW_TOKEN in it
-#   docker compose -f llm-bench/docker/docker-compose.yml build
-#   docker compose -f llm-bench/docker/docker-compose.yml run --rm bench \
+#   docker compose -f llm-bench/docker/docker-compose.yml run --build --rm bench \
 #       --harness v0 --model z-ai/glm-5.2:free
 #
-# Detached, for the runs that take hours. `--rm` makes the container remove
-# ITSELF the moment the pass finishes (the results and logs are on the mounted
-# volume, so nothing is lost); `docker stop` on it shuts the browser down
-# gracefully via SIGTERM rather than being killed mid-write:
+# Detached, for the runs that take hours. `--build` refreshes the image, `--rm`
+# makes the container remove ITSELF the moment the pass finishes (the results and
+# logs are on the mounted volume, so nothing is lost); `docker stop` on it shuts
+# the browser down gracefully via SIGTERM rather than being killed mid-write:
 #
-#   docker compose -f llm-bench/docker/docker-compose.yml run --rm -d --name sweep \
+#   docker compose -f llm-bench/docker/docker-compose.yml run --build --rm -d --name sweep \
 #       bench --harness v0 --models a/b,c/d --repeat 3 --workers 8
 #   tail -f llm-bench/v0/logs/*.log     # from the host: the log is a mounted file
 #   docker logs -f sweep                # or the container's own output
+#
+# The harness files (bot.py, render.py, bridge.js, init.js) are on the mounted
+# volume and are always current; --build is what also refreshes the baked-in
+# src/pokelike, which is the part a git pull changes.
 
 # Named explicitly: compose otherwise takes the project name from the parent
 # directory, which here would be "docker" -- and `docker ps` full of containers
