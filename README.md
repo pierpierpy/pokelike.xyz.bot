@@ -8,6 +8,7 @@ write, and for benchmarking the models that play it.**
 [![Tests](https://github.com/pierpierpy/pokelike.xyz.bot/actions/workflows/tests.yml/badge.svg)](https://github.com/pierpierpy/pokelike.xyz.bot/actions/workflows/tests.yml)
 &nbsp;![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 &nbsp;![uv](https://img.shields.io/badge/managed%20with-uv-de5fe9)
+&nbsp;[![Release](https://img.shields.io/github/v/release/pierpierpy/pokelike.xyz.bot?label=release&color=de5fe9)](https://github.com/pierpierpy/pokelike.xyz.bot/releases/latest)
 
 </div>
 
