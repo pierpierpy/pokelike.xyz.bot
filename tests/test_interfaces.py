@@ -96,9 +96,10 @@ def test_model_watch_says_so_when_there_is_nothing_to_watch():
     assert "Traceback" not in text
 
 
-def test_no_command_exits_with_an_error():
-    code, _ = _cli()
-    assert code != 0
+def test_no_command_shows_help():
+    code, text = _cli()
+    assert code == 0
+    assert "the game" in text and "pokelike model" in text
 
 
 def test_unknown_bot_exits_with_a_readable_error():

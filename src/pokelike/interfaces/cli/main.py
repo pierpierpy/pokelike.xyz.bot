@@ -983,8 +983,6 @@ PLAIN_GROUPS = """
   the game         setup, play, api, schema, history, mirror
   pokelike bot     new, run, bench, board
   pokelike model   bench, board, watch
-
-`pokelike <command> --help` for any of them.
 """
 
 
@@ -1017,7 +1015,6 @@ def groups_epilog() -> str:
                 title_align="left", border_style="dim", padding=(0, 1),
             ))
             console.print()
-        console.print("[dim]`pokelike <command> --help` for any of them.[/dim]")
     return cap.get()
 
 
@@ -1148,19 +1145,19 @@ def _model_board_args(s) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="pokelike",
-        # Written out, because suppressing argparse's own subcommand listing takes
-        # `<command>` out of the generated usage line with it.
-        usage="pokelike [--port PORT] <command> [<verb>] [flags]",
-        description="Play pokelike.xyz headless, from the command line or over HTTP.",
+        usage=argparse.SUPPRESS,
         epilog=groups_epilog(),
         formatter_class=_FORMATTER,
+        add_help=False,
     )
     p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
+    # -h/--help still works, it is just not listed: only --port is worth showing.
+    p.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
     # The listing is in the epilog, grouped by family, so the brace list is replaced
     # by a placeholder rather than printing eleven names on one line.
     # The listing is the three boxes in the epilog, so argparse's own is suppressed
     # rather than printing the same eight names again with no grouping.
-    sub = p.add_subparsers(dest="command", required=True, metavar="<command>",
+    sub = p.add_subparsers(dest="command", required=False, metavar="<command>",
                            help=argparse.SUPPRESS)
 
     s = sub.add_parser("setup")
@@ -1188,7 +1185,8 @@ def main(argv: list[str] | None = None) -> int:
         "bot",
         description="Write and run bots against the fixed game; the standings rank ideas.",
     )
-    bots = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
+    bots = fam.add_subparsers(dest="verb", required=False, metavar="<verb>")
+    fam.set_defaults(func=lambda a, _p=fam: _p.print_help() or 0)
     _bot_new_args(bots.add_parser("new", help="write a bot folder that already plays"))
     _bot_run_args(bots.add_parser("run", help="play it and watch the decisions"))
     _bot_bench_args(bots.add_parser(
@@ -1203,7 +1201,8 @@ def main(argv: list[str] | None = None) -> int:
         "model",
         description="Benchmark a model against a frozen harness; the row measures the model.",
     )
-    models = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
+    models = fam.add_subparsers(dest="verb", required=False, metavar="<verb>")
+    fam.set_defaults(func=lambda a, _p=fam: _p.print_help() or 0)
     _model_bench_args(models.add_parser(
         "bench", help="a model against one frozen harness version"))
     _model_board_args(models.add_parser(
@@ -1231,6 +1230,12 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(func=cmd_stats)
 
     args = p.parse_args(list(argv) if argv is not None else sys.argv[1:])
+
+    # Bare `pokelike` (no command) shows the help rather than erroring: the help
+    # is the most useful thing to see when you have not said what to do yet.
+    if not hasattr(args, "func"):
+        p.print_help()
+        return 0
 
     # Graceful exit. Ctrl-C (SIGINT -> KeyboardInterrupt) and `docker stop`
     # (SIGTERM) both unwind cleanly: every command that owns a browser does so
