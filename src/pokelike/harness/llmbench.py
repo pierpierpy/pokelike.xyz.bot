@@ -904,9 +904,12 @@ class PassLog:
     def close(self) -> None:
         # Stop the heartbeat and take its file with it: a clean close means the
         # pass is over NOW, so `model watch` should not wait for the mtime to age
-        # out. A crash never reaches here -- and does not need to, because the
-        # thread dies with the process and the file simply stops being touched.
+        # out. Join first so the thread cannot touch the file back into existence
+        # after we unlink it (Event.wait returns the instant it is set, so this is
+        # immediate). A crash never reaches here -- and does not need to, because
+        # the thread dies with the process and the file simply stops being touched.
         self._beat_stop.set()
+        self._beat.join(timeout=2)
         try:
             self.alive_path.unlink()
         except OSError:

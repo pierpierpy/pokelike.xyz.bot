@@ -542,6 +542,60 @@ def test_the_journal_heading_says_which_half_is_evidence(monkeypatch):
     assert "not something that has been verified" in whole
 
 
+def test_parse_index_takes_the_last_valid_number(monkeypatch):
+    """A model reasons before it concludes, so the answer is the LAST index named."""
+    from pokelike.bot.llm import LLMBot, LLMConfig
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"), ("FW_TOKEN", "t"),
+                     ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class B(LLMBot):
+        config = LLMConfig(prompt="x")
+
+    b = B()
+    assert b._parse_index("0 looks weak, 1 is risky, so I take 2", 3) == 2
+    assert b._parse_index("nothing in range like 9 here", 3) is None
+
+
+def test_play_index_as_string_is_accepted(monkeypatch):
+    """`{"index": "2"}` is the integer 2, not a malformed answer to fall back on."""
+    from pokelike.bot.llm import LLMBot, LLMConfig
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"), ("FW_TOKEN", "t"),
+                     ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class B(LLMBot):
+        config = LLMConfig(prompt="x")
+
+    b = B()
+    assert b._as_index("2") == 2 and b._as_index(2) == 2 and b._as_index(" 3 ") == 3
+    assert b._as_index("two") is None and b._as_index(True) is None and b._as_index(None) is None
+
+
+def test_memory_minus_one_keeps_every_turn(monkeypatch):
+    """memory=-1 is an unbounded, append-only journal; a positive value caps it."""
+    from pokelike.bot.llm import LLMBot, LLMConfig
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"), ("FW_TOKEN", "t"),
+                     ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class Keep(LLMBot):
+        config = LLMConfig(prompt="x", memory=-1)
+
+    class Cap(LLMBot):
+        config = LLMConfig(prompt="x", memory=2)
+
+    def st(k):
+        return {"steps": k, "actions": [{"kind": "node", "id": f"n{k}", "node": "catch"}]}
+
+    keep, cap = Keep(), Cap()
+    for k in range(5):
+        keep._cache_decision(st(k), 0, f"why{k}")
+        cap._cache_decision(st(k), 0, f"why{k}")
+    assert len(keep.journal) == 5, "memory=-1 keeps every turn"
+    assert len(cap.journal) == 2, "memory=2 keeps only the last two"
+
+
 def test_a_name_matching_two_bots_is_an_error_not_a_guess():
     """`--bot sarsa` with sarsa-v1 and sarsa-v2 on disk must refuse to choose.
 

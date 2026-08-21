@@ -229,7 +229,7 @@ class LLMConfig(BaseModel):
     temperature: float = 0.6
     max_tokens: int = 1500
     max_rounds: int = 4                          # tool rounds before the turn is given up
-    memory: int = 6                              # past turns replayed to the model
+    memory: int = 6                              # past turns replayed; -1 = keep all
     token_budget: int = 0                        # per-run cap, 0 = none
     retries: int = 4                             # attempts on a transient HTTP failure
     extra_tools: list[dict[str, Any]] = Field(default_factory=list)
@@ -469,7 +469,12 @@ class LLMBot(Bot):
             index, why, lead = self._run_turn(state, allow_lead=True)
         except LLMConfigError:
             raise
-        except Exception:  # noqa: BLE001 — handled again, and counted, in act
+        except Exception as e:  # noqa: BLE001
+            # call_model already retried transient failures, so this turn's model
+            # budget is spent. Record the failure against this step so `act` falls
+            # back instead of paying for a SECOND full turn (the old code dropped
+            # it silently and act re-ran the whole call).
+            self._pending = (state.get("steps"), None, f"{type(e).__name__}: {e}"[:80])
             return None
         team = state.get("team") or []
         if lead is None or not 0 < lead < len(team):
@@ -492,6 +497,10 @@ class LLMBot(Bot):
             self._pending = None
             if isinstance(index, int) and 0 <= index < n:
                 return self._cache_decision(state, index, why)
+            # reorder already ran (and spent) this turn's model call. If it left
+            # no usable move -- a transient failure, or a play with no valid index
+            # -- fall back here rather than calling the model a second time.
+            return self._run_fallback(state, why or f"model returned index {index}")
         try:
             index, why, _ = self._run_turn(state)
         except (LLMConfigError, LLMBudgetError):
@@ -509,7 +518,9 @@ class LLMBot(Bot):
     def _cache_decision(self, state: dict[str, Any], index: int, why: str) -> int:
         self._last_why = why
         self.journal.append(self._journal_entry(state, index, why))
-        self.journal = self.journal[-self.cfg.memory:]
+        if self.cfg.memory >= 0:
+            self.journal = self.journal[-self.cfg.memory:]
+        # memory < 0 (i.e. -1) keeps every turn: an unbounded, append-only memory.
         if self.verbose:
             print(f"   [llm] -> [{index}] {why[:100]}")
         return index
@@ -600,7 +611,7 @@ class LLMBot(Bot):
                     args = {}
 
                 if name == "play":
-                    return args.get("index"), str(args.get("why", "")), lead
+                    return self._as_index(args.get("index")), str(args.get("why", "")), lead
 
                 if name == "set_lead":
                     # Recorded, not applied here: the bot has no handle on the
@@ -839,12 +850,28 @@ class LLMBot(Bot):
         return choices[0].get("message") or {}
 
     @staticmethod
+    def _as_index(v: Any) -> int | None:
+        """A tool argument as an int, or None. Models often send `"2"` (a string)
+        instead of `2`; treat a plain integer string as the integer it obviously
+        is, rather than throwing the decision away as malformed."""
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str) and v.strip().lstrip("+-").isdigit():
+            return int(v.strip())
+        return None
+
+    @staticmethod
     def _parse_index(text: str, n: int) -> int | None:
-        """Last resort: fish a valid index out of a prose answer."""
+        """Last resort: fish a valid index out of a prose answer.
+
+        The LAST valid number, not the first: a model states its reasoning before
+        its conclusion ("option 0 looks weak, so I'll take 2"), so the answer is
+        the last index it names, not the first it mentions.
+        """
         import re
 
-        for m in re.finditer(r"\[?(\d+)\]?", text):
-            v = int(m.group(1))
-            if 0 <= v < n:
-                return v
-        return None
+        valid = [v for v in (int(m.group(1)) for m in re.finditer(r"\[?(\d+)\]?", text))
+                 if 0 <= v < n]
+        return valid[-1] if valid else None
