@@ -165,7 +165,7 @@ block.
 
 ## The LLM harness: knobs and seams
 
-`LLMBot` (`bot/llm.py`) is what the six `llm-*` bots inherit. Inherit, set a `config`
+`LLMBot` (`bot/llm/`) is what the six `llm-*` bots inherit. Inherit, set a `config`
 with your prompt, done: everything else has a default that works. `HARNESS = 1` today.
 
 ### Value-only knobs (LLMConfig fields)
@@ -334,7 +334,7 @@ Do not define `act` here: on the `LLMBot` road it already runs the agentic loop.
 
 ### Using `render` in `render_state()`
 
-`core/render.py` is the shared state-to-text module, and a bot does **not** edit it
+`core/render/` is the shared state-to-text package, and a bot does **not** edit it
 (that would change the CLI and every bot's default view, a `src/` change). Instead you
 compose its pure functions inside your own `render_state()`. The blocks:
 
@@ -354,9 +354,9 @@ def render_state(self, state):                      # team + options only, no ma
     return render.team_view(state["team"]) + "\n\n" + render.actions_view(state["actions"])
 ```
 
-You do not override `render.py` itself, and you do not need to. `bridge.js` and `init.js`
+You do not override `core/render/` itself, and you do not need to. `bridge.js` and `init.js`
 are overridable because they reach what Python cannot: the data that is in the state, and
-which game a seed plays. `render.py` only presents data already in `obs`, and `render_state()`
+which game a seed plays. `core/render/` only presents data already in `obs`, and `render_state()`
 already lets you present it any way you like, so a per-bot renderer would add nothing
 `render_state()` cannot already do. Ship a big custom renderer in `artifacts/` and call it from
 `render_state()` if you want; improving the rendering for everyone is a `src/` change instead.

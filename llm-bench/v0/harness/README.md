@@ -71,12 +71,12 @@ token budget the bot set for itself and then exceeded.
 
 ## What is frozen, and what is not
 
-`bot.py` is a **copy** of `src/pokelike/bot/llm.py` as it stood when v0 opened,
+`bot.py` is a **copy** of `src/pokelike/bot/llm/` as it stood when v0 opened,
 generated mechanically, carrying the whole harness inside one class rather than
-inheriting it. The shared file is meant to evolve, since it serves the submissions in
+inheriting it. The shared package is meant to evolve, since it serves the submissions in
 `bots/`, and that is exactly what a benchmark cannot tolerate. Copying breaks the
-link deliberately; the difference between the two files is what the next version
-is made of.
+link deliberately; the difference between the frozen file and the shared package is what
+the next version is made of.
 
 Four files in this directory are frozen, and nothing outside it can reach them:
 

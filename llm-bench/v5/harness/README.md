@@ -2,8 +2,8 @@
 
 **v4 told the model what it was fighting *against* (node tooltips: "Brock — Rock Gym |
 Onix Lv14") but never what it was fighting *with*.** The team view showed a move's name
-and power, not its **type** — so the one fact that decides a battle, "does my move's
-type beat theirs", was missing from the screen. v5 puts it back.
+and power, not its **type**, so the one fact that decides a battle ("does my move's
+type beat theirs") was missing from the screen. v5 puts it back.
 
 LLMs already know the type chart from pretraining; the gap was never knowledge, it was
 that the state hid the inputs. Showing move types is the lever prior work
@@ -50,7 +50,7 @@ The 18×18 type chart and the full move pool are deliberately **not** put in the
 Adding hundreds of irrelevant entries every turn is the "context rot" that measurably
 lowers decision quality, and this repo's own `llm-raw` bot already showed that a bigger
 dump is not a better one. The model knows type effectiveness; v5 gives it the two facts
-it could not see — its own move's type and where each path leads — and nothing else.
+it could not see (its own move's type and where each path leads) and nothing else.
 
 ## What is frozen in here
 

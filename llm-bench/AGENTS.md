@@ -70,10 +70,10 @@ of one's own choosing cannot be recorded.
 `llm-bench/v0/harness/bot.py` reads `class HarnessV0(Bot)`, it inherits from `Bot`, not
 `LLMBot`, and `from pokelike.bot.llm import` appears zero times. So `act` and
 `reorder` there are not overrides, they are independent, parallel implementations of
-the LLM loop. They resemble `src/pokelike/bot/llm.py` only because the second was born
+the LLM loop. They resemble `src/pokelike/bot/llm/` only because the second was born
 from the first; they do not talk to each other.
 
-The reason is the whole point of freezing: the shared `bot/llm.py` **must** improve,
+The reason is the whole point of freezing: the shared `bot/llm/` **must** improve,
 because `bots/` reads it. If a frozen harness imported it, the next improvement for a
 submission would silently change what every recorded score meant.
 
@@ -112,7 +112,7 @@ were, a leftover `HarnessV2` in `v3` was found by the test suite, not by reading
 
 `cross_run_memory(version)` loads the harness class and reads its `CROSS_RUN_MEMORY`
 attribute, it is asked of the harness, never hardcoded, so adding a version needs no
-edit in `harness/llmbench.py` or `run.sh`. It controls three things:
+edit in `harness/llmbench/` or `run.sh`. It controls three things:
 
 - **`--workers` is refused** when true: notes from one run feed the next, so the runs are
   not independent and splitting seeds across workers would give each its own notebook.
@@ -148,7 +148,7 @@ is on you.
 
 - **The seed list**, recorded as data in every pass rather than hashed, so it is
   checkable by reading.
-- **`src/pokelike/harness/llmbench.py`**, it builds the bot and drives the pass, and
+- **`src/pokelike/harness/llmbench/`**, it builds the bot and drives the pass, and
   a change there is not reported. Treat it the way you would treat the frozen files and
   say what you did in the pull request.
 - Two open holes worth knowing: the three shared keys are absent from the eleven results
