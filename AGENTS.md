@@ -64,7 +64,7 @@ uv run pokelike bot bench --bot random              # the 50 standard seeds, rec
 uv run pokelike bot bench --bot random --dry-run    # ... without writing an entry
 uv run pokelike bot board                           # the standings, from disk
 
-# THE INSTRUMENT: the scaffold is frozen, the model is the entry
+# THE MODEL BENCHMARK: the scaffold is frozen, the model is the entry
 uv run pokelike model bench --harness v4 --model a/b
 uv run pokelike model bench --harness v4 --model a/b --set notes=4  # smaller notebook
 # --set goes to the harness constructor, which refuses by name what it does not
@@ -117,8 +117,12 @@ src/pokelike/
 │   │                      clock, capped timers. This is what makes a seed replay
 │   ├── browser.py         Playwright headless: launches, injects both, filters
 │   ├── game.py            class Game: reset/state/step/score/reorder
-│   └── render.py          state to text. The SAME module prints your terminal
-│                          and feeds an LLMBot by default
+│   ├── render.py          state to text. The SAME module prints your terminal
+│   │                      and feeds an LLMBot by default
+│   ├── runner.py          play_run(): the one loop that plays a run with a bot
+│   └── schema.py          what a bot receives, generated from a LIVE state, and
+│                          self-checking (a field in a real obs but missing from
+│                          FIELDS is reported as undocumented)
 ├── bot/                 WHAT RUNS A BOT, not the bots themselves
 │   ├── base.py            abstract Bot: only choose() is required
 │   ├── catalogue.py       finds and loads a bot from its folder in bots/
@@ -132,21 +136,16 @@ src/pokelike/
 │   ├── mirror.py          builds site/ in five phases
 │   └── server.py          serves site/ from disk
 ├── stats/registry.py    SQLite in stats/runs.db
-├── competition/         THE BOT COMPETITION: your code is the entry
+├── arena/               THE BOT COMPETITION: your code is the entry
 │   ├── bench.py           the standard 50-seed benchmark
-│   └── scaffold.py        bot new: writes a bot folder that already plays
-├── instrument/          THE MODEL BENCHMARK: the scaffold is frozen
+│   ├── scaffold.py        bot new: writes a bot folder that already plays
+│   └── leaderboard.py     reads bots/*/result.json, ranks, fingerprints. Defines
+│                          Artifact, imported by the frozen harnesses and the bots
+│                          as pokelike.arena.leaderboard.Artifact, a frozen import
+│                          path their fingerprints cover
+├── harness/             THE MODEL BENCHMARK: the scaffold is frozen
 │   ├── llmbench.py        versions, fingerprints, passes, tables, fan-out
 │   └── watch.py           the dashboard over a pass's own trace
-├── runner.py            play_run(): the one loop that plays a run with a bot
-├── schema.py            what a bot receives, generated from a LIVE state and
-│                        self-checking: a field present in a real observation
-│                        and missing from FIELDS is reported as undocumented
-├── leaderboard.py       reads bots/*/result.json, ranks, fingerprints. NOT under
-│                        competition/ although it belongs there: it also defines
-│                        Artifact, which the frozen harnesses and the submitted bots
-│                        import, and both are fingerprinted over files containing
-│                        that path, so moving it would mark every recorded score
 └── interfaces/          how something outside drives the game
     ├── cli/main.py        a human, in a terminal
     ├── api/server.py      a program, over HTTP

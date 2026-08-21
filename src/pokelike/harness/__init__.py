@@ -1,6 +1,7 @@
 """The model benchmark: the scaffold is frozen, the model is the entry.
 
     llmbench.py   versions, fingerprints, passes, the tables and the fan-out
+    watch.py      `pokelike model watch`: a dashboard over a pass's own trace
 
 Every version under `llm-bench/<v>/harness/` freezes four files: the loop, the text
 the model reads, the bridge that decides what is in the state, and the script that
@@ -10,6 +11,6 @@ and a row says something about the model rather than about whoever tuned a promp
 Changing what is asked means a new version, not an edit. The old rows stay valid
 under the version that earned them, which is why the version is in the path.
 
-The other benchmark is `pokelike.competition`, where the author's code is the entry.
+The other benchmark is `pokelike.arena`, where the author's code is the entry.
 Rows are never compared across the two.
 """

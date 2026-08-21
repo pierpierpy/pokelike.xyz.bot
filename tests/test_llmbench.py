@@ -21,12 +21,12 @@ from pathlib import Path
 
 import pytest
 
-from pokelike.instrument import llmbench as L
-from pokelike.competition.bench import (STANDARD_SEEDS, _tok, live_fields,
+from pokelike.harness import llmbench as L
+from pokelike.arena.bench import (STANDARD_SEEDS, _tok, live_fields,
                                         progress_bar)
 from pokelike.bot import build, create
 from pokelike.bot.catalogue import load_class
-from pokelike.runner import short_label
+from pokelike.core.runner import short_label
 
 OFFLINE = {"endpoint": "https://example.invalid", "token": "not-a-real-token"}
 

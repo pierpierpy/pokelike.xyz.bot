@@ -26,7 +26,7 @@ from typing import Any
 
 from ...assets.server import AssetServer
 from ...core.game import Game
-from ...runner import play_run
+from ...core.runner import play_run
 from tqdm import tqdm
 ROOT = Path(__file__).resolve().parents[4]
 SITE = ROOT / "site"

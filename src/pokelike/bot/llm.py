@@ -416,7 +416,7 @@ class LLMBot(Bot):
         sampling is stochastic — so the least we can do is record precisely what
         was asked of which model, under which harness.
         """
-        from pokelike.leaderboard import Artifact
+        from pokelike.arena.leaderboard import Artifact
 
         return [
             Artifact(

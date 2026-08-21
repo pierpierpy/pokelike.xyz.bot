@@ -24,9 +24,9 @@ from a clone to a pull request.
 
 | # | bot | author | how | runs | badges~ | badges+ | score~ | best | code |
 |--:|---|---|---|--:|--:|--:|--:|--:|---|
-| 1 | **[lspi](lspi/)** | testjoejoe | rl | 50 | **1.44** | 8 | 76.7 | 520 | `4d09d3c5ebe7` |
-| 2 | **[sarsa-v2](sarsa-v2/)** | pierpierpy | rl | 50 | **1.36** | 3 | 71 | 235 | `304c607e6818` |
-| 3 | **[sarsa-v1](sarsa-v1/)** | pierpierpy | rl | 50 | **1.3** | 4 | 59.3 | 195 | `9cecc3913012` |
+| 1 | **[lspi](lspi/)** | testjoejoe | rl | 50 | **1.44** | 8 | 76.7 | 520 | `a29c141fb0e2` |
+| 2 | **[sarsa-v2](sarsa-v2/)** | pierpierpy | rl | 50 | **1.36** | 3 | 71 | 235 | `5cffd5d367bf` |
+| 3 | **[sarsa-v1](sarsa-v1/)** | pierpierpy | rl | 50 | **1.3** | 4 | 59.3 | 195 | `6db914851882` |
 | 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `6aeb11457d3c` ⚠︎ |
 | 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `15bb569eddef` |
 

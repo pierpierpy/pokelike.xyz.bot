@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from pokelike.instrument import watch
+from pokelike.harness import watch
 
 
 def _trace(folder, model: str, rows: list[dict]) -> None:

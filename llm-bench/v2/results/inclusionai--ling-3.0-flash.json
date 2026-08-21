@@ -7,7 +7,7 @@
    "model": "inclusionai/ling-3.0-flash",
    "harness": "v2",
    "fingerprint": {
-    "bot.py": "5ec013d044816938",
+    "bot.py": "2707ac684d3bf49b",
     "render.py": "6b8376165f05e24c",
     "bridge.js": "168fdada15fdcf42",
     "init.js": "6274624ff7590dd9"
@@ -1246,6 +1246,16 @@
       "bot.py": "5ec013d044816938"
      },
      "why": "Every harness now records the tool calls it makes, which is what `pokelike model watch` and the decision trace read: a list appended to in the dispatch loop, plus in v2 two annotations on the notebook replies saying how full it was and what was refused. Nothing about the request, the reply the model reads, or any branch changed, so these scores describe what is on disk. Before this, only v4 recorded them and every earlier trace could not say whether a model had asked what was ahead or never looked."
+    },
+    {
+     "on": "2026-08-21T09:44:39Z",
+     "was": {
+      "bot.py": "5ec013d044816938"
+     },
+     "now": {
+      "bot.py": "2707ac684d3bf49b"
+     },
+     "why": "leaderboard moved to pokelike.arena.leaderboard; the harness bot.py changed in its import block only. No behaviour change: render.py, bridge.js, init.js and the shared files are byte-identical. The fingerprint is rewritten rather than left marked, and the old value kept here, so the swap is not silent."
     }
    ]
   }

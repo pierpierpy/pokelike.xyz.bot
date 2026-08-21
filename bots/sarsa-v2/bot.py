@@ -619,7 +619,7 @@ class SarsaBot(Bot):
         version says what the numbers index, and without the training config the
         score is something nobody can reproduce or improve on.
         """
-        from pokelike.leaderboard import Artifact
+        from pokelike.arena.leaderboard import Artifact
 
         stored = json.loads(self.weights_path.read_text(encoding="utf-8"))
         return [

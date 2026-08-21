@@ -175,7 +175,7 @@ class DynaQBot(Bot):
         version says what the states mean, and without the training config the
         score is a number nobody can reproduce or improve on.
         """
-        from pokelike.leaderboard import Artifact
+        from pokelike.arena.leaderboard import Artifact
 
         table = json.loads(self.table_path.read_text(encoding="utf-8"))
         return [

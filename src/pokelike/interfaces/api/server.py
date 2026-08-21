@@ -95,7 +95,7 @@ def _handler(game: Game):
                 # never see the game. Rendered in memory, no window involved.
                 self._png(game)
             elif route == "/schema":
-                from ...schema import describe
+                from ...core.schema import describe
 
                 self._text(describe(game.state()))
             else:

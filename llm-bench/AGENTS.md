@@ -77,11 +77,10 @@ The reason is the whole point of freezing: the shared `bot/llm.py` **must** impr
 because `bots/` reads it. If a frozen harness imported it, the next improvement for a
 submission would silently change what every recorded score meant.
 
-**Two import paths are frozen too:** `pokelike.leaderboard.Artifact` and
+**Two import paths are frozen too:** `pokelike.arena.leaderboard.Artifact` and
 `pokelike.bot.base.Bot`. All four harnesses import them, as do submitted bots whose
-files are fingerprinted against their scores. They cannot move without a permanent shim,
-which is also why `leaderboard.py` stayed at the top level rather than under
-`competition/`.
+files are fingerprinted against their scores. Moving either means re-fingerprinting every result that records it, which is what the
+move of `leaderboard.py` into `pokelike.arena` required.
 
 ## What each version asks
 
@@ -113,7 +112,7 @@ were, a leftover `HarnessV2` in `v3` was found by the test suite, not by reading
 
 `cross_run_memory(version)` loads the harness class and reads its `CROSS_RUN_MEMORY`
 attribute, it is asked of the harness, never hardcoded, so adding a version needs no
-edit in `instrument/llmbench.py` or `run.sh`. It controls three things:
+edit in `harness/llmbench.py` or `run.sh`. It controls three things:
 
 - **`--workers` is refused** when true: notes from one run feed the next, so the runs are
   not independent and splitting seeds across workers would give each its own notebook.
@@ -149,7 +148,7 @@ is on you.
 
 - **The seed list**, recorded as data in every pass rather than hashed, so it is
   checkable by reading.
-- **`src/pokelike/instrument/llmbench.py`**, it builds the bot and drives the pass, and
+- **`src/pokelike/harness/llmbench.py`**, it builds the bot and drives the pass, and
   a change there is not reported. Treat it the way you would treat the frozen files and
   say what you did in the pull request.
 - Two open holes worth knowing: the three shared keys are absent from the eleven results

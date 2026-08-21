@@ -248,7 +248,7 @@ lives in `bots/mine/artifacts/`.
 | `on_end(state, score)` | after the last turn, with the score | a method in the class | `def on_end(self, state, score): self.learn(score["points_no_time"])` |
 | `rearrange(state) -> (a,b) \| None` | before `choose`, while `state["can_reorder"]` | a method in the class | `def rearrange(self, state): return (0, 2)` to swap slots 0 and 2, or `return None` |
 | `explain() -> str` | after `choose`, for the `-d` log | a method in the class | `def explain(self): return self._why` (set `self._why` inside `choose`) |
-| `artifacts() -> list` | at `bot bench` record time | a method in the class | `def artifacts(self): from pokelike.leaderboard import Artifact; return [Artifact(name="weights", kind="weights-json", data=self.w)]` |
+| `artifacts() -> list` | at `bot bench` record time | a method in the class | `def artifacts(self): from pokelike.arena.leaderboard import Artifact; return [Artifact(name="weights", kind="weights-json", data=self.w)]` |
 
 ```python
 # bots/mine/bot.py

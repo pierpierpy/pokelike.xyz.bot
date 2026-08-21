@@ -14,10 +14,10 @@ from datetime import datetime
 from pathlib import Path
 
 from ...assets.mirror import PHASES, build
-from ...competition.bench import (CATEGORIES, STANDARD_SEEDS, format_result,
+from ...arena.bench import (CATEGORIES, STANDARD_SEEDS, format_result,
                                   run_benchmark)
-from ...leaderboard import build_index, format_table, record_result
-from ...runner import play_run
+from ...arena.leaderboard import build_index, format_table, record_result
+from ...core.runner import play_run
 from ...assets.server import AssetServer
 from ...core import render
 from ...core.browser import SEED_MAX, normalise_seed
@@ -167,7 +167,7 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     # rather than being pinned away from one.
     scripts = {}
     if getattr(args, "harness", None):
-        from ...instrument import llmbench as _lb
+        from ...harness import llmbench as _lb
         scripts = _lb.script_paths(args.harness)
     else:
         own = _own_bridge(getattr(args, "bot", None))
@@ -418,7 +418,7 @@ def cmd_bot(args) -> int:
 
 def cmd_new_bot(args) -> int:
     """Creates a bot folder that already plays, so it can be measured at once."""
-    from ...competition.scaffold import new_bot
+    from ...arena.scaffold import new_bot
 
     try:
         d = new_bot(args.name, BOTS, llm=args.llm)
@@ -539,7 +539,7 @@ def cmd_bench(args) -> int:
         # Fifty runs took minutes; a failure in the last five seconds must not
         # throw them away. Written somewhere plain, with the one command that
         # files it once whatever broke is fixed.
-        from ...competition.bench import save
+        from ...arena.bench import save
         from ...bot.catalogue import slugify
 
         rescue = save(result, BOTS / slugify(args.bot) / "result.unrecorded.json")
@@ -567,7 +567,7 @@ def cmd_bench(args) -> int:
 
 def cmd_watch(args) -> int:
     """Follows one pass, from the trace it is already writing."""
-    from ...instrument.watch import dashboard, overview
+    from ...harness.watch import dashboard, overview
 
     if args.all:
         return overview(version=args.harness)
@@ -577,7 +577,7 @@ def cmd_watch(args) -> int:
 
 def cmd_llm_bench(args) -> int:
     """Runs one or more models against a frozen harness version."""
-    from ...instrument import llmbench
+    from ...harness import llmbench
 
     # Asked of both verbs. A version IS the question a row answers, so neither
     # running nor reading can be done without naming one.
@@ -824,7 +824,7 @@ def cmd_leaderboard(args) -> int:
 
 def cmd_schema(args) -> int:
     """Prints what a bot receives, captured from a live run."""
-    from ...schema import as_markdown, capture, describe
+    from ...core.schema import as_markdown, capture, describe
 
     server, game = _server_and_game(args)
     try:
@@ -1076,7 +1076,7 @@ def _model_bench_args(s) -> None:
     # silently would let two passes that asked different things look like the same
     # command. Not `required=True` either, because `board` reads every version; the
     # check is in `cmd_llm_bench`, where reading and running are told apart.
-    from ...instrument import llmbench as _lbv
+    from ...harness import llmbench as _lbv
     s.add_argument("--harness", default=None,
                    help="harness version, one of: "
                         f"{', '.join(_lbv.versions()) or 'none on disk'}. Required")
@@ -1115,7 +1115,7 @@ def _model_bench_args(s) -> None:
 
 
 def _model_watch_args(s) -> None:
-    from ...instrument import llmbench as _lbv
+    from ...harness import llmbench as _lbv
     # Optional here, unlike on `bench` and `board`. Watching is about what is
     # happening rather than about a question being answered, and with nothing
     # said it follows whichever pass was written to last.
@@ -1139,7 +1139,7 @@ def _model_watch_args(s) -> None:
 
 
 def _model_board_args(s) -> None:
-    from ...instrument import llmbench as _lbv
+    from ...harness import llmbench as _lbv
     s.add_argument("--harness", default=None,
                    help="harness version, one of: "
                         f"{', '.join(_lbv.versions()) or 'none on disk'}. Required")

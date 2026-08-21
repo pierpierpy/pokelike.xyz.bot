@@ -93,7 +93,7 @@ class Bot(ABC):
     def artifacts(self) -> list:
         """What to archive alongside a leaderboard result.
 
-        Return a list of `pokelike.leaderboard.Artifact`: weights, prompts, the
+        Return a list of `pokelike.arena.leaderboard.Artifact`: weights, prompts, the
         model you called, the hyperparameters you trained with. A bot made of
         plain rules has nothing to declare and can ignore this.
 

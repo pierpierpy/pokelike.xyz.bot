@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..runner import play_run
+from ..core.runner import play_run
 
 # The official seed list. Fifty runs is enough to see past the luck without
 # taking all afternoon, and it is held well away from the seeds used elsewhere

@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .bot.catalogue import BOTS, folder, slugify
+from ..bot.catalogue import BOTS, folder, slugify
 
 # What an artifact is FOR, so a reader knows what they are looking at without
 # opening it. Anything else is archived too, with a note.

@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..competition.bench import (STANDARD_SEEDS, _tok, progress_bar, run_benchmark,
+from ..arena.bench import (STANDARD_SEEDS, _tok, progress_bar, run_benchmark,
                                 summarise)
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -54,7 +54,7 @@ BENCH = ROOT / "llm-bench"
 # game shows. Fingerprinted so a change is reported rather than absorbed.
 BROWSER = Path(__file__).resolve().parent.parent / "core" / "browser.py"
 GAME = Path(__file__).resolve().parent.parent / "core" / "game.py"
-RUNNER = Path(__file__).resolve().parent.parent / "runner.py"
+RUNNER = Path(__file__).resolve().parent.parent / "core" / "runner.py"
 
 # How many runs at each end of a pass make up the learning comparison. Ten of
 # fifty: long enough to average out a lucky seed, short enough that the two
@@ -1083,7 +1083,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
         procs.append(subprocess.Popen(
             # `__name__`, not the path spelled out. Spelled out, it said
             # `pokelike.llmbench`, and stayed saying it when the module moved into
-            # `pokelike.instrument`, so every worker died on import and only the
+            # `pokelike.harness`, so every worker died on import and only the
             # single-process path still worked.
             [sys.executable, "-m", __name__, "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
@@ -1185,7 +1185,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             f"expected {len(seeds)} runs, collected {len(rows)}; discarding the pass"
         )
 
-    from ..competition.bench import bundle_fingerprint
+    from ..arena.bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
                    fingerprint=stamp)
     one["log"] = str(log.path)
@@ -1202,8 +1202,8 @@ def _worker() -> int:
     from ..assets.server import AssetServer
     from ..bot.catalogue import load_class
     from ..core.game import Game
-    from ..competition.bench import live_fields
-    from ..runner import play_run
+    from ..arena.bench import live_fields
+    from ..core.runner import play_run
 
     p = argparse.ArgumentParser()
     p.add_argument("--worker", action="store_true")

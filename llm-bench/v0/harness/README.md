@@ -93,7 +93,7 @@ it changes what its answer means. `init.js` is stronger again, since a run's see
 built from `Date.now()` and `Math.random()`.
 
 Two things are still imported, and they are imports rather than copies on purpose.
-`pokelike.bot.base.Bot` and `pokelike.leaderboard.Artifact` are interfaces rather
+`pokelike.bot.base.Bot` and `pokelike.arena.leaderboard.Artifact` are interfaces rather
 than behaviour: one is the shape a bot has, the other is how a bot declares what it
 carries, and neither can change what a model is asked. (`Artifact` is also
 effectively frozen public API, because every submitted bot in `bots/` imports it from

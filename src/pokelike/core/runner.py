@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core.game import Game
+from .game import Game
 
 
 # The engine's own name for a node is not always the clearest one to read.

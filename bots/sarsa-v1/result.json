@@ -583,7 +583,7 @@
   "training_updates": 5988,
   "decisions": 978
  },
- "fingerprint": "9cecc39130129736dbc2420a9cad0397c44e7ab08d634501f582136c1da83cef",
+ "fingerprint": "6db91485188298228700c39ab192bfd1084ce043ba739cd39aef0ebb98bb2128",
  "artifacts": [
   {
    "name": "weights.json",
@@ -606,6 +606,11 @@
    "now": "9cecc39130129736dbc2420a9cad0397c44e7ab08d634501f582136c1da83cef",
    "at": "2026-08-20T14:54:20+00:00",
    "why": "docstring only: `pokelike bot --bot X` and `pokelike bench` renamed to `pokelike bot run` and `pokelike bot bench`, the commands they became. No code path changed and no number was replayed."
+  },
+  {
+   "fingerprint": "9cecc39130129736dbc2420a9cad0397c44e7ab08d634501f582136c1da83cef",
+   "reason": "src reorg: leaderboard moved to pokelike.arena.leaderboard; the only change to the measured file is that import path. No behaviour change; renderer, bridge, init and the shared files are byte-identical.",
+   "at": "2026-08-21T09:43:12.900485+00:00"
   }
  ]
 }

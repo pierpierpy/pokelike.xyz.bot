@@ -460,7 +460,7 @@ class LSPIBot(Bot):
         return [(name, round(w, 3)) for name, w in pairs[:n]]
 
     def artifacts(self) -> list:
-        from pokelike.leaderboard import Artifact
+        from pokelike.arena.leaderboard import Artifact
 
         stored = json.loads(self.weights_path.read_text(encoding="utf-8"))
         return [

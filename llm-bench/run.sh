@@ -63,7 +63,7 @@ if case " $* " in *" --workers "*) false ;; *) true ;; esac; then
     # harness that keeps notes was launched with the four workers it refuses.
     if ! MEMORY="$(PK_HARNESS="$HARNESS" uv run python -c "
 import os
-from pokelike.instrument.llmbench import cross_run_memory
+from pokelike.harness.llmbench import cross_run_memory
 print(1 if cross_run_memory(os.environ['PK_HARNESS']) else 0)")"; then
         echo "cannot tell whether harness $HARNESS keeps notes, so not guessing" >&2
         echo "  the line above is the real error" >&2

@@ -37,7 +37,7 @@ _No models measured under harness `v4` yet._
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
 | 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | -0.10 | 1 | 113233 | 17709 | 0.032 | 1.04 | 0.0208 |
-| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.48 | 0.0096 |
+| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
 | 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
@@ -51,7 +51,7 @@ _No models measured under harness `v4` yet._
 | 3 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 37740 | 13965 | 0.027 | 0.15 | 0.0029 |
 | 4 | `openai/gpt-5.4-mini` | 1 | 50 | **0.7** | 0.082 | 2 | 22619 | 1089 | 0.006 | 1.09 | 0.0219 |
 | 5 | `openai/gpt-5.6-luna` | 1 | 50 | **0.7** | 0.065 | 1 | 31488 | 3167 | 0.0 | 0.50 | 0.0101 |
-| 6 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 34881 | 968 | 0.0 | 0.17 | 0.0035 |
+| 6 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 34881 | 968 | 0.0 | 0.19 | 0.0038 |
 | 7 | `openai/gpt-5-nano` | 1 | 50 | **0.66** | 0.073 | 2 | 20602 | 26157 | 0.468 | 0.57 | 0.0115 |
 
 <!-- END llm-bench -->

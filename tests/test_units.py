@@ -209,7 +209,7 @@ def test_new_bot_writes_something_that_loads(tmp_path):
     """
     from pokelike.bot.catalogue import load_class
     from pokelike.bot.llm import LLMBot
-    from pokelike.competition.scaffold import new_bot
+    from pokelike.arena.scaffold import new_bot
 
     plain = load_class(new_bot("probe-plain", tmp_path) / "bot.py")
     assert plain(seed=0).choose({"actions": [{}, {}], "team": []}) in (0, 1)
@@ -234,7 +234,7 @@ def test_every_bot_can_actually_be_recorded(tmp_path, monkeypatch):
     import shutil
 
     from pokelike.bot.catalogue import BOTS, available as on_disk, load_class
-    from pokelike.leaderboard import fingerprint, load_results, record_result
+    from pokelike.arena.leaderboard import fingerprint, load_results, record_result
 
     for var, val in (("FW_ENDPOINT", "https://x.invalid"),
                      ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
@@ -783,7 +783,7 @@ def test_a_bot_may_carry_its_own_bridge(tmp_path, monkeypatch):
 
 def test_a_bots_own_bridge_lands_in_its_fingerprint(tmp_path):
     """Which is the whole reason it goes in artifacts/ rather than beside bot.py."""
-    from pokelike.leaderboard import fingerprint
+    from pokelike.arena.leaderboard import fingerprint
 
     d = tmp_path / "mine"
     (d / "artifacts").mkdir(parents=True)
