@@ -567,12 +567,14 @@ def cmd_bench(args) -> int:
 
 def cmd_watch(args) -> int:
     """Follows one pass, from the trace it is already writing."""
-    from ...harness.watch import dashboard, overview
+    from ...harness.watch import dashboard, monitor, overview
 
+    if args.overview:
+        return monitor(version=args.harness, every=args.every)
     if args.all:
         return overview(version=args.harness)
     return dashboard(version=args.harness, once=args.once,
-                     stamp=args.stamp, model=args.model)
+                     stamp=args.stamp, model=args.model, every=args.every)
 
 
 def cmd_llm_bench(args) -> int:
@@ -1135,6 +1137,10 @@ def _model_watch_args(s) -> None:
                         "of the name is enough")
     s.add_argument("--model", default=None, metavar="ID",
                    help="follow the pass playing this model")
+    s.add_argument("-o", "--overview", action="store_true",
+                   help="every RUNNING pass at once, each with a live progress bar")
+    s.add_argument("--every", type=float, default=2.0, metavar="SECS",
+                   help="refresh interval for the live views (default 2س)".replace("س", "s"))
     s.set_defaults(func=cmd_watch)
 
 
