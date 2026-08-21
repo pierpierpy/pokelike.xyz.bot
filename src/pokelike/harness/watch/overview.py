@@ -52,7 +52,7 @@ def overview(version: str | None = None) -> int:
         finished = p.runs[: p.done] if p.state == "running" else p.runs
         mean = (sum(r.badges for r in finished) / len(finished)) if finished else 0.0
         tone = {"running": "green", "done": "cyan", "stalled": "yellow",
-                "FAILED": "red"}.get(p.state, "white")
+                "stopped": "blue", "FAILED": "red"}.get(p.state, "white")
         age = time.time() - _touched(d)
         t.add_row(d.name, p.version, p.model,
                   f"{p.done}/{p.wanted or '?'}", f"{mean:.2f}",

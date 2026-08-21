@@ -29,7 +29,8 @@ FAMILIES = (
     ("pokelike model", (
         ("bench", "a model against one frozen harness version"),
         ("board", "what has been measured, per version"),
-        ("watch", "follow a pass while it plays"))),
+        ("watch", "follow a pass while it plays"),
+        ("stop", "end a running pass, keeping everything it wrote"))),
 )
 
 _FAMILY = dict(FAMILIES)   # name -> verbs, for the per-group boxes

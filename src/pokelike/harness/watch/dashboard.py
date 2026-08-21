@@ -54,16 +54,18 @@ def _runs_table(p: "Pass", limit: int = 12):
     from rich.table import Table
 
     t = Table(expand=False, border_style="dim", header_style="bold")
-    for name in ("seed", "badges", "steps", "in", "out", "fell", "secs"):
+    for name in ("seed", "badges", "score", "steps", "in", "out", "fell", "secs"):
         t.add_column(name, justify="right")
     finished = p.runs[: p.done] if p.state == "running" else p.runs
     for r in finished[-limit:]:
-        t.add_row(str(r.seed), str(r.badges), str(r.steps),
+        t.add_row(str(r.seed), str(r.badges),
+                  "[dim]-[/dim]" if r.score is None else str(r.score),
+                  str(r.steps),
                   _fmt_tokens(r.tokens_in), _fmt_tokens(r.tokens_out),
                   f"[yellow]{r.fell}[/yellow]" if r.fell else "0",
                   f"{r.secs:.0f}" if r.secs else "[dim]-[/dim]")
     if not finished:
-        t.add_row(*["[dim]-[/dim]"] * 7)
+        t.add_row(*["[dim]-[/dim]"] * 8)
     return t
 
 

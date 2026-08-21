@@ -133,7 +133,16 @@ def play_model(game, version: str, model: str, site: Path,
             on_run=on_run, on_decision=decided, on_step=looked,
         )
     except BaseException as e:
-        log.fail(f"{type(e).__name__}: {e}")
+        # A pass asked to stop is not a pass that broke. SIGTERM (`model stop`,
+        # `docker stop`) arrives as SystemExit(143) and Ctrl-C as KeyboardInterrupt,
+        # and both mean somebody decided this on purpose: recording those as FAILED
+        # made a deliberate stop look like an incident in `model watch --all`. The
+        # seeds already played are in the trace either way.
+        if isinstance(e, KeyboardInterrupt) or (
+                isinstance(e, SystemExit) and e.code in (130, 143)):
+            log.stopped(f"{type(e).__name__}: {e.code if isinstance(e, SystemExit) else 'Ctrl-C'}")
+        else:
+            log.fail(f"{type(e).__name__}: {e}")
         log.close()
         raise
     one = _as_pass(version, model, seeds, result["runs"], result["game"],

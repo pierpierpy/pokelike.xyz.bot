@@ -16,12 +16,18 @@ v4 was holding, which only the notebook file records.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from .liveness import _alive_fresh
+
+# What a pass calls the file of finished runs, written beside the trace. Named
+# here because two things need it: skipping it when looking for the trace, and
+# finding it when looking for the scores.
+RUNS_SUFFIX = "-runs.jsonl"
 
 
 # ----------------------------------------------------------------------- data
@@ -34,6 +40,10 @@ class Run:
     seed: int
     steps: int = 0
     badges: int = 0
+    # The engine's own points_no_time, known only once the run is over, so it
+    # arrives from the pass's runs file rather than from the decision trace. None
+    # while the run is in flight, and on passes older than that file.
+    score: int | None = None
     map: int = 0
     fell: int = 0
     tokens_in: int = 0
@@ -88,6 +98,19 @@ class Pass:
 # ----------------------------------------------------------------------- reading
 
 
+def newest_trace(folder: Path) -> Path | None:
+    """The pass's decision trace, which is not the only .jsonl beside it.
+
+    In: a pass directory. Out: the trace path, or None when there is none.
+    """
+    # A pass also writes `<pass>-runs.jsonl`, one line per FINISHED run, and that
+    # file is written last, so picking "the newest .jsonl" would eventually pick it
+    # and read the wrong file as the trace. The suffix is excluded here, in one
+    # place, rather than at each of the four sites that look for a trace.
+    traces = [f for f in folder.glob("*.jsonl") if not f.name.endswith(RUNS_SUFFIX)]
+    return max(traces, key=lambda f: f.stat().st_mtime, default=None)
+
+
 def read(folder: Path, up: list[str] | None = None) -> Pass | None:
     """Everything the dashboard shows, from the files in one pass directory.
 
@@ -97,7 +120,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
     live container still reads as running (the pre-heartbeat fallback). Omit it and
     liveness rests on the heartbeat alone.
     """
-    trace = max(folder.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, default=None)
+    trace = newest_trace(folder)
     if trace is None:
         return None
     cmd = {}
@@ -165,12 +188,23 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
     text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
     if "\nFAILED" in text or text.startswith("FAILED"):
         p.state = "FAILED"
+    elif "\nSTOPPED" in text or text.startswith("STOPPED"):
+        # Ended on purpose (`model stop`, `docker stop`, Ctrl-C). Its own word, so
+        # it is not read as a failure and not read as a finished pass either: the
+        # seeds it did not play were never played.
+        p.state = "stopped"
     elif "\ndone " in text:
         p.state = "done"
-    elif _alive_fresh(trace):
-        # The pass is still touching its heartbeat: running. This is the only
-        # signal and it is enough: every live pass writes one, and it stops the
-        # instant the process does, however it stopped.
+    elif _alive_fresh(trace) and not _owner_gone(trace, up):
+        # The pass is still touching its heartbeat: running. The heartbeat is the
+        # signal, and it stops the instant the process does, however it stopped.
+        #
+        # The one addition is not a guess: a pass WRITES who is playing it into that
+        # file, so when it names a container that is no longer up, the pass is over
+        # now rather than in five minutes' time. That matters after `model stop`,
+        # where the container's own files are root-owned and the heartbeat cannot be
+        # removed from outside, so without this the pass would sit in `model watch`
+        # looking alive until the mtime aged out.
         p.state = "running"
     else:
         # Not finished, and not touching its heartbeat: it stopped and nothing said
@@ -180,6 +214,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
     # Never fewer than have been played. `--seeds` takes a range as two numbers in
     # some older command files, and a pass that says it wanted 2 and played 50 reads
     # as a bug in the pass rather than in the file it was read from.
+    _add_scores(trace, p)
     p.wanted = max(p.wanted, len(p.runs))
 
     p.notes = _notes(folder, trace)
@@ -260,3 +295,59 @@ def _plan(folder: Path, trace: Path) -> str:
         if line.startswith("  ") and line.strip():
             last = line.strip()
     return last
+
+
+def _add_scores(trace: Path, p: "Pass") -> None:
+    """Fills in each finished run's score from the pass's runs file.
+
+    In: the trace path (the runs file sits beside it) and the Pass to complete.
+    Out: nothing, the runs are updated in place.
+    """
+    # A pass writes one JSON line per finished run, which is the only place the
+    # score exists while the pass is still playing: the decision trace is per
+    # decision, and a score is not known until the run ends. Absent for passes
+    # started before this file existed, and the score simply stays None there.
+    path = trace.with_name(trace.stem + RUNS_SUFFIX)
+    if not path.is_file():
+        return
+    by_seed = {}
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue          # the last line can be half written
+            if row.get("seed") is not None:
+                by_seed[int(row["seed"])] = row.get("score")
+    except OSError:
+        return
+    for r in p.runs:
+        if r.seed in by_seed:
+            r.score = by_seed[r.seed]
+
+
+def _owner_gone(trace: Path, up: list[str] | None) -> bool:
+    """Whether the pass named a container that is no longer running.
+
+    In: the trace path (the heartbeat sits beside it) and the containers up now.
+    Out: True only when the pass named one and it is absent.
+    """
+    # Conservative by construction, because a false True would hide a pass that is
+    # genuinely playing. It needs BOTH a list of containers to compare against and a
+    # pass that said which one it is. Anything unknown, an older pass with no owner
+    # line, a machine without docker, a pass playing outside a container, leaves the
+    # heartbeat as the only signal, exactly as before.
+    if not up:
+        return False
+    alive = trace.with_suffix(".alive")
+    try:
+        text = alive.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    host = dict(re.findall(r"(pid|host)=(\S+)", text)).get("host")
+    if not host:
+        return False
+    return not any(host == x or x.startswith(host) or host.startswith(x) for x in up)

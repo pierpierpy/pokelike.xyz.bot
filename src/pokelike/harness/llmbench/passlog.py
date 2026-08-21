@@ -42,7 +42,7 @@ class PassLog:
     # they are written as workers finish. That is not a defect: it is what tells you
     # a particular worker has been stuck on one game for two minutes.
 
-    COLUMNS = ("  seed  badges  steps        in       out  fell  retry     secs")
+    COLUMNS = ("  seed  badges   score  steps        in       out  fell  retry     secs")
     COLUMNS_MEMORY = COLUMNS + "  notes"
 
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
@@ -78,8 +78,13 @@ class PassLog:
         # Opened on demand rather than up front: v0 has neither.
         self.book_path = self.path.with_name(self.path.stem + "-notebook.log")
         self.plan_path = self.path.with_name(self.path.stem + "-plan.log")
+        # One JSON line per finished run, so a watcher can read what the fixed-width
+        # log is only meant to show a person: the score above all, which the
+        # decision trace cannot carry because it is not known until the run ends.
+        self.runs_path = self.path.with_name(self.path.stem + "-runs.jsonl")
         self.bf: Any = None
         self.pf: Any = None
+        self.rf: Any = None
         self._last_book: list[str] | None = None
         self._last_plan: str | None = None
         self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
@@ -119,7 +124,11 @@ class PassLog:
         self.spent[row.get("seed")] = (row.get("tokens_in") or 0,
                                        row.get("tokens_out") or 0)
         self._say(
-            f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}{row.get('steps') or 0:>7}"
+            f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}"
+            # The engine's own points_no_time. A run can legitimately score
+            # negative (5*KO - 10*faints in Story mode), so no sign is assumed.
+            f"{(row.get('score') if row.get('score') is not None else 0):>8}"
+            f"{row.get('steps') or 0:>7}"
             f"{row.get('tokens_in') or 0:>10}{row.get('tokens_out') or 0:>10}"
             f"{row.get('fallbacks') or 0:>6}{row.get('retries') or 0:>7}"
             f"{row.get('secs') or 0:>9.1f}"
@@ -137,6 +146,7 @@ class PassLog:
             self.book = book
         self._write_notebook(row)
         self._write_plan(row)
+        self._write_run_row(row)
         # A mark every ten runs, with where it is and when it should finish.
         if self.total and self.n % 10 == 0 and self.n < self.total:
             done = time.time() - self.started
@@ -177,6 +187,20 @@ class PassLog:
             self._say(f"notes it finished with ({len(self.book)}):")
             for i, note in enumerate(self.book, 1):
                 self._say(f"  [{i}] {note}")
+
+    def _write_run_row(self, row: dict[str, Any]) -> None:
+        """One JSON line per finished run, the row as the result will hold it.
+
+        In: the run's result dict. Out: a line appended to `<pass>-runs.jsonl`.
+        """
+        # The decision trace cannot carry the score: it is one line per DECISION,
+        # and the score exists only once the run is over. The human log has the row
+        # but as fixed-width columns, which is for reading, not for parsing. So the
+        # rows are written once more here, as JSON, which is what lets `model watch`
+        # show the score of a pass that is still playing. Fifty short lines a pass.
+        if self.rf is None:
+            self.rf = self.runs_path.open("w", encoding="utf-8", buffering=1)
+        self.rf.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def _write_notebook(self, row: dict[str, Any]) -> None:
         """One block per run: the notes as they stood when that run ended."""
@@ -264,13 +288,22 @@ class PassLog:
         """
         self._say(f"FAILED after {self.n} runs: {why}")
 
+    def stopped(self, why: str) -> None:
+        """Records that the pass was stopped on purpose, not that it broke.
+
+        In: what asked it to stop. Out: the line is written.
+        """
+        # Read back by `model watch` as the state word, so a pass you ended with
+        # `model stop` reads as stopped rather than as an incident to investigate.
+        self._say(f"STOPPED after {self.n} runs: {why}")
+
     def close(self) -> None:
         """Stops the heartbeat and closes all open file handles.
 
         In: nothing. Out: .alive removed, all handles closed.
         """
         self._heartbeat.stop()
-        for fh in (self.fh, self.tf, self.bf, self.pf):
+        for fh in (self.fh, self.tf, self.bf, self.pf, self.rf):
             if fh is not None and not fh.closed:
                 fh.close()
 

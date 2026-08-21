@@ -50,9 +50,14 @@ def folders(version: str | None = None) -> list[Path]:
     In: optional version string. Out: list of Paths sorted by recency.
     """
     bench = _bench()
+    # Locally imported like the other read.py uses in this module, which keeps the
+    # two modules free to import each other's names without an import cycle.
+    from .read import RUNS_SUFFIX
+
     versions = [bench / version] if version else sorted(bench.glob("v*"))
     dirs = [d for v in versions for d in (v / "logs").glob("*")
-            if d.is_dir() and any(d.glob("*.jsonl"))]
+            if d.is_dir() and any(f for f in d.glob("*.jsonl")
+                                  if not f.name.endswith(RUNS_SUFFIX))]
     return sorted(dirs, key=_touched, reverse=True)
 
 
@@ -105,7 +110,9 @@ def _containers() -> list[str]:
     try:
         out = subprocess.run(
             ["docker", "ps", "--filter", "label=com.docker.compose.project=pokelike-llm-bench",
-             "--format", "{{.Names}}"],
+             # Names AND ids: a pass writes its hostname into the heartbeat and
+             # Docker sets that to the container id, so both have to be matchable.
+             "--format", "{{.Names}} {{.ID}}"],
             capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return []
@@ -141,7 +148,7 @@ def live(version: str | None = None) -> list[Path]:
     killed pass as alive for minutes and a slow one as dead. If it is not proven
     running, it is not here.
     """
-    from .read import read
+    from .read import RUNS_SUFFIX, read
 
     up = _get_containers()
     return [d for d in folders(version)
@@ -187,7 +194,7 @@ def pick(version: str | None = None, stamp: str | None = None,
     from rich.console import Console
     from rich.prompt import IntPrompt
 
-    from .read import read
+    from .read import RUNS_SUFFIX, read
 
     if stamp or model:
         for d in folders(version):

@@ -6,6 +6,7 @@ In: the parsed args (with --docker set). Out: the container's exit code.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -50,6 +51,11 @@ def _in_docker(args) -> int:
     while passthru and passthru[0] in ("model", "bench"):
         passthru.pop(0)
 
+    reaped = reap_exited()
+    if reaped:
+        print(f"  removed {len(reaped)} container(s) that had already exited: "
+              f"{', '.join(reaped)}")
+
     model = (args.model or args.models or "many").replace("/", "-").replace(":", "-")
     # A short random suffix, for the same reason the pass directory carries one: two
     # passes of the same model on the same harness are a normal thing to want (a
@@ -70,7 +76,12 @@ def _in_docker(args) -> int:
     # COMPOSE_IGNORE_ORPHANS: every pass is its own container in one shared compose
     # project, so the passes already running are not orphans and the warning about
     # them is noise on every launch.
-    env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true"}
+    # UID/GID: the compose file runs the container as this user so that what a pass
+    # writes on the mounted volume belongs to the person who launched it, not to
+    # root. They are shell variables rather than environment ones, so they have to
+    # be put in the environment here or compose would fall back to its default.
+    env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true",
+           "UID": str(os.getuid()), "GID": str(os.getgid())}
     r = subprocess.run(cmd, cwd=root, env=env)
     if r.returncode == 0:
         print(f"\n  {name} is playing. Follow it with:\n"
@@ -78,3 +89,34 @@ def _in_docker(args) -> int:
               f"    docker logs -f {name}\n"
               f"  It removes itself when the pass ends; `docker stop {name}` ends it early.")
     return r.returncode
+
+
+def reap_exited() -> list[str]:
+    """Removes bench containers that have already finished.
+
+    In: nothing. Out: the names removed, in the order Docker listed them.
+    """
+    # A pass launched with `--docker` carries `--rm` and takes itself away, but one
+    # launched by hand without it stays in `docker ps -a` forever, and a list of
+    # dead containers is noise that hides the live ones. Only EXITED containers of
+    # this project are touched: a running pass is never at risk, and nothing a pass
+    # wrote lives in the container anyway (the logs are on the mounted volume).
+    ids: list[str] = []
+    for flt in (["--filter", "label=com.docker.compose.project=pokelike-llm-bench"],
+                ["--filter", "name=^pk_"]):
+        try:
+            out = subprocess.run(
+                ["docker", "ps", "-a", "--filter", "status=exited", *flt,
+                 "--format", "{{.Names}}"],
+                capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return []
+        ids += [n for n in out.stdout.split() if n and n not in ids]
+    if not ids:
+        return []
+    try:
+        subprocess.run(["docker", "rm", *ids], capture_output=True, text=True,
+                       timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return ids

@@ -9,9 +9,12 @@ import argparse
 
 from ..shared import add_llm_flags
 from .model_bench import cmd_llm_bench
+from .model_stop import cmd_stop, model_stop_args
 from .model_watch import cmd_watch, model_watch_args
 
 __all__ = [
+    "cmd_stop",
+    "model_stop_args",
     "cmd_llm_bench",
     "cmd_watch",
     "model_bench_args",

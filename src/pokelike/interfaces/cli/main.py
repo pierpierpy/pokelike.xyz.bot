@@ -19,8 +19,9 @@ from .commands.general import (cmd_api, cmd_mirror, cmd_play, cmd_schema,
                                cmd_setup, cmd_stats)
 from .commands.bot import (bot_bench_args, bot_new_args, bot_run_args, cmd_bench,
                            cmd_bot, cmd_leaderboard, cmd_new_bot)
-from .commands.model import (cmd_llm_bench, cmd_watch, model_bench_args,
-                             model_board_args, model_watch_args)
+from .commands.model import (cmd_llm_bench, cmd_stop, cmd_watch,
+                             model_bench_args, model_board_args,
+                             model_stop_args, model_watch_args)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,6 +93,12 @@ def main(argv: list[str] | None = None) -> int:
         "bench", help="a model against one frozen harness version"))
     model_board_args(models.add_parser(
         "board", help="what has been measured, per version"))
+    model_stop_args(models.add_parser(
+        "stop", help="end a running pass, keeping everything it wrote",
+        description="Asks the pass to finish, the way `docker stop` and Ctrl-C do: "
+                    "the browser closes, the log is flushed, and the logs, trace "
+                    "and notebook stay exactly where they are. Nothing is deleted.",
+    ))
     model_watch_args(models.add_parser(
         "watch", help="follow a pass while it plays",
         description="Redraws what the model is doing from the trace the pass is "

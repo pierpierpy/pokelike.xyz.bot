@@ -42,7 +42,8 @@ Split by responsibility into submodules:
   tables.py    -- format_table, markdown_table, write_readme (presentation)
   pricing.py   -- prices, cost, estimate, TYPICAL_RUN, preflight
   passes.py    -- play_model (sequential execution)
-  parallel.py  -- fan_out, _worker (the fan-out and the subprocess entry point)
+  parallel.py  -- fan_out, _worker (the fan-out and its subprocess logic)
+  worker.py    -- the subprocess entry point (`python -m`), not imported by __init__
 
 Everything previously accessible as module-level names is re-exported here so
 that `from pokelike.harness import llmbench as L` keeps the identical surface.

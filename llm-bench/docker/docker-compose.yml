@@ -42,6 +42,13 @@ services:
     # eight workers need eight times it. Without this the browsers die mid-run
     # with errors that read like the game crashed rather than like a full /dev/shm.
     shm_size: 2gb
+    # As the person who launched it, not as root. Everything a pass writes lands on
+    # the mounted volume, and written by root it could not be tidied, moved or
+    # deleted afterwards without sudo: `model stop` could not even remove the
+    # heartbeat file of a pass it had just stopped, so the pass sat in `model watch`
+    # looking alive until its mtime aged out. Verified that the browser still
+    # launches under this uid (Chromium lives in the image, at /ms-playwright).
+    user: "${UID:-1000}:${GID:-1000}"
     # Credentials from a file that is gitignored, never from the image and never
     # from this file. Model ids are not secret and go on the command line.
     env_file:

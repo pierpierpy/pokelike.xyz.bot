@@ -454,3 +454,181 @@ def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch)
     # Now it is cached: no third fetch.
     assert pricing.cached_prices() == {"a/b": {"in": 1.0, "out": 2.0}}
     assert len(calls) == 2
+
+
+# ------------------------------------------------------------- stopping on purpose
+#
+# `model stop <stamp>` ends a pass the way docker stop does. Two things have to be
+# true afterwards: the pass reads as STOPPED rather than as a failure (it was
+# nobody's bug), and everything it wrote is still on disk.
+
+
+def test_a_pass_stopped_on_purpose_is_not_read_as_a_failure(bench):
+    """The word in the log is what tells a deliberate stop from a crash.
+
+    In: a pass log ending in STOPPED. Out: state is 'stopped', not 'FAILED'.
+    """
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
+    log = folder / "a--b-pass1.log"
+    log.write_text("2 seeds, 1 worker\nSTOPPED after 1 runs: SystemExit: 143\n",
+                   encoding="utf-8")
+    p = watch.read(folder)
+    assert p is not None and p.state == "stopped"
+
+
+def test_a_real_failure_still_reads_as_failed(bench):
+    """The distinction has to cut both ways.
+
+    In: a pass log ending in FAILED. Out: state is 'FAILED'.
+    """
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
+    (folder / "a--b-pass1.log").write_text(
+        "2 seeds, 1 worker\nFAILED after 1 runs: LLMConfigError: HTTP 401\n",
+        encoding="utf-8")
+    p = watch.read(folder)
+    assert p is not None and p.state == "FAILED"
+
+
+def test_the_stopper_resolves_a_stamp_prefix_and_refuses_an_ambiguous_one(bench):
+    """A prefix is enough, unless it matches more than one pass.
+
+    In: stamps on disk. Out: the folder, or None with an explanation.
+    """
+    import importlib
+    stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
+
+    for stamp in ("20260820-170000-aaaa", "20260820-170000-bbbb", "20260821-180000-cccc"):
+        _trace(bench / "v9" / "logs" / stamp, "a/b",
+               [_row(10000, 0, "2026-08-20T17:00:00")])
+    assert stop._folder_for("20260821-18").name == "20260821-180000-cccc"
+    assert stop._folder_for("20260820-17") is None, "two match, so it must refuse"
+    assert stop._folder_for("19990101") is None, "none match"
+
+
+def test_the_stopper_reads_who_owns_a_pass_from_the_heartbeat(bench):
+    """A pass names its own process, so the right one is signalled.
+
+    In: a pass whose .alive carries pid and host. Out: both, parsed.
+    """
+    import importlib
+    stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
+
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    (folder / "a--b-pass1.alive").write_text("pid=4242 host=7dae1e302082\n",
+                                             encoding="utf-8")
+    assert stop._owner(folder) == {"pid": "4242", "host": "7dae1e302082"}
+    # A pass from before the owner line simply has nothing to say.
+    (folder / "a--b-pass1.alive").write_text("", encoding="utf-8")
+    assert stop._owner(folder) == {}
+
+
+def test_a_recorded_pid_is_only_trusted_while_it_is_still_that_pass(bench):
+    """Pids are reused, so the process behind one has to be checked.
+
+    In: a pid and the pass's version and model. Out: True only when it matches.
+    """
+    import importlib
+    import os
+    stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
+
+    # This test process is certainly not playing a benchmark.
+    assert stop._mine(str(os.getpid()), "v9", "a/b") is False
+    assert stop._mine("not-a-number", "v9", "a/b") is False
+    assert stop._mine("999999999", "v9", "a/b") is False
+
+
+def test_the_heartbeat_writes_who_is_playing(tmp_path):
+    """The owner line is what makes a pass stoppable by name.
+
+    In: a heartbeat on a tmp path. Out: its file carries this process's pid.
+    """
+    import os
+    from pokelike.harness.llmbench.heartbeat import HeartbeatThread
+
+    beat = HeartbeatThread(tmp_path / "x.alive")
+    assert f"pid={os.getpid()}" in beat.owner and "host=" in beat.owner
+
+
+# ------------------------------------------------------------------- the score
+#
+# A run's score is the engine's own points_no_time, and it exists only once the run
+# is over, so it cannot come from the decision trace (one line per decision). The
+# pass writes it to `<pass>-runs.jsonl`, which is also a .jsonl in the same folder,
+# so the trace must never be found by "the newest .jsonl".
+
+
+def _runs_file(folder, model: str, rows: list[dict]) -> None:
+    """Writes the pass's runs file, one JSON line per finished run."""
+    name = model.replace("/", "--")
+    (folder / f"{name}-pass1-runs.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def test_a_finished_run_carries_its_score(bench):
+    """The score reaches the table from the runs file, keyed by seed.
+
+    In: a trace and a runs file. Out: each finished run has its score.
+    """
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00"),
+        _row(10001, 0, "2026-08-20T17:01:00"),
+    ])
+    _runs_file(folder, "a/b", [{"seed": 10000, "score": -50, "badges": 1},
+                               {"seed": 10001, "score": 15, "badges": 0}])
+    p = watch.read(folder)
+    assert p is not None
+    assert {r.seed: r.score for r in p.runs} == {10000: -50, 10001: 15}
+
+
+def test_the_runs_file_is_never_mistaken_for_the_trace(bench):
+    """It is a .jsonl in the same folder, and it is written last.
+
+    In: a folder holding both. Out: the trace is the decisions, not the runs.
+    """
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00", badges=3)])
+    # Written after the trace, so "newest .jsonl" would pick this one.
+    _runs_file(folder, "a/b", [{"seed": 10000, "score": -50, "badges": 3}])
+    os.utime(folder / "a--b-pass1-runs.jsonl", (time.time() + 10, time.time() + 10))
+    p = watch.read(folder)
+    assert p is not None
+    assert p.model == "a/b"
+    assert [r.badges for r in p.runs] == [3], "the decisions were parsed, not the runs"
+
+
+def test_a_pass_without_a_runs_file_has_no_score_rather_than_a_wrong_one(bench):
+    """Passes started before that file existed simply have nothing to show.
+
+    In: a trace with no runs file. Out: score is None, and nothing raises.
+    """
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    p = watch.read(folder)
+    assert p is not None and p.runs[0].score is None
+
+
+def test_a_pass_writes_its_runs_file_with_the_score(tmp_path):
+    """The writing half: the row the result will hold is also written per run.
+
+    In: a PassLog and one run row. Out: the runs file holds it as JSON.
+    """
+    from pokelike.harness import llmbench as L
+
+    folder = tmp_path / "20260821-000000-abcd"
+    folder.mkdir()
+    log = L.PassLog("v0", "a/b", [10000], workers=1, folder=folder)
+    try:
+        log.run({"seed": 10000, "badges": 2, "score": -35, "steps": 20,
+                 "tokens_in": 1000, "tokens_out": 100, "secs": 5.0})
+    finally:
+        log.close()
+    rows = [json.loads(x) for x in log.runs_path.read_text().splitlines() if x.strip()]
+    assert rows == [{"seed": 10000, "badges": 2, "score": -35, "steps": 20,
+                     "tokens_in": 1000, "tokens_out": 100, "secs": 5.0}]
+    # And the human log grew a score column beside badges.
+    assert "score" in L.PassLog.COLUMNS
+    assert "-35" in log.path.read_text(encoding="utf-8")

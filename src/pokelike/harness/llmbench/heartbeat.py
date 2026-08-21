@@ -11,6 +11,8 @@ itself on the way out, which a crash would skip.
 
 from __future__ import annotations
 
+import os
+import socket
 import threading
 from pathlib import Path
 
@@ -33,6 +35,20 @@ class HeartbeatThread:
         self._thread = threading.Thread(
             target=self._run, name="pk-heartbeat", daemon=True
         )
+
+    @property
+    def owner(self) -> str:
+        """Who is playing this pass, written into the heartbeat file.
+
+        In: nothing. Out: a line like `pid=1234 host=7dae1e302082`.
+        """
+        # So `model stop <stamp>` can signal exactly this pass rather than guessing
+        # from a model name. The pid is only meaningful on the machine that wrote
+        # it; inside a container it belongs to that container's namespace, which is
+        # why the hostname goes with it: Docker sets it to the container id, so the
+        # host can turn one into `docker stop`. Liveness still reads only the
+        # mtime, so the content costs nothing.
+        return f"pid={os.getpid()} host={socket.gethostname()}\n"
 
     def start(self) -> None:
         """Begins the heartbeat loop."""
@@ -60,7 +76,12 @@ class HeartbeatThread:
         """Touch the .alive file until the pass ends, by whatever means."""
         while True:
             try:
-                self.alive_path.touch()
+                # Rewritten rather than touched, so the owner line is restored if
+                # anything removed the file, and the mtime moves either way. A
+                # reader that catches it mid-write sees a short or empty file and
+                # falls back to matching the pass by model, which is why the
+                # stopper never trusts this content blindly.
+                self.alive_path.write_text(self.owner, encoding="utf-8")
             except OSError:
                 pass
             if self._stop_event.wait(HEARTBEAT_SECS):
