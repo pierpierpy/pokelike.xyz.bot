@@ -33,14 +33,6 @@ This repo is 3 things, use it as you please. It is:
   beats the game better than mine and open a pull request. A trained policy, a prompt, a
   rulebook, tree search, anything that turns a state into a move.
 
-**Two axes run through this, and the environment exists to explore both.** One is the
-**bots**: strategies that people write. A `bots/` entry can be a prompt, a trained
-policy, a rulebook or a search, and it may call any model it likes; the author's idea
-is what is on trial, and the [competition](#3-bot-competition) ranks them. The other is
-the **models themselves**: the [LLM agentic benchmark](#2-llm-agentic-benchmark) puts a
-language model on the stand directly, with the scaffold held fixed, to measure the model
-rather than whoever wrote around it. The same headless, reproducible game underpins both.
-
 ---
 
 **Contents**
