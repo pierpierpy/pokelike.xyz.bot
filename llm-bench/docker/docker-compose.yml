@@ -8,9 +8,12 @@
 #   docker compose -f llm-bench/docker/docker-compose.yml run --rm bench \
 #       --harness v0 --model z-ai/glm-5.2:free
 #
-# Detached, for the runs that take hours:
+# Detached, for the runs that take hours. `--rm` makes the container remove
+# ITSELF the moment the pass finishes (the results and logs are on the mounted
+# volume, so nothing is lost); `docker stop` on it shuts the browser down
+# gracefully via SIGTERM rather than being killed mid-write:
 #
-#   docker compose -f llm-bench/docker/docker-compose.yml run -d --name sweep \
+#   docker compose -f llm-bench/docker/docker-compose.yml run --rm -d --name sweep \
 #       bench --harness v0 --models a/b,c/d --repeat 3 --workers 8
 #   tail -f llm-bench/v0/logs/*.log     # from the host: the log is a mounted file
 #   docker logs -f sweep                # or the container's own output

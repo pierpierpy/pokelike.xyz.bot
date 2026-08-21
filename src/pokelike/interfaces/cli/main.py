@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -1243,7 +1244,19 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(func=cmd_stats)
 
     args = p.parse_args(list(argv) if argv is not None else sys.argv[1:])
-    return args.func(args)
+
+    # Graceful exit. Ctrl-C (SIGINT -> KeyboardInterrupt) and `docker stop`
+    # (SIGTERM) both unwind cleanly: every command that owns a browser does so
+    # through a `with session()`/context manager, whose `__exit__` closes it on
+    # the way out. SIGTERM is turned into SystemExit so it travels through that
+    # same cleanup instead of killing the process where it stands, and Ctrl-C
+    # prints one line rather than a traceback.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\ninterrupted.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
