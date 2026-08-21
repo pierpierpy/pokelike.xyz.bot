@@ -682,9 +682,7 @@ def _running_table(version: str | None):
 
     up = _containers()
     running = sorted(live(version), key=_started)
-    t = Table(border_style="dim", header_style="bold",
-              title=f"{len(running)} passes running, oldest first",
-              title_justify="left")
+    t = Table(border_style="dim", header_style="bold")
     t.add_column("#", justify="right")
     t.add_column("v")
     t.add_column("model", no_wrap=True, min_width=26)
