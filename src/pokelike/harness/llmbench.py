@@ -518,8 +518,19 @@ def session_dir(version: str) -> Path:
     destroy the only thing it is for.
     """
     d = BENCH / version / "logs" / datetime.now().strftime("%Y%m%d-%H%M%S")
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # One command = one directory, and two commands launched in the same second
+    # (parallel containers, a shell loop) must NOT land in the same one: they
+    # would share a command.json and blur together in `model watch`. mkdir with
+    # exist_ok=False is atomic, so a collision just takes the next free suffix,
+    # which is race-safe across processes and containers alike.
+    base, stamp, n = d.parent, d.name, 2
+    while True:
+        try:
+            d.mkdir(parents=True, exist_ok=False)
+            return d
+        except FileExistsError:
+            d = base / f"{stamp}-{n}"
+            n += 1
 
 
 def parse_settings(pairs: list[str] | None) -> dict[str, Any]:
@@ -585,6 +596,19 @@ def record_command(folder: Path, payload: dict[str, Any]) -> Path:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
     return path
+
+
+import threading  # noqa: E402  -- used by PassLog's heartbeat, kept beside it
+
+# A running pass touches its `.alive` file every HEARTBEAT_SECS; `model watch`
+# treats a pass whose file has not been touched for HEARTBEAT_STALE seconds as no
+# longer running. This is the ONE liveness signal that survives EVERY way a pass
+# can stop -- a clean return, an exception, `kill -9`, an OOM, the container being
+# removed, the machine losing power -- because all of them stop the touches. We
+# read the ABSENCE of a fresh heartbeat, never a promise the pass made about
+# itself on the way out, which a crash would skip.
+HEARTBEAT_SECS = 5.0
+HEARTBEAT_STALE = 300.0
 
 
 class PassLog:
@@ -660,6 +684,17 @@ class PassLog:
             self._say("this harness keeps the model's notes between runs: they are "
                       "logged as they change.")
         self._say(self.COLUMNS_MEMORY if memory else self.COLUMNS)
+
+        # Liveness. From here until close(), a daemon thread keeps touching a small
+        # file beside the trace. If this process stops for ANY reason the touches
+        # stop with it, so a stale (or missing) .alive is how `model watch` knows
+        # the pass is no longer running -- even when nothing got the chance to write
+        # "done" or "FAILED".
+        self.alive_path = self.trace_path.with_suffix(".alive")
+        self._beat_stop = threading.Event()
+        self._beat = threading.Thread(target=self._heartbeat,
+                                      name="pk-heartbeat", daemon=True)
+        self._beat.start()
 
     def _say(self, line: str) -> None:
         self.fh.write(line + "\n")
@@ -852,7 +887,26 @@ class PassLog:
     def fail(self, why: str) -> None:
         self._say(f"FAILED after {self.n} runs: {why}")
 
+    def _heartbeat(self) -> None:
+        """Touch the .alive file until the pass ends, by whatever means."""
+        while True:
+            try:
+                self.alive_path.touch()
+            except OSError:
+                pass
+            if self._beat_stop.wait(HEARTBEAT_SECS):
+                return
+
     def close(self) -> None:
+        # Stop the heartbeat and take its file with it: a clean close means the
+        # pass is over NOW, so `model watch` should not wait for the mtime to age
+        # out. A crash never reaches here -- and does not need to, because the
+        # thread dies with the process and the file simply stops being touched.
+        self._beat_stop.set()
+        try:
+            self.alive_path.unlink()
+        except OSError:
+            pass
         for fh in (self.fh, self.tf, self.bf, self.pf):
             if fh is not None and not fh.closed:
                 fh.close()

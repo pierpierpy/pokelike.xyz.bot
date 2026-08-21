@@ -8,6 +8,7 @@ CI runs in. What is worth testing is the parsing, and that needs a file, not a r
 from __future__ import annotations
 
 import json
+import os
 import time
 
 import pytest
@@ -15,7 +16,13 @@ import pytest
 from pokelike.harness import watch
 
 
-def _trace(folder, model: str, rows: list[dict]) -> None:
+def _trace(folder, model: str, rows: list[dict], alive: bool | float = True) -> None:
+    """Write a pass's files. `alive` controls the heartbeat that decides liveness:
+
+    True  -> a fresh .alive (a pass being played right now)
+    False -> no .alive at all (a pass from an image older than the heartbeat)
+    a timestamp -> a .alive with that mtime (a pass whose process has stopped)
+    """
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "command.json").write_text(json.dumps({
         "at": "2026-08-20T17:00:00+02:00", "harness": folder.parent.parent.name,
@@ -24,6 +31,12 @@ def _trace(folder, model: str, rows: list[dict]) -> None:
     name = model.replace("/", "--")
     (folder / f"{name}-pass1.jsonl").write_text(
         "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    beat = folder / f"{name}-pass1.alive"
+    if alive is True:
+        beat.touch()
+    elif alive is not False:
+        beat.touch()
+        os.utime(beat, (float(alive), float(alive)))
 
 
 def _row(seed: int, step: int, at: str, **kw) -> dict:
@@ -204,48 +217,45 @@ def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(
     assert "2 passes going" in capsys.readouterr().out
 
 
-def test_the_containers_decide_what_is_live(bench, monkeypatch):
-    """Three containers up means three passes to choose from, whatever the clock says.
+def test_the_heartbeat_decides_what_is_live(bench, monkeypatch):
+    """A pass is live while it is touching its heartbeat, and dead the moment it
+    stops -- not by the clock, and not by whether a container happens to be up.
 
-    Deciding from the clock alone was wrong both ways: a pass killed a minute ago still
-    looked alive, and one whose turn was taking six minutes looked dead.
+    A stale heartbeat is a pass that stopped for SOME reason (a kill, an OOM, a
+    power cut), and it must not be offered however recently the trace was written.
     """
-    dead = bench / "v9" / "logs" / "20260820-150000"
     alive = bench / "v9" / "logs" / "20260820-170000"
-    other = bench / "v9" / "logs" / "20260820-170100"
-    _trace(dead, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T15:00:00")])
+    dead = bench / "v9" / "logs" / "20260820-150000"
     _trace(alive, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")])
-    _trace(other, "google/gemma-4-31b-it", [_row(10000, 0, "2026-08-20T17:01:00")])
-    import os
-
-    old = time.time() - 120
-    for f in dead.glob("*.jsonl"):
-        os.utime(f, (old, old))
-
-    monkeypatch.setattr(watch, "_containers", lambda: [
-        "qwen-qwen3-7-flash-180247", "google-gemma-4-31b-it-180235"])
-    names = {d.name for d in watch.live()}
-    assert names == {alive.name, other.name}, "the killed pass is still being offered"
+    _trace(dead, "google/gemma-4-31b-it", [_row(10000, 0, "2026-08-20T15:00:00")],
+           alive=time.time() - 600)
+    monkeypatch.setattr(watch, "_containers", lambda: [])
+    assert watch.read(alive).state == "running"
+    assert watch.read(dead).state == "stalled"
+    assert {d.name for d in watch.live()} == {alive.name}
 
 
-def test_a_model_with_no_container_of_its_own_is_dropped(bench, monkeypatch):
-    d = bench / "v9" / "logs" / "20260820-170000"
-    _trace(d, "deepseek/deepseek-v4-flash-0731", [_row(10000, 0, "2026-08-20T17:00:00")])
-    import os
-
-    old = time.time() - 120
-    for f in d.glob("*.jsonl"):
-        os.utime(f, (old, old))
-    monkeypatch.setattr(watch, "_containers", lambda: ["qwen-qwen3-7-flash-1"])
-    assert watch.live() == []
-
-
-def test_without_docker_the_clock_decides(bench, monkeypatch):
-    """A pass played on the host has no container to be found in."""
+def test_a_fresh_heartbeat_is_live_without_any_container(bench, monkeypatch):
+    """A pass played on the host has no container; its heartbeat is enough."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     monkeypatch.setattr(watch, "_containers", lambda: [])
     assert [x.name for x in watch.live()] == [d.name]
+
+
+def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
+    """No heartbeat means not running, even if a container of the same model is up.
+
+    A container up for `qwen` cannot prove that THIS qwen pass is the one it is
+    running: a newer qwen pass could own it. The heartbeat is per pass, so it is
+    the only thing that answers the question, and its absence is a dead pass.
+    """
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")],
+           alive=False)
+    monkeypatch.setattr(watch, "_containers", lambda: ["pk_v4_qwen-qwen3-7-flash"])
+    assert watch.live() == []
+    assert watch.read(d, watch._containers()).state == "stalled"
 
 
 def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
@@ -265,19 +275,13 @@ def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
     assert watch.pick() == a
 
 
-def test_a_pass_nothing_has_written_to_for_a_while_is_stalled(bench, monkeypatch):
-    import os
-
+def test_a_stale_pass_is_stalled_and_not_offered(bench, monkeypatch):
+    """A pass whose heartbeat stopped is stalled, and never offered to follow."""
     d = bench / "v9" / "logs" / "20260820-170000"
-    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
-    old = time.time() - 600
-    os.utime(d / "a--b-pass1.jsonl", (old, old))
-    assert watch.read(d).state == "stalled"
-    # Still offered with nothing containerised, because five minutes of silence is
-    # not proof under a harness whose turns are this big. The state says so in the
-    # list, and a container list is what settles it when there is one.
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=time.time() - 600)
     monkeypatch.setattr(watch, "_containers", lambda: [])
-    assert [x.name for x in watch.live()] == [d.name]
+    assert watch.read(d).state == "stalled"
+    assert watch.live() == []
 
 
 def test_the_numbers_in_the_list_do_not_move(bench, monkeypatch):

@@ -28,6 +28,13 @@ from typing import Any
 
 BENCH = Path(__file__).resolve().parents[3] / "llm-bench"
 
+# Must track llmbench.HEARTBEAT_SECS: a live pass touches `<trace>.alive` every
+# few seconds; a stopped one never touches it again. Five minutes of silence is
+# the cutoff, generous on purpose so a genuinely slow model is never called dead.
+# Read from the file's mtime (the host filesystem's clock, shared by a container's
+# bind mount and the host), so there is no wall-clock or timezone guessing.
+HEARTBEAT_STALE = 300.0
+
 
 # ----------------------------------------------------------------------- reading
 
@@ -120,53 +127,50 @@ def _slug(model: str) -> str:
     return out.strip("-")
 
 
-def live(version: str | None = None, within: float = 900.0) -> list[Path]:
-    """The passes that are actually going.
+def _alive_fresh(trace: Path) -> bool:
+    """True while the pass that owns this trace is still touching its heartbeat.
 
-    ASKED OF DOCKER FIRST, because docker is the only thing that knows. Deciding this
-    from the clock alone was wrong in both directions: a pass killed a minute ago still
-    looked alive, and a pass whose turn was taking six minutes looked dead. With three
-    containers up you should be offered three passes, and that is what a container list
-    says without any guessing.
-
-    `run.sh` names each container after the model it plays, so the match is by model. If
-    two passes of one model are on disk and one container is up for it, the one still
-    being written to is the one that container is writing.
-
-    Nothing running under docker at all, or no docker: the clock is the fallback, with a
-    minute's window, which is what a pass being played on the host looks like.
-
-    A pass that has said `done` or `FAILED` in its log is never live however recently it
-    wrote. That was a finished dry run offered as a choice, three seconds old, at the top
-    of the list because it had written last.
+    The `.alive` file beside the trace is refreshed by the running process every
+    few seconds (see llmbench.PassLog). No file, or an mtime older than
+    HEARTBEAT_STALE, means the process is gone -- however it went: a clean finish,
+    an exception, `kill -9`, an OOM, a removed container, a power cut. This is the
+    whole of the liveness test, and it needs nothing to have been written on the
+    way out.
     """
-    up = {n.rsplit("-", 1)[0] for n in _containers()}
-    now = time.time()
-    out: list[Path] = []
-    claimed: set[str] = set()
-    for d in folders(version):
-        age = now - _touched(d)
-        if age >= within:
-            continue
-        p = read(d)
-        if p is None or p.state in ("done", "FAILED"):
-            continue
-        slug = _slug(p.model)
-        if slug in up:
-            # One container, one pass. Folders come newest first, so the first match
-            # is the one that container is writing to.
-            if slug in claimed:
-                continue
-            claimed.add(slug)
-        elif not (up and age > 60):
-            # No container for this model. Either nothing is containerised at all, in
-            # which case the clock decides, or this pass is being played on the host
-            # right now and is writing as we look.
-            pass
-        else:
-            continue
-        out.append(d)
-    return out
+    try:
+        return (time.time() - trace.with_suffix(".alive").stat().st_mtime) < HEARTBEAT_STALE
+    except OSError:
+        return False
+
+
+def _has_container(model: str, names: list[str]) -> bool:
+    """Is a pokelike container for this model up right now?
+
+    Matched as a substring so it holds whatever named the container: run.sh's
+    `qwen-qwen3-7-flash-180247` and a compose `--name pk_v4_qwen-qwen3-7-flash`
+    both contain the model's slug. Only a fallback: it keeps a pass started by an
+    image built before the heartbeat existed visible until it finishes.
+    """
+    slug = _slug(model)
+    return any(slug in n for n in names)
+
+
+def live(version: str | None = None) -> list[Path]:
+    """The passes that are ACTUALLY running, and nothing else.
+
+    A pass is running when it is still refreshing its heartbeat (the one signal
+    that survives every way a run can stop), or, as a fallback for a pass from an
+    image older than the heartbeat, when a container is up for it. A pass whose
+    log already says `done` or `FAILED` is finished, never running, however
+    recently it wrote.
+
+    There is deliberately no "written in the last N minutes" window: that showed a
+    killed pass as alive for minutes and a slow one as dead. If it is not proven
+    running, it is not here.
+    """
+    up = _containers()
+    return [d for d in folders(version)
+            if (p := read(d, up)) is not None and p.state == "running"]
 
 
 def _started(folder: Path) -> tuple[int, str]:
@@ -220,6 +224,7 @@ def pick(version: str | None = None, stamp: str | None = None,
     # ordered, the list reshuffled between two invocations: the 3 you chose a minute
     # ago was the 1 you chose now, and both were the same pass.
     running.sort(key=_started)
+    up = _containers()
 
     console = Console()
     if not console.is_terminal:
@@ -232,7 +237,7 @@ def pick(version: str | None = None, stamp: str | None = None,
 
     console.print(f"{len(running)} passes are going, oldest first:\n")
     for i, d in enumerate(running, 1):
-        p = read(d)
+        p = read(d, up)
         where = f"{p.done}/{p.wanted or '?'} runs" if p else "?"
         # The state belongs in the list. A pass whose container is gone still reads
         # as a candidate for a few minutes, and picking it to find out is worse than
@@ -247,8 +252,13 @@ def pick(version: str | None = None, stamp: str | None = None,
     return running[int(n) - 1]
 
 
-def read(folder: Path) -> Pass | None:
-    """Everything the dashboard shows, from the files in one pass directory."""
+def read(folder: Path, up: list[str] | None = None) -> Pass | None:
+    """Everything the dashboard shows, from the files in one pass directory.
+
+    `up` is the current container list; pass it and a pass with no heartbeat but a
+    live container still reads as running (the pre-heartbeat fallback). Omit it and
+    liveness rests on the heartbeat alone.
+    """
     trace = max(folder.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, default=None)
     if trace is None:
         return None
@@ -319,10 +329,14 @@ def read(folder: Path) -> Pass | None:
         p.state = "FAILED"
     elif "\ndone " in text:
         p.state = "done"
-    elif _touched(folder) < time.time() - 300:
-        # Neither finished nor failed, and nothing written for five minutes. Saying
-        # "running" about a container that is gone is how you wait for something that
-        # will never arrive.
+    elif _alive_fresh(trace):
+        # The pass is still touching its heartbeat: running. This is the only
+        # signal and it is enough -- every live pass writes one, and it stops the
+        # instant the process does, however it stopped.
+        p.state = "running"
+    else:
+        # Not finished, and not touching its heartbeat: it stopped and nothing said
+        # so (a kill, an OOM, a power cut, a removed container). Not running.
         p.state = "stalled"
 
     # Never fewer than have been played. `--seeds` takes a range as two numbers in
@@ -575,7 +589,7 @@ def overview(version: str | None = None) -> int:
     t.add_column("state")
     t.add_column("last", justify="right")
     for d in folders_found:
-        p = read(d)
+        p = read(d, up)
         if p is None:
             continue
         finished = p.runs[: p.done] if p.state == "running" else p.runs
@@ -615,7 +629,7 @@ def dashboard(version: str | None = None, once: bool = False,
         console.print("start one with:  bash llm-bench/run.sh <model> --harness <v>")
         return 1
 
-    p = read(folder)
+    p = read(folder, _containers())
     if p is None:
         console.print(f"{folder} holds no trace yet")
         return 1
@@ -633,11 +647,13 @@ def dashboard(version: str | None = None, once: bool = False,
             # THE SAME directory, not whichever was written to last. With two passes
             # going the last write alternates between them, and the view would flip
             # every couple of seconds with neither one readable.
-            fresh = read(folder)
+            fresh = read(folder, _containers())
             if fresh is None:
                 continue
             p = fresh
             live_view.update(render(p, _containers()))
-            if p.state in ("done", "FAILED"):
+            if p.state in ("done", "FAILED", "stalled"):
+                # Finished, or stopped being touched (died). Either way there is
+                # nothing more to redraw.
                 break
     return 0
