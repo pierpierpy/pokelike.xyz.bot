@@ -58,3 +58,7 @@ experiments/*/artifacts/
 # Same rule for the model benchmark: the harness and the results are the record
 # and are committed, the running commentary is not.
 llm-bench/*/logs/
+/home/pdipasquale/pokelike.xyz/TIPS_AND_TRICKS.md
+
+# local research notes, never published
+TIPS_AND_TRICKS.md
