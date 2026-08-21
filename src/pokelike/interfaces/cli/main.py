@@ -11,6 +11,7 @@ import json
 import os
 import signal
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -596,6 +597,9 @@ def cmd_llm_bench(args) -> int:
               f"{', '.join(known) or 'none'}", file=sys.stderr)
         return 2
 
+    if getattr(args, "docker", False):
+        return _in_docker(args)
+
     if args.table:
         # Fetched now, not stored: prices are somebody else's changing fact, and a
         # cost written into a result would be a claim about today made months ago.
@@ -815,6 +819,64 @@ def cmd_llm_bench(args) -> int:
         if table:
             print(f"\n{table}")
     return 0
+
+
+def _in_docker(args) -> int:
+    """Runs this same `model bench` inside the container, and returns.
+
+    Exactly the documented compose command, built here so the flags cannot be got
+    wrong: `--build` so the image is never stale, `--rm` so the container removes
+    itself when the pass ends, `-d` because a fifty-seed pass outlives the shell.
+    Compose, not `docker run`, on purpose: the mounts, the 2 GB /dev/shm and the
+    env_file live in the compose file, and duplicating them here would be a second
+    copy to keep in step. Behaviour is therefore identical to running it by hand.
+    """
+    import shutil
+    import subprocess
+
+    root = Path(__file__).resolve().parents[4]
+    compose = root / "llm-bench" / "docker" / "docker-compose.yml"
+    if not compose.exists():
+        print(f"no compose file at {compose}", file=sys.stderr)
+        return 2
+    if not shutil.which("docker"):
+        print("docker is not on PATH", file=sys.stderr)
+        return 2
+
+    # The pass's own flags, forwarded untouched, minus the ones that describe HOW to
+    # launch rather than WHAT to play. `--docker` itself would otherwise recurse.
+    passthru: list[str] = []
+    for i, a in enumerate(sys.argv[1:]):
+        if a in ("--docker",):
+            continue
+        if a == "--name" or (i and sys.argv[i] == "--name"):
+            continue
+        passthru.append(a)
+    # Drop the leading `model bench` verbs: they are the image's ENTRYPOINT.
+    while passthru and passthru[0] in ("model", "bench"):
+        passthru.pop(0)
+
+    model = (args.model or args.models or "many").replace("/", "-").replace(":", "-")
+    # A short random suffix, for the same reason the pass directory carries one: two
+    # passes of the same model on the same harness are a normal thing to want (a
+    # --repeat, a second seed range), and without it the second launch dies on a
+    # name Docker already holds.
+    name = args.name or f"pk_{args.harness}_{model}_{uuid.uuid4().hex[:4]}"
+
+    cmd = ["docker", "compose", "-f", str(compose), "run", "--build", "--rm", "-d",
+           "--name", name, "bench", *passthru]
+    print("  " + " ".join(cmd))
+    # COMPOSE_IGNORE_ORPHANS: every pass is its own container in one shared compose
+    # project, so the passes already running are not orphans and the warning about
+    # them is noise on every launch.
+    env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true"}
+    r = subprocess.run(cmd, cwd=root, env=env)
+    if r.returncode == 0:
+        print(f"\n  {name} is playing. Follow it with:\n"
+              f"    pokelike model watch\n"
+              f"    docker logs -f {name}\n"
+              f"  It removes itself when the pass ends; `docker stop {name}` ends it early.")
+    return r.returncode
 
 
 def cmd_leaderboard(args) -> int:
@@ -1105,6 +1167,14 @@ def _model_bench_args(s) -> None:
                         "is a different question, so it is recorded with the pass")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
+    s.add_argument("--docker", action="store_true",
+                   help="run this same command inside the container instead of here: "
+                        "rebuilds the image, then launches it detached and "
+                        "self-removing. Prints the name to watch it by")
+    s.add_argument("--name", default="", metavar="NAME",
+                   help="container name for --docker. The default, "
+                        "pk_<harness>_<model>_<hash>, carries a short random suffix "
+                        "so two passes of the same model can run at once")
     s.add_argument("--table", action="store_true", help=argparse.SUPPRESS)
     add_llm_flags(s, with_model=False)
     s.add_argument("--no-preflight", action="store_true",
