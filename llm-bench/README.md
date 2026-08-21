@@ -20,7 +20,6 @@ That plays fifty games, records the result, and prints a row. Half an hour or so
 - [Standings](#standings)
 - [Running it](#running-it)
 - [Reading the table](#reading-the-table)
-- [The harnesses](#the-harnesses)
 - [Watching a pass](#watching-a-pass)
 
 ---
@@ -115,30 +114,13 @@ tool call. The full flag list is `--help`.
   when the table is printed and never stored: a cost written into a file is a claim about
   today that nobody can correct later.
 
-## The harnesses
-
-Each is a frozen copy asking a different question. Rows are never compared across them.
-
-- **`v0`**, the plain loop: one call a turn, four tools, memory of the last six moves,
-  1500 tokens. The rules and no strategy.
-- **`v2`**, an agent loop: the last three turns travel with it, a `plan` tool, 4000
-  tokens, notes that survive the run, and a prompt that explains how to play. Sequential
-  only, and it cannot measure a model served by OpenAI.
-  [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
-- **`v4`**, the model is TOLD to run its memory rather than merely allowed to, with
-  examples, a cap you can set with `--set notes=N`, the node tooltips a person can read,
-  and every tool call in the trace. Sequential only.
-
-`v1` and `v3` were deleted, both unmeasured; what v3 changed lives in v4. Each version's
-own README says exactly what it asks: [v0](v0/harness/README.md),
-[v2](v2/harness/README.md), [v4](v4/harness/README.md).
-
 ## Watching a pass
 
 ```bash
 uv run pokelike model watch                     # follow the running pass
+uv run pokelike model watch -o                  # every RUNNING pass, one bar each
 uv run pokelike model watch --all               # every pass on this machine
-bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
+uv run pokelike model stop <stamp>              # end one on purpose, keeping its files
 ```
 
 `model watch` reads the trace the pass is already writing, so it works the same on a

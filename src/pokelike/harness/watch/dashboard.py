@@ -174,7 +174,8 @@ def dashboard(version: str | None = None, once: bool = False,
             return 1
         where = f"llm-bench/{version}/logs" if version else "llm-bench/*/logs"
         console.print(f"nothing to watch: no trace under {where}")
-        console.print("start one with:  bash llm-bench/run.sh <model> --harness <v>")
+        console.print("start one with:  pokelike model bench --harness <v> "
+                      "--model <id> --docker")
         return 1
 
     p = read(folder, _get_containers())

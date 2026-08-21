@@ -73,7 +73,7 @@ def _touched(folder: Path) -> float:
 
 
 def _slug(model: str) -> str:
-    """A model id as `run.sh` turns it into a container name.
+    """A model id as a container name carries it.
 
     In: a model string like 'qwen/qwen3.7-flash'. Out: slug like 'qwen-qwen3-7-flash'.
 
@@ -91,7 +91,7 @@ def _has_container(model: str, names: list[str]) -> bool:
 
     In: model id and list of container names. Out: bool.
 
-    Matched as a substring so it holds whatever named the container: run.sh's
+    Matched as a substring so it holds whatever named the container: the
     `qwen-qwen3-7-flash-180247` and a compose `--name pk_v4_qwen-qwen3-7-flash`
     both contain the model's slug. Only a fallback: it keeps a pass started by an
     image built before the heartbeat existed visible until it finishes.

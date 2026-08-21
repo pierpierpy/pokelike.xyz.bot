@@ -112,7 +112,7 @@ were, a leftover `HarnessV2` in `v3` was found by the test suite, not by reading
 
 `cross_run_memory(version)` loads the harness class and reads its `CROSS_RUN_MEMORY`
 attribute, it is asked of the harness, never hardcoded, so adding a version needs no
-edit in `harness/llmbench/` or `run.sh`. It controls three things:
+edit in `harness/llmbench/`. It controls three things:
 
 - **`--workers` is refused** when true: notes from one run feed the next, so the runs are
   not independent and splitting seeds across workers would give each its own notebook.
@@ -125,13 +125,45 @@ edit in `harness/llmbench/` or `run.sh`. It controls three things:
 
 One directory per command, `llm-bench/<version>/logs/<stamp>/`:
 
+The stamp is `YYYYMMDD-HHMMSS-xxxx`, and the four random hex are not decoration:
+uniqueness must not rest on the clock, because two commands launched in the same
+second (parallel containers, a shell loop) would otherwise share a directory and a
+`command.json`. **A single game is named by `(harness, model, stamp, seed)`**, since
+the standard fifty seeds are the same fifty for every model on purpose, so a seed
+alone names a game in every pass ever played. The stamp is recorded in the result as
+its own field, not left implied by the log paths beside it: those are absolute and
+were written inside the container, so `/app/...` is a directory the host reading the
+result does not have.
+
+**Ending a pass on purpose is `pokelike model stop <stamp>`**, and it deletes
+nothing. It sends SIGTERM, which the CLI turns into a normal exit, so the browser
+closes and the log is flushed, and the logs, trace, notebook and runs file stay
+where they are. A pass ended that way writes `STOPPED after N runs`, which `model
+watch` reads back as `stopped`: a deliberate stop is not an incident, and only a
+real failure writes `FAILED`. A pass also drops out of the running list at once
+rather than after the five-minute heartbeat timeout, by comparing the container it
+named in its heartbeat against the containers that are up.
+
 | file | what it holds |
 |---|---|
 | `command.json` | what was asked: harness, models, seeds, workers, repeat, endpoint. **Never a credential**, `record_command` refuses a payload with a credential-shaped key |
 | `<model>-passN.log` | one line per finished run, flushed as it happens. What you `tail -f` |
-| `<model>-passN.jsonl` | one object per decision: a wall clock, the option taken, the options it had, the reason, every tool call in order, the team, the map when it changed, and tokens at turn/run/pass level. No prompts, reconstructible from the harness plus the seed |
+| `<model>-passN.jsonl` | one object per DECISION: a wall clock, the option taken, the options it had, the reason, every tool call in order, the team, the map when it changed, and tokens at turn/run/pass level. No prompts, reconstructible from the harness plus the seed |
+| `<model>-passN-runs.jsonl` | one object per FINISHED RUN, the row as the result will hold it. It exists because a run's **score** is not knowable until the run ends, so the decision trace cannot carry it and the fixed-width log holds it only as text. This is what lets `model watch` show the score of a pass that is still playing |
 | `<model>-passN-notebook.log` | under any harness that keeps notes, opened on demand; the notes as they stood at the end of each run, `unchanged` when nothing moved |
 | `<model>-passN-plan.log` | same, for the route it planned for each map |
+| `<model>-passN.alive` | the heartbeat, rewritten every `HEARTBEAT_SECS` (5) with `pid=... host=...`. Its **mtime** is the only liveness signal `model watch` has, and its content is how `model stop <stamp>` finds the process to signal: inside a container the pid belongs to that namespace, so the hostname travels with it, Docker having set it to the container id. Removed when a pass closes cleanly |
+
+The two `.jsonl` files are the trap worth knowing about: **the trace is not "the newest
+`.jsonl` in the directory"**. The runs file is written last, so it would eventually win
+that comparison and be read as the trace. `watch.newest_trace()` excludes it, in one
+place, and anything new that goes looking for a trace should use that rather than a
+fresh glob.
+
+The four have four different lifetimes, and mixing them up is how a reader ends up
+reporting a number that does not exist yet: the trace grows per decision, the runs file
+and the log per finished run, the heartbeat on a timer. A pass at `0/50` has a trace and
+a heartbeat and NO runs file, because no run has ended; that is not a missing file.
 
 Every harness records its own tool calls, in its own dispatch loop, because `play` and
 `set_lead` never reach `answer_tool` and nothing outside the harness can see them; a version
@@ -173,6 +205,15 @@ update, or a laptop sleeping. The build context is the **repo root** and
   without that restraint a stray `bench --bot sarsa-v2` would record a result inside the
   container and lose it on exit.
 
-`run.sh` builds, runs detached, names the container after the model (which is how
-`model watch` and `watch --all` know what is running), picks the worker count the
-harness allows, and removes it when done. Credentials come from `.env`.
+**`pokelike model bench ... --docker`** is how a pass goes into a container: it
+forwards the flags you gave it untouched to the compose command, adding `--build` (so
+a stale image can never quietly run old code), `--rm` (the container removes itself
+when the pass ends) and `-d`, and names the container after the harness, the model and
+a short random suffix, which is how two passes of the same model can run at once and
+how `model watch` knows what is up. It also removes any bench container that has
+already exited before starting, since a list of dead containers hides the live ones,
+and a container holds nothing worth keeping: the logs are on the mounted volume. The
+container runs as the calling user, so what a pass writes there is not root-owned.
+Credentials come from `.env`, never from a flag: compose reads that file itself, and a
+key on a command line is readable by every other user of the machine in `ps` and is
+saved in your shell history.
