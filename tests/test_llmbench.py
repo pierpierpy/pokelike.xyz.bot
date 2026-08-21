@@ -483,14 +483,14 @@ def test_the_learn_column_appears_only_for_a_harness_that_keeps_notes(monkeypatc
     ],
 )
 def test_parse_seeds(text, expected):
-    from pokelike.interfaces.cli.main import parse_seeds
+    from pokelike.interfaces.cli.shared import parse_seeds
 
     assert parse_seeds(text) == expected
 
 
 @pytest.mark.parametrize("bad", ["", "10011-10010", "10010,10010"])
 def test_parse_seeds_refuses_nonsense(bad):
-    from pokelike.interfaces.cli.main import parse_seeds
+    from pokelike.interfaces.cli.shared import parse_seeds
 
     with pytest.raises(ValueError):
         parse_seeds(bad)
@@ -507,13 +507,13 @@ class _Args:
 def test_absent_flags_pass_nothing_through():
     """An absent flag must not become an empty string: that would override the
     environment with nothing and turn a working setup into "FW_TOKEN is required"."""
-    from pokelike.interfaces.cli.main import llm_settings
+    from pokelike.interfaces.cli.shared import llm_settings
 
     assert llm_settings(_Args()) == {}
 
 
 def test_flags_are_forwarded_under_the_names_the_constructor_uses():
-    from pokelike.interfaces.cli.main import llm_settings
+    from pokelike.interfaces.cli.shared import llm_settings
 
     got = llm_settings(_Args(endpoint="https://e", api_key="sk-x", model="m"))
     assert got == {"endpoint": "https://e", "token": "sk-x", "model": "m"}
@@ -521,7 +521,7 @@ def test_flags_are_forwarded_under_the_names_the_constructor_uses():
 
 def test_a_key_can_come_from_a_file(tmp_path):
     """A literal key is readable by every other user of the machine in `ps`."""
-    from pokelike.interfaces.cli.main import llm_settings
+    from pokelike.interfaces.cli.shared import llm_settings
 
     f = tmp_path / "key"
     f.write_text("sk-from-a-file\n")
@@ -529,7 +529,7 @@ def test_a_key_can_come_from_a_file(tmp_path):
 
 
 def test_a_missing_key_file_stops_the_command(tmp_path):
-    from pokelike.interfaces.cli.main import llm_settings
+    from pokelike.interfaces.cli.shared import llm_settings
 
     with pytest.raises(SystemExit):
         llm_settings(_Args(api_key=f"@{tmp_path / 'nope'}"))

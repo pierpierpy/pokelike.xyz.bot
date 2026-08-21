@@ -1,7 +1,9 @@
 """The model benchmark: the scaffold is frozen, the model is the entry.
 
-    llmbench.py   versions, fingerprints, passes, the tables and the fan-out
-    watch.py      `pokelike model watch`: a dashboard over a pass's own trace
+    llmbench/   versions and fingerprints, one pass and its log, the results and
+                their tables, the pricing, the fan-out and its worker
+    watch/      `pokelike model watch`: reading a pass's own trace, the per-pass
+                dashboard and the overview of everything running
 
 Every version under `llm-bench/<v>/harness/` freezes four files: the loop, the text
 the model reads, the bridge that decides what is in the state, and the script that

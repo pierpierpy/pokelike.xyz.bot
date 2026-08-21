@@ -12,7 +12,7 @@ I nomi delle funzioni cambiano a ogni rilascio, quindi vengono ricavati dal file
 invece che scritti a mano.
 
 Uso:
-    python3 tools/deobfuscate.py site/js/bundle.<hash>.js
+    python3 utils/deobfuscate.py site/js/bundle.<hash>.js
 
 Produce, accanto al bundle:
     strings.json      la tabella decodificata

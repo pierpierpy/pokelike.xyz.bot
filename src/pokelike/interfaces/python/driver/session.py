@@ -1,5 +1,8 @@
 """Starting and stopping a game, so a caller does not have to assemble it.
 
+In: optional site path, port, display flags. Out: a live Game (context-managed
+or long-lived for notebooks).
+
 Everything was importable and nothing was ready to use: playing one run meant
 finding the offline copy, starting an asset server, choosing a port that is free,
 opening a browser, and closing both afterwards. Five lines of identical
@@ -18,22 +21,22 @@ import asyncio
 import concurrent.futures
 import queue
 import socket
-import statistics
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from ...assets.server import AssetServer
-from ...core.game import Game
-from ...core.runner import play_run
-from tqdm import tqdm
-ROOT = Path(__file__).resolve().parents[4]
+from ....assets.server import AssetServer
+from ....core.game import Game
+
+ROOT = Path(__file__).resolve().parents[5]
 SITE = ROOT / "site"
 
 
 def free_port() -> int:
     """A port the OS says is free, asked for at the moment it is needed.
+
+    In: nothing. Out: an available port number.
 
     Not a constant. A fixed one collides with itself as soon as two scripts run
     at once, or one is left holding the socket, and `Address already in use`
@@ -53,9 +56,11 @@ def _require_site(site: Path) -> None:
 
 
 class HostedGame(Game):
-    """A `Game` that also owns the server feeding it.
+    """A Game that also owns the server feeding it.
 
-    So that `close()` means what a caller expects — put the whole thing away —
+    In: same as Game. Out: a Game whose close() also stops the asset server.
+
+    So that close() means what a caller expects (put the whole thing away)
     instead of leaving a web server running that nothing will ever stop.
     """
 
@@ -72,7 +77,7 @@ class _Worker:
     """A thread that owns a game and runs every call to it.
 
     Jupyter keeps an asyncio loop running, and Playwright's SYNC api refuses to
-    start inside one — it checks `loop.is_running()` and raises, so no amount of
+    start inside one: it checks `loop.is_running()` and raises, so no amount of
     nest_asyncio helps. The fix is not to fight the loop but to leave it: the
     game is built and driven on a plain thread that has no loop at all.
 
@@ -99,7 +104,9 @@ class _Worker:
                 fut.set_exception(e)
 
     def run(self, fn, *args, timeout: float = 180.0, **kwargs):
-        """Runs `fn` on the owning thread and returns its result here.
+        """Runs fn on the owning thread and returns its result here.
+
+        In: a callable and its args. Out: the callable's return value.
 
         With a timeout, because without one anything that goes wrong on the
         other thread is an indefinite wait: in a notebook that reads as a cell
@@ -124,18 +131,21 @@ class _Worker:
         self._thread.join(timeout=5)
 
 
-# Everything on `Game` that reaches into the browser, and so has to be run on the
-# thread that owns it. Plain attributes (`steps`, `seed`, `last_alive`) are just
-# data and are read directly.
+# Everything on Game that reaches into the browser, and so has to be run on the
+# thread that owns it. Plain attributes (steps, seed, last_alive) are just data
+# and are read directly.
 _BROWSER_CALLS = ("reset", "state", "actions", "step", "reorder", "score",
                   "screenshot", "open", "close")
 
 
 class ThreadedGame:
-    """A `HostedGame` living on its own thread, with the same methods.
+    """A HostedGame living on its own thread, with the same methods.
 
-    Used automatically when there is a running event loop — a notebook, or any
-    async context. Elsewhere the plain object is handed back, since a thread
+    In: same kwargs as open_game. Out: a proxy that marshals every browser call
+    to the owning thread.
+
+    Used automatically when there is a running event loop (a notebook, or any
+    async context). Elsewhere the plain object is handed back, since a thread
     would only add a hop.
     """
 
@@ -188,6 +198,8 @@ def open_game(site: Path | str = SITE, watch: bool = False,
               load_images: bool = True, port: int | None = None):
     """A game that stays open until you close it. For notebooks and the REPL.
 
+    In: optional site path, watch flag, load_images flag, port. Out: a live Game.
+
     `with` cannot span notebook cells, which is the whole point of a notebook:
     start a run in one cell, take a move in the next, look at the state in the
     one after. So this hands back a live game and leaves closing to you.
@@ -214,6 +226,8 @@ def session(site: Path | str = SITE, watch: bool = False,
             load_images: bool = True, port: int | None = None):
     """The same game, closed for you on the way out. For scripts.
 
+    In: optional site path, watch, load_images, port. Out: yields a live Game.
+
         with session() as game:
             obs = game.reset(seed=42)
             while not obs["done"]:
@@ -227,83 +241,3 @@ def session(site: Path | str = SITE, watch: bool = False,
         yield game
     finally:
         game.close()
-
-
-def play(bot: Any, seed: int = 1, max_steps: int = 400, watch: bool = False,
-         on_decision=None, site: Path | str = SITE) -> dict[str, Any]:
-    """One run with `bot`, returning what happened, decision trace included.
-
-    The very same `play_run` the CLI and the benchmark use, so a run played from
-    here is the same run and is logged the same way.
-    """
-    with session(site=site, watch=watch) as game:
-        return play_run(game, bot, seed, max_steps=max_steps, on_decision=on_decision)
-
-
-def evaluate(bot: Any, seeds, max_steps: int = 400,
-             site: Path | str = SITE) -> list[dict[str, Any]]:
-    """`bot` over several seeds in one browser. One row per run."""
-    with session(site=site) as game:
-        return [play_run(game, bot, s, max_steps=max_steps) for s in seeds]
-
-
-def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
-            site: Path | str = SITE) -> dict[str, Any]:
-    """Several bots over the SAME seeds, compared pairwise.
-
-    Paired on purpose. Runs vary enormously by luck here, so two separate means
-    mostly measure who drew the nicer maps. The question worth asking is "on this
-    identical run, did it do better".
-
-    `baseline` names what everything is measured against; without one a random
-    bot is added to play that part.
-
-    Returns `{"runs": {name: [row, ...]}, "table": str}`.
-    """
-    from ...bot.random_bot import RandomBot
-
-    seeds = list(seeds)
-    entrants = dict(bots)
-    if baseline is None:
-        baseline = "random"
-        entrants.setdefault("random", RandomBot(seed=0))
-    if baseline not in entrants:
-        raise KeyError(f"baseline '{baseline}' is not one of: {', '.join(entrants)}")
-
-    runs: dict[str, list[dict]] = {}
-    with session(site=site) as game:
-        for name, bot in tqdm(entrants.items()):
-            runs[name] = [play_run(game, bot, s) for s in seeds]
-    return {"runs": runs, "table": format_comparison(runs, baseline)}
-
-
-def format_comparison(runs: dict[str, list[dict]], baseline: str) -> str:
-    """The paired table, ranked by badges — what the leaderboard ranks by.
-
-    Reports wins, draws, losses and a t statistic rather than only a mean:
-    with this much variance between runs, a difference in means on its own says
-    very little.
-    """
-    m = statistics.mean
-    base = runs.get(baseline) or []
-    head = (f"{'bot':<18}{'badges~':>9}{'badges+':>9}{'score~':>9}"
-            f"{'steps~':>8}{'vs ' + baseline:>14}{'t':>8}")
-    out = [head, "-" * len(head)]
-    for name in sorted(runs, key=lambda k: -m(r["badges"] for r in runs[k])):
-        rows = runs[name]
-        cell = t_cell = ""
-        if base and name != baseline:
-            diff = [a["badges"] - b["badges"] for a, b in zip(rows, base)]
-            w = sum(1 for d in diff if d > 0)
-            losses = sum(1 for d in diff if d < 0)
-            cell = f"{w}W-{len(diff) - w - losses}D-{losses}L"
-            if len(diff) > 1 and statistics.stdev(diff) > 0:
-                t_cell = f"{m(diff) / (statistics.stdev(diff) / len(diff) ** 0.5):.2f}"
-        out.append(
-            f"{name:<18}{m(r['badges'] for r in rows):>9.2f}"
-            f"{max(r['badges'] for r in rows):>9}"
-            f"{m(r['score'] or 0 for r in rows):>9.1f}"
-            f"{m(r['steps'] for r in rows):>8.1f}{cell:>14}{t_cell:>8}"
-        )
-    out += ["-" * len(head), "paired on identical seeds; |t| over 2 is worth believing"]
-    return "\n".join(out)

@@ -810,7 +810,7 @@ def test_a_bot_may_carry_its_own_bridge(tmp_path, monkeypatch):
     `artifacts/`, and `artifacts/` specifically, because the leaderboard hashes
     everything under it: the score stays checkable without a line of new code.
     """
-    import pokelike.interfaces.cli.main as cli
+    import pokelike.interfaces.cli.shared as cli
     from pokelike.bot import catalogue
 
     root = tmp_path / "bots"

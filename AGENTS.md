@@ -117,40 +117,54 @@ src/pokelike/
 │   │                      clock, capped timers. This is what makes a seed replay
 │   ├── browser.py         Playwright headless: launches, injects both, filters
 │   ├── game.py            class Game: reset/state/step/score/reorder
-│   ├── render.py          state to text. The SAME module prints your terminal
-│   │                      and feeds an LLMBot by default
+│   ├── render/            state to text. The SAME package prints your terminal
+│   │                      and feeds an LLMBot by default: team, world (the map),
+│   │                      actions, screen (the whole view)
 │   ├── runner.py          play_run(): the one loop that plays a run with a bot
-│   └── schema.py          what a bot receives, generated from a LIVE state, and
-│                          self-checking (a field in a real obs but missing from
+│   └── schema/            what a bot receives: fields (the reference) and
+│                          describe (generated from a LIVE state, and
+│                          self-checking: a field in a real obs but missing from
 │                          FIELDS is reported as undocumented)
 ├── bot/                 WHAT RUNS A BOT, not the bots themselves
 │   ├── base.py            abstract Bot: only act() is required
 │   ├── catalogue.py       finds and loads a bot from its folder in bots/
-│   ├── llm.py             the harness every llm-* bot shares: tools, agentic
-│   │                      loop, HTTP, fallback policy. Shared so that a
-│   │                      benchmark of models holds the harness still
+│   ├── llm/               the harness every llm-* bot shares: agent (the class
+│   │                      and the turn), loop (the agentic rounds), tools,
+│   │                      transport (HTTP and retries), journal (what it
+│   │                      remembers), prompt, fallback, config, record.
+│   │                      Shared so a benchmark of models holds it still
 │   └── random_bot.py      the baseline. Here rather than only in bots/random/
 │                          because compare() defaults to it, so it has to work
 │                          in a checkout with no bots/ at all
 ├── assets/
-│   ├── mirror.py          builds site/ in five phases
+│   ├── mirror/            builds site/ in five phases: phases, fetch,
+│   │                      signatures (the magic-byte check), build
 │   └── server.py          serves site/ from disk
 ├── stats/registry.py    SQLite in stats/runs.db
 ├── arena/               THE BOT COMPETITION: your code is the entry
-│   ├── bench.py           the standard 50-seed benchmark
+│   ├── bench/             the standard 50-seed benchmark: seeds, run, progress,
+│   │                      report
 │   ├── scaffold.py        bot new: writes a bot folder that already plays
-│   └── leaderboard.py     reads bots/*/result.json, ranks, fingerprints. Defines
-│                          Artifact, imported by the frozen harnesses and the bots
-│                          as pokelike.arena.leaderboard.Artifact, a frozen import
+│   └── leaderboard/       reads bots/*/result.json, ranks, fingerprints:
+│                          artifact, record, table. Defines Artifact, imported by
+│                          the frozen harnesses and the bots as
+│                          pokelike.arena.leaderboard.Artifact, a frozen import
 │                          path their fingerprints cover
 ├── harness/             THE MODEL BENCHMARK: the scaffold is frozen
-│   ├── llmbench.py        versions, fingerprints, passes, tables, fan-out
-│   └── watch.py           the dashboard over a pass's own trace
+│   ├── llmbench/          versions (and the fingerprint), command (one command's
+│   │                      directory), passlog + heartbeat (what a pass writes and
+│   │                      how liveness is known), passes and parallel + worker
+│   │                      (running them), results, tables, pricing
+│   └── watch/             `pokelike model watch`: read (a trace into records),
+│                          discover (which passes exist and which are live),
+│                          liveness, dashboard (one pass), overview (all of them)
 └── interfaces/          how something outside drives the game
-    ├── cli/main.py        a human, in a terminal
+    ├── cli/               a human, in a terminal: main (the parser only), help
+    │                      (the boxed screens), shared (flags and helpers), and
+    │                      commands/ one module per family
     ├── api/server.py      a program, over HTTP
     └── python/            a script, a notebook or the REPL
-        ├── driver.py        session(), open_game(), play(), compare()
+        ├── driver/          session(), open_game(), play(), compare()
         └── example.ipynb    the cell-by-cell walkthrough
 llm-bench/               a MODEL benchmark, not a bot one: the harness is frozen
 │                        and the model is the only thing that varies. See
@@ -173,7 +187,7 @@ experiments/             research. OURS are tracked as worked examples; anything
 bots/                    THE BOTS. One folder each: bot.py, artifacts/,
 │                        result.json. Nothing registers them. See bots/AGENTS.md
 tests/                   golden fingerprints + unit tests
-tools/deobfuscate.py     makes the bundle readable (needs node)
+utils/deobfuscate.py     makes the bundle readable (needs node)
 ```
 
 Nothing in `src/` may import from `experiments/`: it is a scratch area, mostly
@@ -212,7 +226,7 @@ expose. Nothing in Python can invent a field the bridge never read. See
 `uv run pokelike schema` for the live reference (generated from a real
 observation, so it cannot describe a game that no longer exists).
 
-**`render` is a module of pure functions, with two consumers.** `core/render.py`
+**`render` is a package of pure functions, with two consumers.** `core/render/`
 is not a class and holds no state: eleven functions that take part of a state and
 return a string. It is both what `pokelike play` prints and the default view an
 `LLMBot` sends to the model. It renders what a person would look at rather than
@@ -234,7 +248,7 @@ quietly finishing it on the backup heuristic, while a transient failure falls ba
 safe move and is counted into `fallback_rate`. Detail in [bots/AGENTS.md](bots/AGENTS.md).
 
 **The LLM harness is copied into each benchmark version on purpose.** The shared
-`bot/llm.py` *must* be free to improve, because `bots/` reads it. A benchmark wants
+`bot/llm/` *must* be free to improve, because `bots/` reads it. A benchmark wants
 the opposite: if a frozen harness imported the shared library, the next improvement
 for a submission would silently change what every recorded score meant. So
 `llm-bench/<v>/harness/bot.py` inherits from `Bot`, not `LLMBot`, those are
@@ -280,7 +294,7 @@ engine binds it to a hand-rolled pointer drag on the team bar, outside every
 `[team[a], team[b]] = [team[b], team[a]]` and a re-render, and one primitive
 covers both the team bar and the Elite Four prep screen.
 
-To explore the bundle: `python3 tools/deobfuscate.py site/js/bundle.*.js`. It
+To explore the bundle: `python3 utils/deobfuscate.py site/js/bundle.*.js`. It
 works out the obfuscator's internal names by itself, since they change with every
 release.
 
@@ -406,7 +420,7 @@ anything:
   differ. It is a speed knob for looking at things, never for measuring them.
 - **The site does not answer 404 for missing files**: it returns `index.html` with
   status 200. Without checking magic bytes the mirror fills with HTML dressed as
-  `.png`. See `SIGNATURES` in `assets/mirror.py`.
+  `.png`. See `SIGNATURES` in `assets/mirror/signatures.py`.
 - **Keep download concurrency low.** With 24 requests in flight the site cuts us
   off and *everything* fails silently, which is worse than being slow. The mirror
   runs at 6 and repairs missing files sequentially, from the exact list the
@@ -424,7 +438,7 @@ anything:
   the game, or you get `greenlet.error: Cannot switch to a different thread`.
 - **Playwright's sync API refuses to start inside a running asyncio loop**, which
   is exactly what Jupyter keeps open. `nest_asyncio` does not help.
-  `interfaces/python/driver.py` does not fight the loop, it leaves it: when one is
+  `interfaces/python/driver/` does not fight the loop, it leaves it: when one is
   running, the game is built and driven on a plain thread that has none, and every
   call is marshalled to that one thread.
 - **`maxTeamSize` is a high-water mark, not a limit.** The real limit is 6.
@@ -499,7 +513,7 @@ exists beside it; an improvement is a new directory, not an edit. The full accou
 the seven-key fingerprint, what each version asks, what a pass writes, and why
 `bridge.js` and `init.js` are more dangerous than the renderer, is in
 [llm-bench/AGENTS.md](llm-bench/AGENTS.md). The one rule to carry everywhere else:
-**`bot/llm.py`, `core/render.py`, `core/bridge.js` and `core/init.js` are the
+**`bot/llm/`, `core/render/`, `core/bridge.js` and `core/init.js` are the
 living copies that `bots/` and the CLI use; the frozen harness copies are
 independent and must never import them.**
 

@@ -1,0 +1,35 @@
+"""Run one or more games with a bot.
+
+In: a bot, seeds, and options. Out: run result dicts (decision trace included).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from ....core.runner import play_run
+from .session import SITE, session
+
+
+def play(bot: Any, seed: int = 1, max_steps: int = 400, watch: bool = False,
+         on_decision=None, site: Path | str = SITE) -> dict[str, Any]:
+    """One run with bot, returning what happened, decision trace included.
+
+    In: a bot instance, seed, max_steps, watch flag, callback. Out: a run dict.
+
+    The very same play_run the CLI and the benchmark use, so a run played from
+    here is the same run and is logged the same way.
+    """
+    with session(site=site, watch=watch) as game:
+        return play_run(game, bot, seed, max_steps=max_steps, on_decision=on_decision)
+
+
+def evaluate(bot: Any, seeds, max_steps: int = 400,
+             site: Path | str = SITE) -> list[dict[str, Any]]:
+    """Bot over several seeds in one browser. One row per run.
+
+    In: a bot instance, an iterable of seeds, max_steps. Out: list of run dicts.
+    """
+    with session(site=site) as game:
+        return [play_run(game, bot, s, max_steps=max_steps) for s in seeds]
