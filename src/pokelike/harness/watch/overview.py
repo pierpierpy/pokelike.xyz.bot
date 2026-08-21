@@ -77,8 +77,17 @@ def _running_table(version: str | None):
     """
     from rich.table import Table
 
+    from ..llmbench.pricing import cached_prices, cost
+
     def toks(n: int) -> str:
         return f"{n / 1e6:.1f}M" if n >= 1e6 else (f"{n / 1e3:.0f}k" if n else "0")
+
+    # What the tokens already counted would cost at today's list price, fetched once
+    # and cached because this table redraws every couple of seconds. A model the
+    # list does not know (a self-hosted endpoint, say) prints a dash: not free,
+    # unknown. Money is never stored in a result, only derived here, so a price
+    # change cannot rewrite what a pass measured.
+    price = cached_prices()
 
     up = _get_containers()
     running = sorted(live(version), key=_started)
@@ -89,6 +98,7 @@ def _running_table(version: str | None):
     t.add_column("progress", no_wrap=True)
     t.add_column("badges~", justify="right")
     t.add_column("tok in/out", justify="right")
+    t.add_column("cost", justify="right")
     t.add_column("fell", justify="right")
     t.add_column("eta", justify="right")
     t.add_column("stamp", justify="right")
@@ -107,13 +117,17 @@ def _running_table(version: str | None):
         tin = sum(r.tokens_in for r in finished)
         tout = sum(r.tokens_out for r in finished)
         fell = sum(r.fell for r in finished)
+        # Cents, not dollars: a flash model twenty runs in is often under a dollar,
+        # and "$0" would read as free rather than as cheap.
+        spent = cost(tin, tout, price.get(p.model))
+        money = f"${spent:.2f}" if spent is not None else "[dim]-[/dim]"
         left = "[dim]-[/dim]"
         if done and total > done:
             per = sum(r.secs for r in finished) / done
             rest = (total - done) * per
             left = f"{rest / 3600:.1f}h" if rest > 5400 else f"{rest / 60:.0f}m"
         t.add_row(str(i), p.version, p.model, bar, f"{mean:.2f}",
-                  f"{toks(tin)}/{toks(tout)}",
+                  f"{toks(tin)}/{toks(tout)}", money,
                   f"[yellow]{fell}[/yellow]" if fell else "0",
                   left, f"[dim]{d.name}[/dim]")
     return t, len(running)

@@ -9,9 +9,14 @@ query time).
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from .versions import _bench, cross_run_memory, harness_path
+
+# Filled by `cached_prices()`: (when it was fetched, the list). Module level so
+# every view in one process shares the one fetch.
+_PRICE_CACHE: tuple[float, dict[str, dict[str, float]]] | None = None
 
 # Tokens a single run spends, when nothing has been recorded yet to look at.
 # Only used to answer "what will this cost me" BEFORE the first pass exists; once
@@ -49,6 +54,27 @@ def prices(url: str = "https://openrouter.ai/api/v1/models",
         except (TypeError, ValueError):
             continue
     return out
+
+
+def cached_prices(ttl: float = 600.0) -> dict[str, dict[str, float]]:
+    """The same list as `prices()`, fetched at most once every `ttl` seconds.
+
+    In: how long a fetched list stays good, in seconds. Out: dict of model id to
+    {in, out} per-token prices, empty when the list could not be had.
+    """
+    # For the live views, which redraw every couple of seconds. The price list is
+    # somebody else's slowly moving fact, so fetching it per frame would be a
+    # request a second for a number that changes monthly. A failed fetch is NOT
+    # cached: a machine that was offline picks the list up as soon as it is back,
+    # rather than showing dashes for ten minutes.
+    global _PRICE_CACHE
+    now = time.monotonic()
+    if _PRICE_CACHE is not None and now - _PRICE_CACHE[0] < ttl:
+        return _PRICE_CACHE[1]
+    got = prices()
+    if got:
+        _PRICE_CACHE = (now, got)
+    return got
 
 
 def cost(tokens_in: int, tokens_out: int, price: dict[str, float] | None) -> float | None:

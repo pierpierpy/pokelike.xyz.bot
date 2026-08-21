@@ -374,3 +374,83 @@ def test_it_draws_what_it_read(bench):
     assert "layer  0" in text
     assert watch.dashboard(once=True) == 0
     assert watch.overview() == 0
+
+
+# ------------------------------------------------------------------ the cost column
+#
+# Money is derived, never stored: the pass records tokens, and what they cost is
+# today's list price applied to them when the table is drawn. So the column has to
+# survive a price list that does not know the model, and must not turn a missing
+# price into zero, which would read as free.
+
+
+def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
+    """A priced model shows what its finished runs have spent.
+
+    In: a trace with known token counts. Out: the overview row carries the dollars.
+    """
+    # importlib, because the package re-exports a FUNCTION called `overview` that
+    # shadows the submodule of the same name.
+    import importlib
+    ov = importlib.import_module("pokelike.harness.watch.overview")
+
+    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+        _row(10000, 0, "2026-08-20T17:00:00", run_in=1_000_000, run_out=100_000),
+        _row(10001, 0, "2026-08-20T17:01:00", run_in=1, run_out=1),
+    ])
+    monkeypatch.setattr(ov, "_get_containers", lambda: [])
+    # $1 per million in, $10 per million out: the first run alone is 1 + 1 = $2.00.
+    monkeypatch.setattr("pokelike.harness.llmbench.pricing.cached_prices",
+                        lambda *a, **k: {"a/b": {"in": 1e-6, "out": 1e-5}})
+    table, n = ov._running_table(None)
+    assert n == 1
+    assert [c.header for c in table.columns][6] == "cost", "cost sits beside the tokens"
+    cells = [str(c) for c in table.columns[6]._cells]
+    assert cells == ["$2.00"]
+
+
+def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
+    """An endpoint the price list has never heard of is unknown, not free.
+
+    In: a trace for a model absent from the list. Out: the cost cell is a dash.
+    """
+    # importlib, because the package re-exports a FUNCTION called `overview` that
+    # shadows the submodule of the same name.
+    import importlib
+    ov = importlib.import_module("pokelike.harness.watch.overview")
+
+    _trace(bench / "v9" / "logs" / "20260820-170000", "local/qwen", [
+        _row(10000, 0, "2026-08-20T17:00:00", run_in=500_000, run_out=9_000),
+        _row(10001, 0, "2026-08-20T17:01:00"),
+    ])
+    monkeypatch.setattr(ov, "_get_containers", lambda: [])
+    monkeypatch.setattr("pokelike.harness.llmbench.pricing.cached_prices",
+                        lambda *a, **k: {"someone/else": {"in": 1e-6, "out": 1e-5}})
+    table, _ = ov._running_table(None)
+    assert "-" in str(table.columns[6]._cells[0])
+    assert "$" not in str(table.columns[6]._cells[0])
+
+
+def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch):
+    """The live table redraws every couple of seconds, the list must not be refetched.
+
+    In: a counting stub for prices(). Out: one call while cached, and a failed fetch
+    is retried rather than remembered.
+    """
+    from pokelike.harness.llmbench import pricing
+
+    calls = []
+
+    def fake_prices(*a, **k):
+        calls.append(1)
+        return {"a/b": {"in": 1.0, "out": 2.0}} if len(calls) > 1 else {}
+
+    monkeypatch.setattr(pricing, "prices", fake_prices)
+    monkeypatch.setattr(pricing, "_PRICE_CACHE", None)
+    # First call fails (offline): nothing cached, so the next one tries again.
+    assert pricing.cached_prices() == {}
+    assert pricing.cached_prices() == {"a/b": {"in": 1.0, "out": 2.0}}
+    assert len(calls) == 2
+    # Now it is cached: no third fetch.
+    assert pricing.cached_prices() == {"a/b": {"in": 1.0, "out": 2.0}}
+    assert len(calls) == 2
