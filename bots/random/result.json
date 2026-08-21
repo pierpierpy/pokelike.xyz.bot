@@ -578,5 +578,17 @@
  ],
  "notes": {},
  "artifacts": [],
- "fingerprint": "15bb569eddef0e87734da0b60bf0560ed304fb02315bfa81e4a387db3547abee"
+ "fingerprint": "ee3e47ed63cbda604b54942f69b068ab3ce62acd4ae55ce744ef94a540881dfd",
+ "refingerprinted": [
+  {
+   "on": "2026-08-21T10:55:11+00:00",
+   "was": {
+    "fingerprint": "15bb569eddef0e87734da0b60bf0560ed304fb02315bfa81e4a387db3547abee"
+   },
+   "now": {
+    "fingerprint": "ee3e47ed63cbda604b54942f69b068ab3ce62acd4ae55ce744ef94a540881dfd"
+   },
+   "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
+  }
+ ]
 }

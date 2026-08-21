@@ -290,13 +290,13 @@ class SarsaBot(Bot):
         self.decisions = 0
         self._last_why = ""
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.rng = random.Random(seed)
 
     def q(self, x: dict[int, float]) -> float:
         return sum(self.w[i] * v for i, v in x.items())
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         """Greedy over q̂(s, a, w). Ties broken at random, seeded.
 
         There is no unseen-state fallback and none is needed: unlike a table,
@@ -319,10 +319,10 @@ class SarsaBot(Bot):
         label = (action.get("label") or "").strip().split("\n")[0]
         return (label[:14] or f"slot{index}").lower()
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Goes into the run registry and the benchmark result."""
         return {
             "weights": self.weights_path.name,

@@ -39,7 +39,7 @@ NODE_KINDS = ["catch", "battle", "trainer", "item", "pokecenter", "question",
               "move_tutor", "trade", "boss", "pokemart", "shiny"]
 
 
-def choose(values: dict[str, float], state: dict, rng: random.Random,
+def act(values: dict[str, float], state: dict, rng: random.Random,
            epsilon: float) -> int:
     """Epsilon-greedy over the value of each action's node kind."""
     actions = state["actions"]

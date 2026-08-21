@@ -66,7 +66,7 @@ ARTIFACTS = HERE / "artifacts"
 class {cls}(Bot):
     name = "{name}"
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         """Which action to take, as an index into state["actions"]."""
         team = state.get("team") or []
         hurt = any(p["hp"] / p["max_hp"] < 0.5 for p in team if p["max_hp"])
@@ -79,15 +79,16 @@ class {cls}(Bot):
                 return i
         return 0
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         """One line under each decision in the log. Optional."""
         return ""
 
     # Other optional hooks, all of them safe to ignore:
     #
-    #   rearrange(state) -> (a, b) | None   who leads the next battle. Free: it
+    #   reorder(state) -> (a, b) | None     who leads the next battle. Free: it
     #                                       does not consume the turn
-    #   on_start(seed) / on_end(state, score)   for a bot with memory
+    #   reset(seed) / finish(state, score)  for a bot with memory
+    #   metadata() -> dict                  extra facts recorded beside the result
     #   artifacts() -> [Artifact]           weights and config to record beside
     #                                       the result when you benchmark
 '''
@@ -131,57 +132,51 @@ backup heuristic under your bot's name. A high rate is a broken run, not a bad
 model, and reading it as a score is the easiest mistake to make here.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class {cls}(LLMBot):
     name = "{name}"
 
-    PROMPT = GAME_RULES + """
+    config = LLMConfig(prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Say something here that a model would not have done on its own. That is the
   whole experiment: `bots/llm-baseline/` is the same harness with no strategy,
   so anything you add is measured against it.
 
-Think briefly, then call `play`. Always call `play`."""
+Think briefly, then call `play`. Always call `play`.""")
 
-    # Every one of these is optional; these are the defaults.
+    # Every field is optional; these are the defaults. Set the ones you want in
+    # the LLMConfig above:
     #
-    # MODEL = None          # pin an id here, or leave $MODEL_ID to name it
-    # TEMPERATURE = 0.6
-    # MAX_TOKENS = 1500
-    # MAX_ROUNDS = 4        # tool rounds before the turn is given up on
-    # What the model READS each turn. The default is the ASCII view a person
-    # sees; "json" is the whole state dict at about 6.6x the tokens. Which of
-    # the two plays better is an open question -- bots/llm-raw/ is the same
-    # prompt as bots/llm-survivor/ with only this changed.
+    #   config = LLMConfig(
+    #       prompt=...,
+    #       model=None,          # pin an id, or leave $MODEL_ID to name it
+    #       temperature=0.6,
+    #       max_tokens=1500,
+    #       max_rounds=4,        # tool rounds before the turn is given up on
+    #       memory=6,            # past turns shown back to the model
+    #       token_budget=0,      # per-run ceiling; 0 = none. ~30k is one run
+    #       state_view="screen", # "json" | "both" | ["team", "actions", ...]
+    #       extra_tools=[...],   # your tools on top of the shared four
+    #   )
     #
-    # STATE_VIEW = "screen"   # "json" | "both" | ["team", "actions", ...]
+    # `state_view` is what the model READS each turn. The default is the ASCII
+    # view a person sees; "json" is the whole state dict at about 6.6x the
+    # tokens -- bots/llm-raw/ is bots/llm-survivor/ with only this changed.
     #
-    # def view(self, state):          # when none of the four fit
-    #     return f"HP {...}"          # journal and instructions are added for you
-
-    # MEMORY = 6            # past turns shown back to the model
-    # TOKEN_BUDGET = 0      # per-run ceiling; 0 means none. ~30k is one run
+    # def render_state(self, state):     # when none of the state_view values fit
+    #     return f"HP {...}"             # journal and instructions are added for you
 
     # If the prompt is not where your idea lives, give the model a tool the
-    # shared four do not offer. `play` must survive -- it is how a turn ends.
-    # Your result records that your tools differ, so the row is read as the
-    # different question it is rather than compared as if it were the same one.
+    # shared four do not offer, via config.extra_tools. `play` must survive --
+    # it is how a turn ends. Your result records that your tools differ, so the
+    # row is read as the different question it is.
     #
-    # EXTRA_TOOLS = [{
-    #     "type": "function",
-    #     "function": {
-    #         "name": "bag",
-    #         "description": "What you are carrying.",
-    #         "parameters": {"type": "object", "properties": {}},
-    #     },
-    # }]
-    #
-    # def run_tool(self, name, args, state):
+    # def answer_tool(self, name, args, state):
     #     if name == "bag":
     #         return ", ".join(state.get("bag") or []) or "(empty)"
-    #     return super().run_tool(name, args, state)
+    #     return super().answer_tool(name, args, state)
 '''
 
 README = '''# {name}

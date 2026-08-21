@@ -114,7 +114,7 @@ def train(
                 return ph, acts
 
             phase, acts = settle_phase(obs, phase)
-            i = agent.choose(obs, actions=acts)
+            i = agent.act(obs, actions=acts)
             x = fs.of(obs, acts[i])
 
             while True:
@@ -142,7 +142,7 @@ def train(
                     break
 
                 phase, acts = settle_phase(obs, phase)
-                i = agent.choose(obs, actions=acts)
+                i = agent.act(obs, actions=acts)
                 x_next = fs.of(obs, acts[i])
                 agent.update(x, r, x_next)
                 x = x_next

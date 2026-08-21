@@ -22,15 +22,15 @@ class RandomBot(Bot):
         self.seed = seed
         self._rng = random.Random(seed)
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         # Reseed from the run's seed so the sequence of choices belongs to the
         # run, not to how many runs came before it.
         self._rng = random.Random(seed)
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         return self._rng.randrange(len(state["actions"]))
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Also random about who leads, which is what makes it a fair baseline.
 
         Team order is a decision the game offers and this bot is meant to take

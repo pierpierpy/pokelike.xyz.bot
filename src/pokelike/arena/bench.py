@@ -271,7 +271,7 @@ def run_benchmark(
         "seeds": seeds,
         "summary": summarise(runs),
         "runs": runs,
-        "notes": getattr(bot, "notes", lambda: {})(),
+        "notes": getattr(bot, "metadata", lambda: {})(),
     }
 
 

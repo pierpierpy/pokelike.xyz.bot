@@ -24,11 +24,11 @@ from a clone to a pull request.
 
 | # | bot | author | how | runs | badges~ | badges+ | score~ | best | code |
 |--:|---|---|---|--:|--:|--:|--:|--:|---|
-| 1 | **[lspi](lspi/)** | testjoejoe | rl | 50 | **1.44** | 8 | 76.7 | 520 | `a29c141fb0e2` |
-| 2 | **[sarsa-v2](sarsa-v2/)** | pierpierpy | rl | 50 | **1.36** | 3 | 71 | 235 | `5cffd5d367bf` |
-| 3 | **[sarsa-v1](sarsa-v1/)** | pierpierpy | rl | 50 | **1.3** | 4 | 59.3 | 195 | `6db914851882` |
-| 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `6aeb11457d3c` ⚠︎ |
-| 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `15bb569eddef` |
+| 1 | **[lspi](lspi/)** | testjoejoe | rl | 50 | **1.44** | 8 | 76.7 | 520 | `4d64662f83a8` |
+| 2 | **[sarsa-v2](sarsa-v2/)** | pierpierpy | rl | 50 | **1.36** | 3 | 71 | 235 | `4f510e781971` |
+| 3 | **[sarsa-v1](sarsa-v1/)** | pierpierpy | rl | 50 | **1.3** | 4 | 59.3 | 195 | `f9ff9acb470b` |
+| 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `71690aafd1aa` |
+| 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `ee3e47ed63cb` |
 
 Ranked by **badges**, the game's own progress counter. `badges~` is the mean over the standard 50 seeds, `badges+` the best single run. `code` is a fingerprint over the bot and its artifacts; **⚠︎ means the files changed since the score was measured**, so the row no longer describes what is on disk, and **? means the result carries no fingerprint at all** and cannot be checked either way. Re-running the benchmark clears both.
 
@@ -58,7 +58,7 @@ directory.
 ```
 bots/<name>/
 ├── bot.py        one class inheriting from Bot. The only method it must have
-│                 is choose(state) -> int
+│                 is act(state) -> int
 ├── artifacts/    weights, prompts, tables, whatever it needs, and optionally
 │                 a bridge.js of your own
 └── result.json   what the benchmark measured, written by `pokelike bot bench`

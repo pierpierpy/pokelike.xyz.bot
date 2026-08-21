@@ -124,7 +124,7 @@ src/pokelike/
 │                          self-checking (a field in a real obs but missing from
 │                          FIELDS is reported as undocumented)
 ├── bot/                 WHAT RUNS A BOT, not the bots themselves
-│   ├── base.py            abstract Bot: only choose() is required
+│   ├── base.py            abstract Bot: only act() is required
 │   ├── catalogue.py       finds and loads a bot from its folder in bots/
 │   ├── llm.py             the harness every llm-* bot shares: tools, agentic
 │   │                      loop, HTTP, fallback policy. Shared so that a
@@ -183,7 +183,7 @@ untracked, and the package cannot depend on files that are not in the clone.
 methods. If you feel like putting a game rule in the CLI, it belongs in `core`.
 
 Decision logging lives in `runner.play_run` so that a log means the same thing
-whatever is playing; bots add at most one line through the optional `explain()`
+whatever is playing; bots add at most one line through the optional `reason()`
 hook. `bot/` is deliberately not under `interfaces/`: the interfaces are entry
 points (something outside drives the game through them), a bot is an extension
 point (you write one, and the interfaces run it).
@@ -195,13 +195,13 @@ version of this lives in the maintainer's private `ARCHITECTURE.md`; this is the
 summary that belongs in the repo.)
 
 **Three subjects, not one: the game, the shared loop, the bot.** Most confusion
-about `STATE_VIEW` and `render.screen()` comes from forgetting that those two
+about `config.state_view` and `render.screen()` comes from forgetting that those two
 live inside the *bot*, not in the game. The loop is `runner.play_run()`, and it is
 the same for the random bot, a SARSA and a 400-billion-parameter LLM:
 
 - The game never talks to the bot. The loop reads the state and hands it over.
 - The `trace` is recorded by the loop, identically for everyone, which is why
-  `explain()` exists: it is the one place a bot adds what only it knows.
+  `reason()` exists: it is the one place a bot adds what only it knows.
 - A bot returns an **index**, not an action. Out of range, and the move fails.
 
 **The state is a hand-written projection, not everything the game knows.** `obs`
@@ -222,12 +222,12 @@ edges, raw base stats, most node ids).
 **A bot has two levels, and they are different jobs, not degrees of the same one.**
 Inherit from `Bot` and *you* decide the move (you write the rule). Inherit from
 `LLMBot` and the *model* decides; your job is what it sees and can do. Overriding
-`choose` on an `LLMBot` throws away the agentic loop that was the reason to inherit
+`act` on an `LLMBot` throws away the agentic loop that was the reason to inherit
 from it, nobody does, and five of the six `llm-*` bots define no method at all.
 
-**One model call decides the whole turn.** The loop calls `rearrange` before `choose`,
-so `LLMBot` makes its single HTTP call inside `rearrange`, caches the answer keyed by
-`steps`, and `choose` returns it without asking again; a `set_lead` tool call is
+**One model call decides the whole turn.** The loop calls `reorder` before `act`,
+so `LLMBot` makes its single HTTP call inside `reorder`, caches the answer keyed by
+`steps`, and `act` returns it without asking again; a `set_lead` tool call is
 recorded there and applied by the loop, not by the bot. Three exceptions are told apart
 on purpose: an auth/config error or a spent token budget kills the run rather than
 quietly finishing it on the backup heuristic, while a transient failure falls back to a
@@ -271,7 +271,7 @@ its handler.
 
 **Team order is a third thing, and it is not an action.** Slot 0 leads the next
 battle, so the order is a real decision, but reordering does not consume the
-turn. It is exposed as its own verb (`Game.reorder(a, b)`, `Bot.rearrange()`,
+turn. It is exposed as its own verb (`Game.reorder(a, b)`, `Bot.reorder()`,
 `POST /reorder`, `w a b` in the REPL) and advertised in the state as
 `can_reorder`. Folding it into `actions` would put fifteen swap pairs next to
 the moves at every map node and make the turn count mean something else. The

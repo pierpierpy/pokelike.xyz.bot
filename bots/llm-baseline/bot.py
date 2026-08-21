@@ -19,11 +19,11 @@ records which model that was. Pin it in your own bot if you want a leaderboard
 row that means one specific model for good.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class BaselineBot(LLMBot):
     name = "llm-baseline"
 
-    PROMPT = GAME_RULES + """
-Think briefly, then call `play` with your chosen index. Always call `play`."""
+    config = LLMConfig(prompt=GAME_RULES + """
+Think briefly, then call `play` with your chosen index. Always call `play`.""")

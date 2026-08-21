@@ -45,9 +45,9 @@ RUNS = Path(__file__).parent / "runs"
 
 def play_one(game: Game, bot: LLMBot, seed: int, max_steps: int = 400) -> dict:
     obs = game.reset(seed=seed)
-    bot.on_start(seed)
+    bot.reset(seed)
     while not obs.get("done") and obs.get("actions") and game.steps < max_steps:
-        obs = game.step(bot.choose(obs))
+        obs = game.step(bot.act(obs))
     s = game.score() or {}
     alive = game.last_alive or {}
     return {
@@ -107,7 +107,7 @@ def compare(strategies: list[str], seeds: list[int], port: int = 8610) -> dict:
     out = RUNS / "prompt_comparison.json"
     out.write_text(json.dumps({
         "model": os.environ.get("MODEL_ID", ""),
-        "harness": LLMBot.HARNESS,
+        "harness": LLMBot.harness_version,
         "seeds": seeds,
         "elapsed_minutes": round(elapsed / 60, 1),
         "results": results,

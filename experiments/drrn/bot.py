@@ -564,7 +564,7 @@ class DrrnBot(Bot):
         self.decisions = 0
         self._last_why = ""
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.rng = random.Random(seed)
 
     def q(self, x: dict[int, float]) -> float:
@@ -602,7 +602,7 @@ class DrrnBot(Bot):
             h = nxt if layer == len(self.W) - 1 else [v if v > 0.0 else 0.0 for v in nxt]
         return h[0]
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         """Greedy over q̂(s, a, w). Ties broken at random, seeded.
 
         There is no unseen-state fallback and none is needed: unlike a table,
@@ -625,7 +625,7 @@ class DrrnBot(Bot):
         label = (action.get("label") or "").strip().split("\n")[0]
         return (label[:14] or f"slot{index}").lower()
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Who should lead the next battle, scored by the same weights.
 
         Team order is a decision the game does not put in `state["actions"]`,
@@ -647,10 +647,10 @@ class DrrnBot(Bot):
                           f"({values[i]:.1f}) over staying ({values[0]:.1f})")
         return (0, b)
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Goes into the run registry and the benchmark result."""
         return {
             "weights": self.weights_path.name,

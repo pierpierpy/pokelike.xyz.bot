@@ -24,11 +24,11 @@ and they are re-sent every turn:
 
 | part of the body | where you tune it | `llm-survivor` |
 |---|---|--:|
-| `messages[0]`, role `system` | `PROMPT` | 1665 char |
-| `tools` | `EXTRA_TOOLS`, `tools()` | 1202 char |
-| `messages[1]`, role `user` | `STATE_VIEW` / `view()` | 631 char |
-| role `tool` replies | `run_tool()` | 24 to 120 char each |
-| `model`, `temperature`, `max_tokens`, `seed` | `MODEL`, `TEMPERATURE`, `MAX_TOKENS` | n/a |
+| `messages[0]`, role `system` | `config.prompt` | 1665 char |
+| `tools` | `config.extra_tools`, `tools()` | 1202 char |
+| `messages[1]`, role `user` | `config.state_view` / `render_state()` | 631 char |
+| role `tool` replies | `answer_tool()` | 24 to 120 char each |
+| `model`, `temperature`, `max_tokens`, `seed` | `config.model`, `config.temperature`, `config.max_tokens` | n/a |
 
 **3498 characters a turn before the model has asked for anything.** The tool
 definitions cost nearly twice what the state does. A fifth tool is not free because
@@ -40,8 +40,8 @@ so they can be checked rather than believed.
 The `user` message is three pieces, one yours and two the harness's:
 
 ```
-_situation(state)
-├── view(state)                       <- YOURS
+_build_user_message(state)
+├── render_state(state)                   <- YOURS
 ├── the journal, MEMORY turns long    <- harness
 └── "Pick an index between 0 and N"   <- harness, never yours to drop
 ```
@@ -60,7 +60,7 @@ with nothing to tell the two apart.
 
 Four settings need no code:
 
-| `STATE_VIEW` | the model gets | |
+| `state_view` | the model gets | |
 |---|---|--:|
 | `"screen"` | the rendered view a person sees | 631 char |
 | `"json"` | the whole state dict | 5144 char |
@@ -78,7 +78,7 @@ What it no longer leaves out: each option now carries the game's own description
 the node it leads to, the same text a browser shows on hover.
 `Officer — +2 Levels — Fire Pokemon`. It used to say only `trainer`.
 
-`view()` is for the rest. This bot overrides it to show what "easier for a model"
+`render_state()` is for the rest. This bot overrides it to show what "easier for a model"
 looks like, which is not the same as easier for a person:
 
 ```
@@ -118,10 +118,10 @@ standings:
 | `stock_tools` | the shared four, or a set of its own |
 
 And one decides whether a row is worth reading at all: **`fallback_rate`**, the
-share of turns the model did not decide. Those turns were played by `_fallback`
+share of turns the model did not decide. Those turns were played by `fallback_move`
 under the model's name. Above 0.1 the row is measuring us.
 
-Budget: ~30k tokens a run, ~1.5M for a fifty-seed entry. `STATE_VIEW = "json"`
+Budget: ~30k tokens a run, ~1.5M for a fifty-seed entry. `state_view="json"`
 is 6.6x that.
 
 ## A model from Hugging Face
@@ -132,7 +132,7 @@ Three routes, and two need no code:
 |---|---|
 | Inference API / Endpoints | OpenAI-compatible. Point `FW_ENDPOINT` at it, done |
 | your fine-tune behind vLLM or TGI | same |
-| a local checkpoint | override `_call()` |
+| a local checkpoint | override `call_model()` |
 
 For the third, pin the repo id **and a commit sha** in the bot file rather than a
 branch, because the fingerprint covers the pointer and not the weights, so a moving branch
@@ -142,7 +142,7 @@ means a row claiming a model that no longer exists.
 
 | you want | look at |
 |---|---|
-| a different strategy | `PROMPT` |
-| the model to see something new | `EXTRA_TOOLS` + `run_tool()` |
-| to change what it reads each turn | `STATE_VIEW`, then `view()` |
-| a model that is not an HTTP endpoint | `_call()`, the one hook this file does not use |
+| a different strategy | `config.prompt` |
+| the model to see something new | `config.extra_tools` + `answer_tool()` |
+| to change what it reads each turn | `config.state_view`, then `render_state()` |
+| a model that is not an HTTP endpoint | `call_model()`, the one hook this file does not use |

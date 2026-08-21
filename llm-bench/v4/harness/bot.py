@@ -571,10 +571,10 @@ class HarnessV4(Bot):
                 },
             }]
 
-            def run_tool(self, name, args, state):
+            def answer_tool(self, name, args, state):
                 if name == "bag":
                     return ", ".join(state.get("bag") or []) or "(empty)"
-                return super().run_tool(name, args, state)
+                return super().answer_tool(name, args, state)
 
     Replacing the shared set entirely is `tools()`. Both are allowed and both
     are recorded: a bot with its own tools is answering a different question
@@ -722,7 +722,7 @@ class HarnessV4(Bot):
 
     # ------------------------------------------------------------------ hooks
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.seed = seed
         # `journal` is within-run and goes. `memory` is the whole point of v1 and
         # STAYS: it is what the model carries from the last run into this one.
@@ -736,7 +736,7 @@ class HarnessV4(Bot):
         self.tokens_in = self.tokens_out = self.retries = 0
         self._last_why = ""
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Ends up in the run registry, and in the result a benchmark records.
 
         `fallback_rate` is the honest column of an LLM benchmark. Every fallback
@@ -830,10 +830,10 @@ class HarnessV4(Bot):
 
     # --------------------------------------------------------------- decision
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Who leads, decided in the SAME model call as the move.
 
         The run loop asks for this before `choose`, so the whole turn is thought
@@ -865,7 +865,7 @@ class HarnessV4(Bot):
         self._pending = (state.get("steps"), index, why)
         return (0, lead)
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         self.turns += 1
         n = len(state["actions"])
         # Already decided in rearrange, this same turn. `steps` guards it: a
@@ -883,10 +883,10 @@ class HarnessV4(Bot):
             # rest of the run to the backup heuristic and file it as an LLM run.
             raise
         except Exception as e:  # noqa: BLE001, a transient failure must not end the run
-            return self._fall_back(state, f"{type(e).__name__}: {e}"[:80])
+            return self._run_fallback(state, f"{type(e).__name__}: {e}"[:80])
 
         if not isinstance(index, int) or not 0 <= index < n:
-            return self._fall_back(state, f"model returned index {index}")
+            return self._run_fallback(state, f"model returned index {index}")
         return self._commit(state, index, why)
 
     def _commit(self, state: dict[str, Any], index: int, why: str) -> int:
@@ -927,14 +927,14 @@ class HarnessV4(Bot):
         return (f"step {state.get('steps')}: [{index}] {did}\n"
                 f"    it said: {said or '(nothing)'}")
 
-    def _fall_back(self, state: dict[str, Any], reason: str) -> int:
+    def _run_fallback(self, state: dict[str, Any], reason: str) -> int:
         self.fallbacks += 1
         self._last_why = f"(fell back: {reason})"
         if self.verbose:
             print(f"   [llm] fallback: {reason}")
-        return self._fallback(state)
+        return self.fallback_move(state)
 
-    def _fallback(self, state: dict[str, Any]) -> int:
+    def fallback_move(self, state: dict[str, Any]) -> int:
         """Backup choice when the model does not answer or gets it wrong.
 
         Not random: it prefers what keeps the team alive, healing first if someone
@@ -982,7 +982,7 @@ class HarnessV4(Bot):
         this_turn: list[dict[str, Any]] = [messages[-1]]
 
         for _ in range(self.max_rounds):
-            msg = self._call(messages)
+            msg = self.call_model(messages)
             calls = msg.get("tool_calls") or []
             if not calls:
                 # No tool: maybe it wrote the index out in prose.
@@ -1049,7 +1049,7 @@ class HarnessV4(Bot):
                     continue
 
                 answer = {"role": "tool", "tool_call_id": c["id"],
-                          "content": self.run_tool(name, args, state)}
+                          "content": self.answer_tool(name, args, state)}
                 messages.append(answer)
                 this_turn.append(answer)
 
@@ -1096,7 +1096,7 @@ class HarnessV4(Bot):
         """
         return [*TOOLS, *self.EXTRA_TOOLS]
 
-    def run_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
+    def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
         """Answers one tool call. Whatever this returns is shown to the model.
 
         Override for your own tools and call `super()` for the shared ones. An
@@ -1262,7 +1262,7 @@ class HarnessV4(Bot):
 
     # ---------------------------------------------------------------- context
 
-    def view(self, state: dict[str, Any]) -> str:
+    def render_state(self, state: dict[str, Any]) -> str:
         """What the model reads each turn. THE hook for changing that.
 
         Reads `STATE_VIEW` (or whatever was passed as `view=`). Override it
@@ -1299,7 +1299,7 @@ class HarnessV4(Bot):
 
     def view_name(self) -> str:
         """What to record: the setting, or 'custom' if `view` was replaced."""
-        if type(self).view is not HarnessV4.view:
+        if type(self).render_state is not HarnessV4.render_state:
             return "custom"
         return self.state_view if isinstance(self.state_view, str) else \
             "keys:" + ",".join(self.state_view)
@@ -1312,7 +1312,7 @@ class HarnessV4(Bot):
         many options there are -- neither is a choice a bot should be able to
         drop by accident while changing something else.
         """
-        parts = [self.view(state)]
+        parts = [self.render_state(state)]
         # Before the journal: what was learned across runs outranks what happened
         # in the last six turns of this one.
         parts += self._memory_block()
@@ -1350,7 +1350,7 @@ class HarnessV4(Bot):
 
     # ------------------------------------------------------------------- HTTP
 
-    def _call(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    def call_model(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
         if self.token_budget and self.tokens_used >= self.token_budget:
             raise LLMBudgetError(
                 f"run spent {self.tokens_used} tokens, budget is {self.token_budget}"

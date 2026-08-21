@@ -92,7 +92,7 @@ def play_run(
     count are gone by the time the run ends.
     """
     obs = game.reset(seed=seed)
-    bot.on_start(seed)
+    bot.reset(seed)
     trace: list[dict[str, Any]] = []
     # `_settle` gives up after 90 seconds and flags the state rather than raising,
     # because one wedged turn should not throw away the runs already played. But
@@ -112,7 +112,7 @@ def play_run(
         swapped = None
         if obs.get("can_reorder"):
             try:
-                pick = bot.rearrange(obs)
+                pick = bot.reorder(obs)
             except Exception:  # noqa: BLE001
                 pick = None
             if pick is not None:
@@ -127,7 +127,7 @@ def play_run(
                     swapped = None
 
         options = list(obs["actions"])
-        chosen = bot.choose(obs)
+        chosen = bot.act(obs)
 
         # Recorded for every bot alike, in the shared loop rather than in each
         # bot, so the log means the same thing whatever is playing.
@@ -143,7 +143,7 @@ def play_run(
             "chosen": chosen,
             "chosen_label": short_label(options[chosen]) if 0 <= chosen < len(options) else "?",
             "swapped": swapped,
-            "why": (bot.explain() or "").strip(),
+            "why": (bot.reason() or "").strip(),
         })
         if on_decision:
             on_decision(trace[-1])
@@ -151,7 +151,7 @@ def play_run(
         obs = game.step(chosen)
 
     score = game.score() or {}
-    bot.on_end(obs, score)
+    bot.finish(obs, score)
 
     breakdown = score.get("breakdown") or {}
     alive = game.last_alive or {}

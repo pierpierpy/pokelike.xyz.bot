@@ -29,16 +29,14 @@ be a fair thing to try and a different experiment -- two variables moving at onc
 tells you nothing about either.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class RawBot(LLMBot):
     name = "llm-raw"
 
     # The whole state dict, compact JSON, every turn.
-    STATE_VIEW = "json"
-
-    PROMPT = GAME_RULES + """
+    config = LLMConfig(state_view="json", prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Early on you have one Pokemon. If it faints you have lost. Widening the team is
   worth more than any experience you could gain.
@@ -48,4 +46,4 @@ PLAY LIKE THIS
   Pokemon and scale with the map.
 - Type matchups decide battles. Check your team before choosing a fight.
 
-Think briefly, then call `play`. Always call `play`."""
+Think briefly, then call `play`. Always call `play`.""")

@@ -24,7 +24,7 @@ directory.
 
 ```
 bots/<name>/
-├── bot.py        one class inheriting from Bot. Only choose(state) -> int is required
+├── bot.py        one class inheriting from Bot. Only act(state) -> int is required
 ├── artifacts/    weights, prompts, tables, and optionally a bridge.js of your own
 └── result.json   what the benchmark measured, written by `pokelike bot bench`
 ```
@@ -38,23 +38,23 @@ stays checkable. `init.js` is deliberately **not** overridable, see
 
 ## The Bot contract, and what you can change
 
-Every bot inherits from `Bot` (`bot/base.py`). `choose(state) -> int` is the only
+Every bot inherits from `Bot` (`bot/base.py`). `act(state) -> int` is the only
 required method: it returns an index into `state["actions"]`, and an index out of range
 fails the move. Five hooks are optional, each with a no-op default:
 
 | hook | when | what for |
 |---|---|---|
-| `on_start(seed)` | before the first turn of each run | an RL bot resets its trajectory; an LLM resets its conversation |
-| `on_end(state, score)` | after the last turn, with the score | the reward signal for an RL bot |
-| `rearrange(state)` | before `choose`, while `state["can_reorder"]` | return `(a, b)` to swap two team slots, a **free** action, it does not cost the turn, which is why it is not folded into `actions` |
-| `explain()` | after `choose` | one line for the `-d` decision log |
+| `reset(seed)` | before the first turn of each run | an RL bot resets its trajectory; an LLM resets its conversation |
+| `finish(state, score)` | after the last turn, with the score | the reward signal for an RL bot |
+| `reorder(state)` | before `act`, while `state["can_reorder"]` | return `(a, b)` to swap two team slots, a **free** action, it does not cost the turn, which is why it is not folded into `actions` |
+| `reason()` | after `act` | one line for the `-d` decision log |
 | `artifacts()` | at record time | the weights/prompt/config to hash beside the result |
 
 **Two roads, and the fork is who picks the move.** Inherit from `Bot` and *you* write
 the rule that decides. Inherit from `LLMBot` and the *model* decides; your job is what it
 sees and can do, the [knobs and seams](#the-llm-harness-knobs-and-seams) below. Neither
 is the advanced one: `random`, `sarsa-*`, `dyna-q` and `lspi` take the first road, the
-six `llm-*` bots the second. **Do not override `choose` on an `LLMBot`**, it runs the
+six `llm-*` bots the second. **Do not override `act` on an `LLMBot`**, it runs the
 agentic loop that was the reason to inherit from it. And on either road you can change
 **what is in the state** by shipping your own `artifacts/bridge.js`, above.
 
@@ -125,7 +125,7 @@ Re-running the benchmark clears both. `result.json` records: the bot name, `auth
 `category`, `description`, the submission timestamp, the `pokelike` version, the game
 bundle's file name and sha256, the seed list, a `summary` (mean/median/best/worst
 score, mean/best badges, mean maps, completed count, mean steps), the per-run rows, and
-`bot.notes()` (which for an LLM bot carries the model, the harness number, the state
+`bot.metadata()` (which for an LLM bot carries the model, the harness number, the state
 view, the tool set, and the fallback rate).
 
 `build_index` ranks by badges mean (descending), then score mean, writing `index.json`
@@ -165,25 +165,27 @@ block.
 
 ## The LLM harness: knobs and seams
 
-`LLMBot` (`bot/llm.py`) is what the six `llm-*` bots inherit. Inherit, set `PROMPT`,
-done: everything else has a default that works. `HARNESS = 1` today.
+`LLMBot` (`bot/llm.py`) is what the six `llm-*` bots inherit. Inherit, set a `config`
+with your prompt, done: everything else has a default that works. `HARNESS = 1` today.
 
-### Value-only knobs (class attributes)
+### Value-only knobs (LLMConfig fields)
 
 | knob | default | decides |
 |---|---|---|
-| `PROMPT` | `GAME_RULES + CLOSING` | the system prompt, **this is the submission** |
-| `MODEL` | `None` | model id, or `None` to take `$MODEL_ID` |
-| `TEMPERATURE` | `0.6` | sampling |
-| `MAX_TOKENS` | `1500` | ceiling on one answer |
-| `MAX_ROUNDS` | `4` | tool rounds before the turn is given up on |
-| `MEMORY` | `6` | how many past turns are shown back |
-| `TOKEN_BUDGET` | `0` | tokens per run, 0 for no ceiling |
-| `EXTRA_TOOLS` | `[]` | tools of yours, on top of the shared four |
-| `STATE_VIEW` | `"screen"` | what the model reads each turn |
-| `RETRIES` | `4` | attempts on a transient HTTP failure |
+| `prompt` | `GAME_RULES + CLOSING` | the system prompt, **this is the submission** |
+| `model` | `None` | model id, or `None` to take `$MODEL_ID` |
+| `temperature` | `0.6` | sampling |
+| `max_tokens` | `1500` | ceiling on one answer |
+| `max_rounds` | `4` | tool rounds before the turn is given up on |
+| `memory` | `6` | how many past turns are shown back |
+| `token_budget` | `0` | tokens per run, 0 for no ceiling |
+| `extra_tools` | `[]` | tools of yours, on top of the shared four |
+| `state_view` | `"screen"` | what the model reads each turn |
+| `retries` | `4` | attempts on a transient HTTP failure |
 
-`STATE_VIEW` takes `"screen"` (the text a person sees, the default), `"json"` (the whole
+All are fields of a pydantic model set as `config = LLMConfig(...)` on the class.
+
+`state_view` takes `"screen"` (the text a person sees, the default), `"json"` (the whole
 state dict as compact JSON, several times the tokens), `"both"`, or a list of keys
 (`["team", "actions"]`) as JSON. It decides what the model *knows*, not merely how the
 screen is drawn, with `"json"` there is no rendering. [`llm-raw`](llm-raw/) is
@@ -193,16 +195,16 @@ screen is drawn, with `"json"` there is no rendering. [`llm-raw`](llm-raw/) is
 
 | method | when |
 |---|---|
-| `view(state) -> str` | none of the `STATE_VIEW` values fit; return any string |
+| `render_state(state) -> str` | none of the `state_view` values fit; return any string |
 | `tools() -> list` | you want to control the full tool list |
-| `run_tool(name, args, state) -> str` | answer your own `EXTRA_TOOLS`; call `super()` for the shared ones |
-| `_call(messages) -> dict` | your model is not an OpenAI-compatible HTTP endpoint |
-| `_fallback(state) -> int` | change the backup move policy |
+| `answer_tool(name, args, state) -> str` | answer your own `extra_tools`; call `super()` for the shared ones |
+| `call_model(messages) -> dict` | your model is not an OpenAI-compatible HTTP endpoint |
+| `fallback_move(state) -> int` | change the backup move policy |
 
-The plumbing wraps whatever `view` returns: the journal and the "pick an index between 0
+The plumbing wraps whatever `render_state` returns: the journal and the "pick an index between 0
 and N" line are added around it, so replacing the view cannot cost a bot its memory or
-leave the model without the range. That is why `_situation()` is **not** the seam.
-**Do not override `choose`**, it runs the loop, so replacing it discards the reason to
+leave the model without the range. That is why `_build_user_message()` is **not** the seam.
+**Do not override `act`**, it runs the loop, so replacing it discards the reason to
 inherit from `LLMBot`.
 
 ### The four shared tools
@@ -214,9 +216,9 @@ cost tokens every turn whether called or not, so a fifth tool is not free.
 
 ### One HTTP call per turn
 
-The loop calls `rearrange` before `choose`. On the map screen `LLMBot` puts the whole
-model call inside `rearrange`, caches `(steps, index, why)` in `self._pending`, and
-`choose` returns the cached index when `_pending[0] == state["steps"]`. The step guard
+The loop calls `reorder` before `act`. On the map screen `LLMBot` puts the whole
+model call inside `reorder`, caches `(steps, index, why)` in `self._pending`, and
+`act` returns the cached index when `_pending[0] == state["steps"]`. The step guard
 means a cached index is never replayed against a different turn. `set_lead` is offered
 only on the map screen; elsewhere the options *are* the team, so reordering under them
 would change what the indices mean between deciding and playing.
@@ -226,7 +228,7 @@ would change what the indices mean between deciding and playing.
 | exception | what happens | why |
 |---|---|---|
 | `LLMConfigError` | re-raised, the run dies | a 401/403/404 or missing `play` tool fails identically forever; falling back would file a whole run under a model that never played it |
-| `LLMBudgetError` | re-raised, the run dies | the run spent its `TOKEN_BUDGET` |
+| `LLMBudgetError` | re-raised, the run dies | the run spent its `token_budget` |
 | any other `LLMError` | fall back, the run continues | transient (timeout, 429, 5xx) |
 
 The fallback is not random: it prefers keeping the team alive, healing first when
@@ -243,11 +245,11 @@ lives in `bots/mine/artifacts/`.
 
 | method | when the loop calls it | where you put it | how (what you write) |
 |---|---|---|---|
-| `choose(state) -> int` | every turn (**required**) | a method in the class | `def choose(self, state): ...; return i` where `i` indexes `state["actions"]` |
-| `on_start(seed)` | before turn 1 of each run | a method in the class | `def on_start(self, seed): self.t = 0` (reset counters, open a client) |
-| `on_end(state, score)` | after the last turn, with the score | a method in the class | `def on_end(self, state, score): self.learn(score["points_no_time"])` |
-| `rearrange(state) -> (a,b) \| None` | before `choose`, while `state["can_reorder"]` | a method in the class | `def rearrange(self, state): return (0, 2)` to swap slots 0 and 2, or `return None` |
-| `explain() -> str` | after `choose`, for the `-d` log | a method in the class | `def explain(self): return self._why` (set `self._why` inside `choose`) |
+| `act(state) -> int` | every turn (**required**) | a method in the class | `def act(self, state): ...; return i` where `i` indexes `state["actions"]` |
+| `reset(seed)` | before turn 1 of each run | a method in the class | `def reset(self, seed): self.t = 0` (reset counters, open a client) |
+| `finish(state, score)` | after the last turn, with the score | a method in the class | `def finish(self, state, score): self.learn(score["points_no_time"])` |
+| `reorder(state) -> (a,b) \| None` | before `act`, while `state["can_reorder"]` | a method in the class | `def reorder(self, state): return (0, 2)` to swap slots 0 and 2, or `return None` |
+| `reason() -> str` | after `act`, for the `-d` log | a method in the class | `def reason(self): return self._why` (set `self._why` inside `act`) |
 | `artifacts() -> list` | at `bot bench` record time | a method in the class | `def artifacts(self): from pokelike.arena.leaderboard import Artifact; return [Artifact(name="weights", kind="weights-json", data=self.w)]` |
 
 ```python
@@ -258,10 +260,10 @@ from pokelike.bot.base import Bot
 class MyBot(Bot):
     name = "mine"                                   # class attribute (folder name)
 
-    def on_start(self, seed: int) -> None:          # an optional hook
+    def reset(self, seed: int) -> None:             # an optional hook
         self._why = ""
 
-    def choose(self, state: dict[str, Any]) -> int: # the one required method
+    def act(self, state: dict[str, Any]) -> int:    # the one required method
         for i, a in enumerate(state["actions"]):
             if a.get("node") == "catch":
                 self._why = "catch when possible"
@@ -269,27 +271,27 @@ class MyBot(Bot):
         self._why = "default"
         return 0
 
-    def explain(self) -> str:                       # one line for the -d log
+    def reason(self) -> str:                        # one line for the -d log
         return self._why
 ```
 
 ### Road 2: you inherit `LLMBot`, the knobs
 
-Each knob is a **class attribute at the top of `class MyBot(LLMBot)`**. You set it by
-assignment; you write no method.
+Each knob is a **field in `config = LLMConfig(...)`** at the top of `class MyBot(LLMBot)`.
+You set it by assignment; you write no method.
 
 | knob | decides | where | how (what you write) |
 |---|---|---|---|
-| `PROMPT` | the system prompt (the submission) | class attribute | `PROMPT = GAME_RULES + "Heal before it is urgent."` |
-| `MODEL` | model id (or `$MODEL_ID`) | class attribute **or** CLI flag | `MODEL = "openai/gpt-4o-mini"`, or leave unset and pass `--model openai/gpt-4o-mini` |
-| `TEMPERATURE` | sampling | class attribute | `TEMPERATURE = 0.3` |
-| `MAX_TOKENS` | ceiling on one answer | class attribute | `MAX_TOKENS = 2000` |
-| `MAX_ROUNDS` | tool rounds before giving up the turn | class attribute | `MAX_ROUNDS = 6` |
-| `MEMORY` | how many past turns are shown back | class attribute | `MEMORY = 10` |
-| `TOKEN_BUDGET` | tokens per run (0 = no cap) | class attribute | `TOKEN_BUDGET = 40000` |
-| `EXTRA_TOOLS` | your tools on top of the four shared | class attribute (list of dicts) plus a `run_tool` branch | see the seams table |
-| `STATE_VIEW` | what the model reads | class attribute | `STATE_VIEW = "json"` or `STATE_VIEW = ["team", "actions"]` |
-| `RETRIES` | attempts on a transient HTTP failure | class attribute | `RETRIES = 6` |
+| `prompt` | the system prompt (the submission) | `LLMConfig` field | `config = LLMConfig(prompt=GAME_RULES + "Heal before it is urgent.")` |
+| `model` | model id (or `$MODEL_ID`) | `LLMConfig` field **or** CLI flag | `config = LLMConfig(model="openai/gpt-4o-mini", ...)`, or leave unset and pass `--model openai/gpt-4o-mini` |
+| `temperature` | sampling | `LLMConfig` field | `config = LLMConfig(temperature=0.3, ...)` |
+| `max_tokens` | ceiling on one answer | `LLMConfig` field | `config = LLMConfig(max_tokens=2000, ...)` |
+| `max_rounds` | tool rounds before giving up the turn | `LLMConfig` field | `config = LLMConfig(max_rounds=6, ...)` |
+| `memory` | how many past turns are shown back | `LLMConfig` field | `config = LLMConfig(memory=10, ...)` |
+| `token_budget` | tokens per run (0 = no cap) | `LLMConfig` field | `config = LLMConfig(token_budget=40000, ...)` |
+| `extra_tools` | your tools on top of the four shared | `LLMConfig` field (list of dicts) plus an `answer_tool` branch | see the seams table |
+| `state_view` | what the model reads | `LLMConfig` field | `config = LLMConfig(state_view="json", ...)` or `config = LLMConfig(state_view=["team", "actions"], ...)` |
+| `retries` | attempts on a transient HTTP failure | `LLMConfig` field | `config = LLMConfig(retries=6, ...)` |
 
 Credentials (`--endpoint`, `--api-key`, `--model`) reach the constructor from the
 **command line**, so you do not hardcode them:
@@ -299,40 +301,42 @@ Credentials (`--endpoint`, `--api-key`, `--model`) reach the constructor from th
 
 | method | override when | where | how (what you write) |
 |---|---|---|---|
-| `view(state) -> str` | none of the `STATE_VIEW` values fit | a method in the class | `def view(self, state): return f"{len(state['team'])} mons, {len(state['actions'])} options"` |
+| `render_state(state) -> str` | none of the `state_view` values fit | a method in the class | `def render_state(self, state): return f"{len(state['team'])} mons, {len(state['actions'])} options"` |
 | `tools() -> list` | you want to control the whole tool list | a method in the class | `def tools(self): return [t for t in super().tools() if t["function"]["name"] != "what_lies_ahead"]` |
-| `run_tool(name, args, state) -> str` | you added `EXTRA_TOOLS` and must answer them | a method in the class | `def run_tool(self, name, args, state): return ", ".join(state.get("bag") or []) if name == "bag" else super().run_tool(name, args, state)` |
-| `_call(messages) -> dict` | your model is not an OpenAI-style HTTP endpoint | a method in the class | `def _call(self, messages): return my_local_llm(messages)` (return `{"content": ..., "tool_calls": [...]}`) |
-| `_fallback(state) -> int` | change the backup move when a call fails | a method in the class | `def _fallback(self, state): return 0` |
+| `answer_tool(name, args, state) -> str` | you added `extra_tools` and must answer them | a method in the class | `def answer_tool(self, name, args, state): return ", ".join(state.get("bag") or []) if name == "bag" else super().answer_tool(name, args, state)` |
+| `call_model(messages) -> dict` | your model is not an OpenAI-style HTTP endpoint | a method in the class | `def call_model(self, messages): return my_local_llm(messages)` (return `{"content": ..., "tool_calls": [...]}`) |
+| `fallback_move(state) -> int` | change the backup move when a call fails | a method in the class | `def fallback_move(self, state): return 0` |
 
 ```python
 # bots/mine/bot.py
-from pokelike.bot.llm import LLMBot, GAME_RULES
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 class MyBot(LLMBot):
     name = "mine"                                   # class attribute
-    PROMPT = GAME_RULES + "Faints end runs. Heal early."   # class attribute
-    STATE_VIEW = "screen"                           # class attribute
-    TEMPERATURE = 0.3                               # class attribute
-    EXTRA_TOOLS = [{                                # class attribute
-        "type": "function",
-        "function": {"name": "bag", "description": "What you are carrying.",
-                     "parameters": {"type": "object", "properties": {}}},
-    }]
+    config = LLMConfig(                             # all knobs in one place
+        prompt=GAME_RULES + "Faints end runs. Heal early.",
+        state_view="screen",
+        temperature=0.3,
+        extra_tools=[{
+            "type": "function",
+            "function": {"name": "bag", "description": "What you are carrying.",
+                         "parameters": {"type": "object", "properties": {}}},
+        }],
+    )
 
-    def run_tool(self, name, args, state):          # a seam, answers your tool
+    def answer_tool(self, name, args, state):       # a seam, answers your tool
         if name == "bag":
             return ", ".join(state.get("bag") or []) or "nothing"
-        return super().run_tool(name, args, state)  # let the base answer the shared four
+        return super().answer_tool(name, args, state)  # let the base answer the shared four
 ```
 
-Do not define `choose` here: on the `LLMBot` road it already runs the agentic loop.
+Do not define `act` here: on the `LLMBot` road it already runs the agentic loop.
 
-### Using `render` in `view()`
+### Using `render` in `render_state()`
 
 `core/render.py` is the shared state-to-text module, and a bot does **not** edit it
 (that would change the CLI and every bot's default view, a `src/` change). Instead you
-compose its pure functions inside your own `view()`. The blocks:
+compose its pure functions inside your own `render_state()`. The blocks:
 
 | function | returns |
 |---|---|
@@ -346,16 +350,16 @@ compose its pure functions inside your own `view()`. The blocks:
 ```python
 from pokelike.core import render
 
-def view(self, state):                              # team + options only, no map
+def render_state(self, state):                      # team + options only, no map
     return render.team_view(state["team"]) + "\n\n" + render.actions_view(state["actions"])
 ```
 
 You do not override `render.py` itself, and you do not need to. `bridge.js` and `init.js`
 are overridable because they reach what Python cannot: the data that is in the state, and
-which game a seed plays. `render.py` only presents data already in `obs`, and `view()`
+which game a seed plays. `render.py` only presents data already in `obs`, and `render_state()`
 already lets you present it any way you like, so a per-bot renderer would add nothing
-`view()` cannot already do. Ship a big custom renderer in `artifacts/` and call it from
-`view()` if you want; improving the rendering for everyone is a `src/` change instead.
+`render_state()` cannot already do. Ship a big custom renderer in `artifacts/` and call it from
+`render_state()` if you want; improving the rendering for everyone is a `src/` change instead.
 (The benchmark carries its own frozen copy of `render.py` for the opposite reason: to
 keep every model shown the state the same way, not to open it up.)
 

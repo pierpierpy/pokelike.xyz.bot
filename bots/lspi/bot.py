@@ -405,13 +405,13 @@ class LSPIBot(Bot):
         self.decisions = 0
         self._last_why = ""
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.rng = random.Random(seed)
 
     def q(self, x: dict[int, float]) -> float:
         return sum(self.w[i] * v for i, v in x.items())
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         self.decisions += 1
         actions = state["actions"]
         values = [self.q(features(state, a)) for a in actions]
@@ -428,7 +428,7 @@ class LSPIBot(Bot):
         label = (action.get("label") or "").strip().split("\n")[0]
         return (label[:14] or f"slot{index}").lower()
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         options = reorder_options(state)
         if not options:
             return None
@@ -443,10 +443,10 @@ class LSPIBot(Bot):
                           f"({values[i]:.1f}) over staying ({values[0]:.1f})")
         return (0, b)
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         return {
             "weights": self.weights_path.name,
             "features_version": FEATURES_VERSION,

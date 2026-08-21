@@ -598,5 +598,17 @@
    "sha256": "493f2f52c870f69d7969c95f1dbe4c3c76f1311ca798f96204910f80a2313684"
   }
  ],
- "fingerprint": "6aeb11457d3c3c8b49a91567797dfe4db7fc4a93aa8f8c945626ff16c6a6cb63"
+ "fingerprint": "71690aafd1aa5f4ef0996a827ef55987e3839d9b5ec619a13f0736437c450c4a",
+ "refingerprinted": [
+  {
+   "on": "2026-08-21T10:55:11+00:00",
+   "was": {
+    "fingerprint": "6aeb11457d3c3c8b49a91567797dfe4db7fc4a93aa8f8c945626ff16c6a6cb63"
+   },
+   "now": {
+    "fingerprint": "71690aafd1aa5f4ef0996a827ef55987e3839d9b5ec619a13f0736437c450c4a"
+   },
+   "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
+  }
+ ]
 }

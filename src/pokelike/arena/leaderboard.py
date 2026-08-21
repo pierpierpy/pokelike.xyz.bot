@@ -241,7 +241,7 @@ def as_markdown(index: dict[str, Any]) -> str:
     rows = index.get("entries") or []
     if not rows:
         return ("_No bots measured yet._ Yours would be the first, see "
-                "[GUIDE.md](../GUIDE.md).\n")
+                "[CONTRIBUTING.md](../CONTRIBUTING.md).\n")
     out = [
         "| # | bot | author | how | runs | badges~ | badges+ | score~ | best | code |",
         "|--:|---|---|---|--:|--:|--:|--:|--:|---|",

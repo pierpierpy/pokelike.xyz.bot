@@ -123,7 +123,7 @@ given the same recorder afterwards: a list appended to in the dispatch loop leav
 request, the reply and every branch untouched, so it is an observation and belongs to
 all of them. Their eleven recorded passes carry the old hashes and the reason beside the
 new ones. It lives in each harness rather than in the shared code because the loop is
-the harness: `play` and `set_lead` never reach `run_tool`, so nothing outside can see
+the harness: `play` and `set_lead` never reach `answer_tool`, so nothing outside can see
 the decision itself.
 
 `pokelike model watch` reads this while the pass runs.

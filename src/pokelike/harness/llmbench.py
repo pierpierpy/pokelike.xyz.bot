@@ -309,7 +309,7 @@ def preflight(version: str, model: str, endpoint: str | None = None,
             "and any reason. Do not answer in prose."},
     ]
     try:
-        msg = bot._call(probe)
+        msg = bot.call_model(probe)
     except Exception as e:  # noqa: BLE001
         out.update(why=f"{type(e).__name__}: {e}",
                    tokens_in=bot.tokens_in, tokens_out=bot.tokens_out,
@@ -900,7 +900,7 @@ def play_model(game, version: str, model: str, site: Path,
     # itself, so each one carries what that run actually spent.
     def on_run(row: dict[str, Any], done: int, total: int) -> None:
         now = time.time()
-        n = bot.notes()
+        n = bot.metadata()
         row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),
                    calls=n.get("calls", 0), turns=n.get("turns", 0),
                    fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0),
@@ -1274,7 +1274,7 @@ def _worker() -> int:
 
             full = play_run(game, bot, seed, max_steps=400, on_step=live,
                             on_decision=decided)
-            n = bot.notes()
+            n = bot.metadata()
             row = {k: full[k] for k in ("seed", "steps", "score", "badges", "maps",
                                         "kos", "faints", "ending", "stalled")}
             row.update(tokens_in=n.get("tokens_in", 0), tokens_out=n.get("tokens_out", 0),

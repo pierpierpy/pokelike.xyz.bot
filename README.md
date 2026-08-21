@@ -162,7 +162,7 @@ terminal.*
 *`-g` draws the map beside each decision: where you are, where you may still go, and
 where you have already been.*
 
-Writing one is a folder and a single method, `choose(state) -> int`.
+Writing one is a folder and a single method, `act(state) -> int`.
 **[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide**, a six-step walk-through from a
 clone to a pull request, plus everything you are allowed to change. The standings, the
 bar to beat, and every shipped bot are in [bots/](bots/README.md). Random is on the board

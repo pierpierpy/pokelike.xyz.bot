@@ -114,7 +114,7 @@ class SarsaLambda:
 
     # ----------------------------------------------------------------- policy
 
-    def choose(self, state: dict[str, Any], greedy: bool = False,
+    def act(self, state: dict[str, Any], greedy: bool = False,
                actions: list[dict] | None = None) -> int:
         """Index of the chosen action, over `state["actions"]` or an explicit list.
 

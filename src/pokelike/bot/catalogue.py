@@ -83,10 +83,10 @@ def load_class(path: Path) -> type[Bot]:
     if not found:
         raise TypeError(
             f"{path} defines no class inheriting from Bot.\n"
-            "A bot is one class with a choose(state) -> int method:\n"
+            "A bot is one class with an act(state) -> int method:\n"
             "    from pokelike.bot.base import Bot\n"
             "    class MyBot(Bot):\n"
-            "        def choose(self, state): return 0"
+            "        def act(self, state): return 0"
         )
     if len(found) > 1:
         raise TypeError(

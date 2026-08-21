@@ -119,7 +119,7 @@ prefix works too as long as it is unique, so `--bot mi` is fine until someone ad
 `mine-v2`, at which point it becomes an error naming both rather than a guess.
 
 **If your bot is a prompt around a language model**, add `--llm` and you start from the
-shared harness instead of an empty `choose`:
+shared harness instead of an empty `act`:
 
 ```bash
 uv run pokelike bot new my-prompt --llm
@@ -140,7 +140,7 @@ uv run pokelike bot bench --bot mine --dry-run     # the real 50 seeds, recorded
 
 ## 4. Write it
 
-The only method you must write is `choose`. It gets the state and returns an index into
+The only method you must write is `act`. It gets the state and returns an index into
 `state["actions"]`.
 
 ```python
@@ -152,7 +152,7 @@ from pokelike.bot.base import Bot
 class MyBot(Bot):
     name = "mine"
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         """Heal when someone is hurt, otherwise take a trainer for the levels."""
         team = state.get("team") or []
         hurt = any(p["hp"] / p["max_hp"] < 0.5 for p in team if p["max_hp"])
@@ -173,7 +173,7 @@ Everything the game knows is in `state`, including things nothing on screen tell
 **One class per folder.** The name of the folder says which bot ran, so a file defining
 two of them is refused rather than guessed at.
 
-That is the minimum. The optional hooks (`rearrange`, `explain`, `on_start`, `on_end`,
+That is the minimum. The optional hooks (`reorder`, `reason`, `reset`, `finish`,
 `artifacts`) are documented in `pokelike.bot.base`; the second road where a model picks
 the move (`LLMBot` and its knobs and seams) and how to ship your own `bridge.js` are
 documented in `pokelike.bot.llm`.

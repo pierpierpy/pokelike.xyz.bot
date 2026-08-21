@@ -20,13 +20,13 @@ records which model that was. Pin it in your own bot if you want a leaderboard
 row that means one specific model for good.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class AnalystBot(LLMBot):
     name = "llm-analyst"
 
-    PROMPT = GAME_RULES + """
+    config = LLMConfig(prompt=GAME_RULES + """
 HOW TO DECIDE
 Before choosing, gather what you need:
 1. Call `team_details` if any HP or type matchup could matter here.
@@ -34,4 +34,4 @@ Before choosing, gather what you need:
    matters as much as the node itself, because the others close forever.
 Only then call `play`, naming in one sentence the option you rejected and why.
 
-Always finish with `play`."""
+Always finish with `play`.""")

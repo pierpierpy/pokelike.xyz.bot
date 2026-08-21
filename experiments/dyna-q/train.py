@@ -61,7 +61,7 @@ def train(
             total_reward = 0.0
             steps = 0
             while actions:
-                a = agent.choose(s, actions)
+                a = agent.act(s, actions)
                 s2, actions2, r, done = env.step(a)
 
                 agent.observe(s, a, r, s2, actions2)   # steps (d) and (e)

@@ -19,7 +19,7 @@
    "fallback_rate": null,
    "stock_tools": null,
    "state_view": null,
-   "fingerprint": "a29c141fb0e2",
+   "fingerprint": "4d64662f83a8",
    "stale": false,
    "unverified": false,
    "artifacts": 2
@@ -43,7 +43,7 @@
    "fallback_rate": null,
    "stock_tools": null,
    "state_view": null,
-   "fingerprint": "5cffd5d367bf",
+   "fingerprint": "4f510e781971",
    "stale": false,
    "unverified": false,
    "artifacts": 2
@@ -67,7 +67,7 @@
    "fallback_rate": null,
    "stock_tools": null,
    "state_view": null,
-   "fingerprint": "6db914851882",
+   "fingerprint": "f9ff9acb470b",
    "stale": false,
    "unverified": false,
    "artifacts": 2
@@ -91,8 +91,8 @@
    "fallback_rate": null,
    "stock_tools": null,
    "state_view": null,
-   "fingerprint": "6aeb11457d3c",
-   "stale": true,
+   "fingerprint": "71690aafd1aa",
+   "stale": false,
    "unverified": false,
    "artifacts": 2
   },
@@ -115,7 +115,7 @@
    "fallback_rate": null,
    "stock_tools": null,
    "state_view": null,
-   "fingerprint": "15bb569eddef",
+   "fingerprint": "ee3e47ed63cb",
    "stale": false,
    "unverified": false,
    "artifacts": 0

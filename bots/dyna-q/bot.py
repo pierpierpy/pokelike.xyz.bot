@@ -155,10 +155,10 @@ class DynaQBot(Bot):
         self.decisions = 0
         self._last_why = ""
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.rng = random.Random(seed)
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Goes into the run registry and the benchmark result."""
         return {
             "table": self.table_path.name,
@@ -200,10 +200,10 @@ class DynaQBot(Bot):
             ),
         ]
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         self.decisions += 1
         actions = state["actions"]
         s = self.state_key(state)
@@ -215,7 +215,7 @@ class DynaQBot(Bot):
             # how often it happens tells you whether training covered enough.
             self.unseen += 1
             self._last_why = "state never seen in training, fell back to the safe rule"
-            return self._fallback(state)
+            return self.fallback_move(state)
 
         scored = [(values.get(action_key(a), 0.0), i) for i, a in enumerate(actions)]
         best = max(v for v, _ in scored)
@@ -226,7 +226,7 @@ class DynaQBot(Bot):
         return self.rng.choice([i for v, i in scored if v == best])
 
     @staticmethod
-    def _fallback(state: dict[str, Any]) -> int:
+    def fallback_move(state: dict[str, Any]) -> int:
         """Keep the team alive: heal if hurt, otherwise grow the team."""
         actions = state["actions"]
         team = state.get("team") or []

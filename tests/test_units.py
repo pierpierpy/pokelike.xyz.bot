@@ -208,14 +208,14 @@ def test_new_bot_writes_something_that_loads(tmp_path):
     only text until someone runs it.
     """
     from pokelike.bot.catalogue import load_class
-    from pokelike.bot.llm import LLMBot
+    from pokelike.bot.llm import LLMBot, LLMConfig
     from pokelike.arena.scaffold import new_bot
 
     plain = load_class(new_bot("probe-plain", tmp_path) / "bot.py")
-    assert plain(seed=0).choose({"actions": [{}, {}], "team": []}) in (0, 1)
+    assert plain(seed=0).act({"actions": [{}, {}], "team": []}) in (0, 1)
 
     llm = load_class(new_bot("probe-llm", tmp_path, llm=True) / "bot.py")
-    assert issubclass(llm, LLMBot) and llm.PROMPT
+    assert issubclass(llm, LLMBot) and llm.config.prompt
     assert "play" in [t["function"]["name"] for t in llm.tools(llm)]
 
 
@@ -273,11 +273,11 @@ def test_a_bot_is_measured_where_it_lives(tmp_path):
         "from pokelike.bot.base import Bot\n"
         "class MineBot(Bot):\n"
         "    name = 'mine'\n"
-        "    def choose(self, state): return 1\n",
+        "    def act(self, state): return 1\n",
         encoding="utf-8",
     )
     bot = create(str(tmp_path))
-    assert bot.choose({"actions": [{}, {}]}) == 1
+    assert bot.act({"actions": [{}, {}]}) == 1
     assert create(str(tmp_path / "bot.py")).name == "mine"
     with pytest.raises(KeyError):
         create(str(tmp_path / "empty"))
@@ -355,10 +355,10 @@ def test_every_llm_bot_uses_the_shared_harness_and_differs_from_the_others(monke
     for name in [n for n in on_disk() if n.startswith("llm-")]:
         cls = load_class(BOTS / name / "bot.py")
         assert issubclass(cls, LLMBot), f"{name} does not build on the shared harness"
-        assert cls.HARNESS == HARNESS, f"{name} pins an old harness version"
-        assert cls.PROMPT, f"{name} has no prompt"
+        assert cls.harness_version == HARNESS, f"{name} pins an old harness version"
+        assert cls.config.prompt, f"{name} has no prompt"
         bot = cls()
-        shape = (cls.PROMPT, bot.view_name(), tuple(bot.tool_names()), cls.MODEL)
+        shape = (cls.config.prompt, bot._state_view_label(), tuple(bot.tool_names()), cls.config.model)
         assert shape not in seen, f"{name} is identical to {seen.get(shape)}"
         seen[shape] = name
     assert len(seen) >= 2, "there is nothing to compare"
@@ -370,10 +370,10 @@ def test_an_llm_bot_refuses_to_build_without_credentials(monkeypatch):
     Falling back here would play a whole run on the backup heuristic and file it
     as an LLM result — a leaderboard row no model ever played.
     """
-    from pokelike.bot.llm import LLMBot, LLMConfigError
+    from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
     class Probe(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
     for var in ("FW_ENDPOINT", "FW_TOKEN", "MODEL_ID"):
         monkeypatch.delenv(var, raising=False)
@@ -397,32 +397,31 @@ def test_a_bot_may_add_its_own_tools_but_not_remove_play(monkeypatch):
     under the model's name, with nothing that looks wrong until you read
     `fallback_rate`.
     """
-    from pokelike.bot.llm import LLMBot, LLMConfigError
+    from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
     for var, val in (("FW_ENDPOINT", "https://x.invalid"),
                      ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
         monkeypatch.setenv(var, val)
 
     class Extra(LLMBot):
-        PROMPT = "x"
-        EXTRA_TOOLS = [{"type": "function",
-                        "function": {"name": "bag", "parameters": {}}}]
+        config = LLMConfig(prompt="x", extra_tools=[
+            {"type": "function", "function": {"name": "bag", "parameters": {}}}])
 
-        def run_tool(self, name, args, state):
-            return "a potion" if name == "bag" else super().run_tool(name, args, state)
+        def answer_tool(self, name, args, state):
+            return "a potion" if name == "bag" else super().answer_tool(name, args, state)
 
     bot = Extra()
     assert "bag" in bot.tool_names() and "play" in bot.tool_names()
-    assert bot.run_tool("bag", {}, {}) == "a potion"
-    assert "empty team" in bot.run_tool("team_details", {}, {"team": []})
+    assert bot.answer_tool("bag", {}, {}) == "a potion"
+    assert "empty team" in bot.answer_tool("team_details", {}, {"team": []})
     # An invented tool is answered, not raised: the model should be told and
     # allowed to carry on, not have the turn thrown away and played by fallback.
-    assert "unknown tool" in bot.run_tool("invented", {}, {})
+    assert "unknown tool" in bot.answer_tool("invented", {}, {})
     # And the difference is recorded, so the row is not read as comparable.
-    assert bot.notes()["stock_tools"] is False
+    assert bot.metadata()["stock_tools"] is False
 
     class NoPlay(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
         def tools(self):
             return []
@@ -440,7 +439,7 @@ def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monk
     telling the model how many options there were — and kept running, just
     worse, for reasons nothing reported.
     """
-    from pokelike.bot.llm import LLMBot, LLMConfigError
+    from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
     for var, val in (("FW_ENDPOINT", "https://x.invalid"),
                      ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
@@ -451,36 +450,39 @@ def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monk
                          {"kind": "node", "id": "n1_1", "node": "battle"}]}
 
     class Probe(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
-    seen = {spec: Probe(view=spec).view(state)
+    seen = {spec: Probe(view=spec).render_state(state)
             for spec in ("screen", "json", "both")}
     assert "Potion" in seen["json"], "the raw dict must carry the whole state"
     assert len(seen["both"]) > len(seen["screen"]), "both is the view plus the dict"
-    assert Probe(view=["bag"]).view(state) == '{"bag":["Potion"]}'
+    assert Probe(view=["bag"]).render_state(state) == '{"bag":["Potion"]}'
     # A key absent on this screen is skipped, not an error: `map` is gone during
     # a battle, and a view that raises there would end the run.
-    assert Probe(view=["bag", "map"]).view(state) == '{"bag":["Potion"]}'
+    assert Probe(view=["bag", "map"]).render_state(state) == '{"bag":["Potion"]}'
 
-    assert Probe(view="json").view_name() == "json"
-    assert Probe(view=["bag"]).view_name() == "keys:bag"
-    with pytest.raises(LLMConfigError):
-        Probe(view="nonsense").view(state)
+    assert Probe(view="json")._state_view_label() == "json"
+    assert Probe(view=["bag"])._state_view_label() == "keys:bag"
+    # A nonsense view is now rejected the moment the bot is built, by the config,
+    # rather than turns later inside render_state.
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Probe(view="nonsense")
 
     class Custom(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
-        def view(self, state):
+        def render_state(self, state):
             return "ONLY MINE"
 
     bot = Custom()
     bot.journal = ["step 1: [0] went to the trainer"]
-    whole = bot._situation(state)
+    whole = bot._build_user_message(state)
     assert "ONLY MINE" in whole
     assert "step 1: [0] went to the trainer" in whole, \
         "replacing the view cost the bot its memory"
     assert "Pick an index between 0 and 1" in whole, "the model was not told the range"
-    assert bot.view_name() == "custom", "a custom view must be recorded as one"
+    assert bot._state_view_label() == "custom", "a custom view must be recorded as one"
 
 
 def test_the_journal_records_the_action_not_the_models_sentence(monkeypatch):
@@ -490,21 +492,21 @@ def test_the_journal_records_the_action_not_the_models_sentence(monkeypatch):
     plan ("a second Pokemon matters more than one more fight this early") read as
     a thing that had happened, one turn later, with nothing to tell the two apart.
     """
-    from pokelike.bot.llm import LLMBot
+    from pokelike.bot.llm import LLMBot, LLMConfig
 
     for var, val in (("FW_ENDPOINT", "https://x.invalid"),
                      ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
         monkeypatch.setenv(var, val)
 
     class B(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
     bot = B()
     state = {"steps": 7, "actions": [
         {"kind": "node", "id": "n2_1", "node": "trainer"},
         {"kind": "element", "label": "Take Potion"},
     ]}
-    bot._commit(state, 0, "a second Pokemon matters more than one more fight")
+    bot._cache_decision(state, 0, "a second Pokemon matters more than one more fight")
 
     entry = bot.journal[-1]
     assert "node n2_1 (trainer)" in entry, "what was done is not in the record"
@@ -512,29 +514,29 @@ def test_the_journal_records_the_action_not_the_models_sentence(monkeypatch):
     assert entry.index("node n2_1") < entry.index("it said:"), \
         "the game's record comes first, the talk about it second"
 
-    bot._commit({**state, "steps": 8}, 1, "")
+    bot._cache_decision({**state, "steps": 8}, 1, "")
     assert "Take Potion" in bot.journal[-1], "a non-node action needs its label"
     assert "(nothing)" in bot.journal[-1], "silence must not look like a missing turn"
 
 
 def test_the_journal_heading_says_which_half_is_evidence(monkeypatch):
     """Separating them in the data is only half of it: the model has to be told."""
-    from pokelike.bot.llm import LLMBot
+    from pokelike.bot.llm import LLMBot, LLMConfig
 
     for var, val in (("FW_ENDPOINT", "https://x.invalid"),
                      ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
         monkeypatch.setenv(var, val)
 
     class B(LLMBot):
-        PROMPT = "x"
+        config = LLMConfig(prompt="x")
 
-        def view(self, state):
+        def render_state(self, state):
             return "V"
 
     bot = B()
-    bot._commit({"steps": 1, "actions": [{"kind": "node", "id": "n0", "node": "catch"}]},
+    bot._cache_decision({"steps": 1, "actions": [{"kind": "node", "id": "n0", "node": "catch"}]},
                 0, "worth a try")
-    whole = bot._situation({"steps": 2, "actions": [{"kind": "node", "id": "n1",
+    whole = bot._build_user_message({"steps": 2, "actions": [{"kind": "node", "id": "n1",
                                                      "node": "battle"}]})
     assert "YOUR RECENT MOVES" not in whole, "the old heading claimed too much"
     assert "not something that has been verified" in whole
@@ -565,16 +567,16 @@ def test_random_bot_is_reproducible():
     state = {"actions": [{}] * 5, "steps": 0}
     a = create("random", seed=7)
     b = create("random", seed=7)
-    a.on_start(7)
-    b.on_start(7)
-    assert [a.choose(state) for _ in range(20)] == [b.choose(state) for _ in range(20)]
+    a.reset(7)
+    b.reset(7)
+    assert [a.act(state) for _ in range(20)] == [b.act(state) for _ in range(20)]
 
 
 def test_random_bot_stays_in_range():
     state = {"actions": [{}] * 3, "steps": 0}
     b = create("random", seed=1)
-    b.on_start(1)
-    assert all(0 <= b.choose(state) < 3 for _ in range(50))
+    b.reset(1)
+    assert all(0 <= b.act(state) < 3 for _ in range(50))
 
 
 def test_abstract_bot_cannot_be_instantiated():
@@ -763,7 +765,7 @@ def test_a_bot_may_carry_its_own_bridge(tmp_path, monkeypatch):
         "from pokelike.bot.base import Bot\n"
         "class MyBot(Bot):\n"
         "    name = 'mine'\n"
-        "    def choose(self, state): return 0\n"
+        "    def act(self, state): return 0\n"
     )
     monkeypatch.setattr(catalogue, "BOTS", root)
 

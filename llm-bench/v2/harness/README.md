@@ -93,7 +93,7 @@ more here because the requests are bigger.
 ### Models served by OpenAI cannot be measured here
 
 The scratchpad keeps the exchange that ended the turn, and the `play` call inside it
-never received a reply: `choose` returns the moment the model calls `play`, so the
+never received a reply: `act` returns the moment the model calls `play`, so the
 loop never writes a `tool` message for that `tool_call_id`. From the second turn on,
 every request carries an assistant message whose tool call was never answered.
 

@@ -5,20 +5,19 @@ take**. Everything else — starting the browser, applying the move, computing t
 score — is none of its business.
 
     class MyBot(Bot):
-        def choose(self, state):
+        def act(self, state):
             return 0          # index into state["actions"]
 
 The index is the position in `state["actions"]`, the same numbered list you see
 when playing from the CLI. Returning an index out of range makes the move fail,
 so a bot must always stay within `len(state["actions"])`.
 
-The two hooks `on_start` and `on_end` are for bots that need memory across
-turns:
+The two hooks `reset` and `finish` are for bots that need memory across turns:
 
-- an **LLM** resets its conversation in `on_start` and closes it in `on_end`;
+- an **LLM** clears its conversation in `reset` and closes it in `finish`;
 - an **RL** algorithm accumulates the trajectory and receives the final score in
-  `on_end`, which is its reward signal;
-- a **scripted** bot resets its move counter in `on_start`.
+  `finish`, which is its reward signal;
+- a **scripted** bot resets its move counter in `reset`.
 
 Bots that need neither can ignore them: both already have empty bodies.
 """
@@ -30,7 +29,7 @@ from typing import Any
 
 
 class Bot(ABC):
-    """Base for every bot. `choose` is the only required method."""
+    """Base for every bot. `act` is the only required method."""
 
     name = "bot"
 
@@ -45,40 +44,40 @@ class Bot(ABC):
         self.seed = seed
 
     @abstractmethod
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         """Index of the chosen action within `state["actions"]`.
 
         `state` is the full dict: `team`, `bag`, `map`, `run`, `actions`,
         `steps`, `screen`. See `core/render.py` for how to read it.
         """
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         """Called before the first turn of each run."""
 
-    def on_end(self, state: dict[str, Any], score: dict[str, Any] | None) -> None:
+    def finish(self, state: dict[str, Any], score: dict[str, Any] | None) -> None:
         """Called once the run is over, with the final state and the score."""
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Optional: swap two team slots before choosing, or None to leave it.
 
         Slot 0 is the Pokemon that leads the next battle, so the order is a real
-        decision. It is kept apart from `choose` because it is a FREE action: it
+        decision. It is kept apart from `act` because it is a FREE action: it
         does not consume the turn, and folding it into `state["actions"]` would
         add fifteen swap pairs to a full team's option list at every map node,
         burying the moves that actually advance the run.
 
-        Called once per turn, before `choose`, and only while
+        Called once per turn, before `act`, and only while
         `state["can_reorder"]` is true. Return `(a, b)` to swap those slots.
         The run loop applies it and re-reads the state, so the `state` passed to
-        `choose` already reflects the swap.
+        `act` already reflects the swap.
 
         Ignoring this is exactly what every bot did before it existed, so a bot
         that does not implement it plays as it always has.
         """
         return None
 
-    def explain(self) -> str:
-        """One line on why the last `choose` went the way it did.
+    def reason(self) -> str:
+        """One line on why the last `act` went the way it did.
 
         Optional, and only used by the detailed log. The shared run loop already
         records what every bot has in common — the screen, the options, which one
@@ -89,6 +88,20 @@ class Bot(ABC):
         at random.
         """
         return ""
+
+    def metadata(self) -> dict[str, Any]:
+        """Extra facts recorded beside the score, in the run registry and
+        `result.json`.
+
+        Empty by default. Override it to record what your bot varies that nothing
+        else knows about — an RL bot's episode count and features, an LLM bot's
+        model and fallback rate. Two leaderboard rows are only comparable if what
+        differed between them was written down here.
+
+        Never put the API token or endpoint in here: `result.json` is committed
+        and gets pasted into issues.
+        """
+        return {}
 
     def artifacts(self) -> list:
         """What to archive alongside a leaderboard result.

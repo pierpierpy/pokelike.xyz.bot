@@ -31,7 +31,7 @@ FIELDS = {
     "bag": "item names you are carrying",
     "map": "the whole board: nodes, edges, where you stand",
     "stats": "the engine's cumulative counters, updated after every battle",
-    "actions": "THE LEGAL MOVES. choose() returns an index into this list",
+    "actions": "THE LEGAL MOVES. act() returns an index into this list",
     "bag_items": ("the bag with ids: [{id, name, desc, usable}]. `bag` is the same "
                   "list as bare names. The id is the handle that matters, because item "
                   "effects are not structured anywhere in the engine, so the id is "
@@ -47,7 +47,7 @@ FIELDS = {
                    "type I actually field"),
     "can_reorder": ("whether the team can be reordered right now. Slot 0 leads the "
                     "next battle, so the order is a decision, but a FREE one, which "
-                    "is why it is not in `actions`: see Bot.rearrange / Game.reorder"),
+                    "is why it is not in `actions`: see Bot.reorder / Game.reorder"),
     "stalled": "only present if the engine stopped responding (should never happen)",
 }
 
@@ -123,7 +123,7 @@ def describe(obs: dict[str, Any]) -> str:
     add("  WHAT A BOT RECEIVES")
     add("=" * 78)
     add("")
-    add("  choose(state) -> int      returns an index into state['actions']")
+    add("  act(state) -> int         returns an index into state['actions']")
     add("")
     add("  One state, not a history. The history that matters is already inside:")
     add("  every node carries `visited`, and `stats` are cumulative from the start")

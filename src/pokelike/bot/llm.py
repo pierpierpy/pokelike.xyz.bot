@@ -7,26 +7,28 @@ bot, for one reason: **a benchmark of models has to hold the harness still.**
 Two bots with different loops are not two models being compared, they are two
 harnesses, and the model is the smaller half of the difference.
 
-So a bot built on this is short:
+So a bot built on this is short: a prompt in an `LLMConfig`.
 
-    from pokelike.bot.llm import LLMBot, GAME_RULES
+    from pokelike.bot.llm import LLMBot, LLMConfig, GAME_RULES
 
     class SurvivorBot(LLMBot):
         name = "llm-survivor"
-        PROMPT = GAME_RULES + "Heal before it is urgent. Always call play()."
+        config = LLMConfig(
+            prompt=GAME_RULES + "Heal before it is urgent. Always call play().",
+        )
 
 Credentials never appear in a bot file. They come from the environment, always:
 
     export FW_ENDPOINT="https://..."     # base URL; /v1/chat/completions is added
     export FW_TOKEN="..."
-    export MODEL_ID="..."                # unless the bot pins MODEL itself
+    export MODEL_ID="..."                # unless the config pins `model` itself
     uv run pokelike bot run --bot llm-survivor --runs 3
 
 **This file is shared, which is the thing to be careful about.** The whole point
 of a bot being self-contained is that improving our code cannot silently change
 what a past measurement meant. Code in here is the exception: it is shared on
-purpose, so editing it *does* reach every LLM bot ever measured. `HARNESS` is
-how that stays honest — it is written into every result, and a result recorded
+purpose, so editing it *does* reach every LLM bot ever measured. `harness_version`
+is how that stays honest — it is written into every result, and a result recorded
 under an older harness is flagged in the standings instead of quietly being
 compared against results from a newer one. **Bump it whenever a change here
 could move a decision.**
@@ -46,7 +48,9 @@ import random
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from pokelike.bot.base import Bot
 from pokelike.core import render
@@ -111,8 +115,8 @@ CLOSING = "\nThink briefly, then call `play` with your chosen index. Always call
 # another model was not is not being compared, it is being helped.
 #
 # A bot may still add its own, or replace these outright -- see `tools()` and
-# `run_tool()` on LLMBot. What it may not do is hide that it did: the tool names
-# go into every result and a bot whose set differs from the shared one is
+# `answer_tool()` on LLMBot. What it may not do is hide that it did: the tool
+# names go into every result and a bot whose set differs from the shared one is
 # marked in the standings, so its row is read as the different question it is.
 
 TOOLS = [
@@ -193,11 +197,43 @@ class LLMConfigError(LLMError):
 class LLMBudgetError(LLMError):
     """The run asked for more tokens than the bot allowed itself.
 
-    Only raised when a bot sets `TOKEN_BUDGET`. A model that thinks ten times
+    Only raised when a config sets `token_budget`. A model that thinks ten times
     longer than the others is not straightforwardly better than them, and over
     fifty runs the difference is money, so a bot may declare a ceiling and be
     held to it rather than discovering the bill afterwards.
     """
+
+
+# --------------------------------------------------------------------- config
+
+StateView = Literal["screen", "json", "both"] | list[str]
+
+
+class LLMConfig(BaseModel):
+    """Every knob an LLM bot can turn, in one validated place.
+
+    A bot sets the ones it cares about and inherits the rest:
+
+        config = LLMConfig(prompt=GAME_RULES + "...", temperature=0.3)
+
+    `extra="forbid"` means a typo in a field name is caught the moment the bot is
+    built, not fifty runs later. Credentials are deliberately NOT here: the
+    endpoint and token come from the environment or the command line, because
+    this object is fingerprinted and written into `result.json`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str = GAME_RULES + CLOSING          # the system prompt: the submission
+    model: str | None = None                    # pin an id, or None to take $MODEL_ID
+    temperature: float = 0.6
+    max_tokens: int = 1500
+    max_rounds: int = 4                          # tool rounds before the turn is given up
+    memory: int = 6                              # past turns replayed to the model
+    token_budget: int = 0                        # per-run cap, 0 = none
+    retries: int = 4                             # attempts on a transient HTTP failure
+    extra_tools: list[dict[str, Any]] = Field(default_factory=list)
+    state_view: StateView = "screen"             # what the model reads each turn
 
 
 # ------------------------------------------------------------------------ bot
@@ -206,21 +242,10 @@ class LLMBudgetError(LLMError):
 class LLMBot(Bot):
     """A bot that asks a model what to do, one call per turn.
 
-    Subclass it and set `PROMPT`. Everything else has a working default.
+    Subclass it and set `config` (at least a `prompt`). Everything else has a
+    working default.
 
-    | attribute      | what it decides                                        |
-    |----------------|--------------------------------------------------------|
-    | `PROMPT`       | the system prompt: **this is your submission**          |
-    | `MODEL`        | model id, or None to take `$MODEL_ID`                   |
-    | `TEMPERATURE`  | sampling                                               |
-    | `MAX_TOKENS`   | ceiling on one answer                                  |
-    | `MAX_ROUNDS`   | tool rounds before the turn is given up on             |
-    | `MEMORY`       | how many past turns are shown back to the model        |
-    | `TOKEN_BUDGET` | tokens per run, 0 for no ceiling                       |
-    | `EXTRA_TOOLS`  | tools of your own, on top of the shared four            |
-    | `STATE_VIEW`   | **what the model reads each turn**                      |
-
-    `STATE_VIEW` is the one to think hardest about, because it decides what the
+    `state_view` is the field to think hardest about, because it decides what the
     model is looking at rather than what it is told to do:
 
     | value | what the model gets | roughly |
@@ -234,69 +259,56 @@ class LLMBot(Bot):
     filling the context with a map the turn does not need takes room from the
     reasoning it was about to do. The default drops real things -- the engine's
     type/item table, the map edges, raw base stats -- because it renders what a
-    person would look at, not everything that is true. Which of those matters is
-    an experiment, which is why this is a knob and not our decision.
+    person would look at, not everything that is true.
 
-    `view(state)` is the escape hatch when none of the four fit. Override it and
-    return whatever string you like; the journal and the "pick an index"
+    `render_state(state)` is the escape hatch when none of the four fit. Override
+    it and return whatever string you like; the journal and the "pick an index"
     instruction are added around it by the harness, so you cannot break them by
     forgetting them.
 
     To give the model something the shared tools do not offer, declare it in
-    `EXTRA_TOOLS` and answer it in `run_tool`:
+    `config.extra_tools` and answer it in `answer_tool`. Replacing the shared set
+    entirely is `tools()`. Both are allowed and both are recorded: a bot with its
+    own tools is answering a different question from one without, and the
+    standings say so rather than ranking them as though they were the same.
 
-        class MyBot(LLMBot):
-            EXTRA_TOOLS = [{
-                "type": "function",
-                "function": {
-                    "name": "bag",
-                    "description": "What you are carrying.",
-                    "parameters": {"type": "object", "properties": {}},
-                },
-            }]
-
-            def run_tool(self, name, args, state):
-                if name == "bag":
-                    return ", ".join(state.get("bag") or []) or "(empty)"
-                return super().run_tool(name, args, state)
-
-    Replacing the shared set entirely is `tools()`. Both are allowed and both
-    are recorded: a bot with its own tools is answering a different question
-    from one without, and the standings say so rather than ranking them as
-    though they had been asked the same thing.
-
-    On `MODEL`: pin it in the bot file if you want a leaderboard row that means
-    one specific model — the id is not a secret, and pinning it puts it inside
-    the fingerprint, so swapping the model shows as a changed bot. Leave it None
-    and the bot plays whatever `$MODEL_ID` names, which is what you want while
-    experimenting and what the four prompt bots shipped in `bots/` do.
+    On `config.model`: pin it if you want a leaderboard row that means one
+    specific model — the id is not a secret, and pinning it puts it inside the
+    fingerprint, so swapping the model shows as a changed bot. Leave it None and
+    the bot plays whatever `$MODEL_ID` names.
     """
 
     name = "llm"
 
-    HARNESS = HARNESS
-    PROMPT = GAME_RULES + CLOSING
-    MODEL: str | None = None
-    TEMPERATURE = 0.6
-    MAX_TOKENS = 1500
-    MAX_ROUNDS = 4
-    MEMORY = 6
-    TOKEN_BUDGET = 0
-    # Attempts after the first, for failures that are worth trying again: rate
-    # limits and the 5xx family. Not a nicety once runs go in parallel -- a 429
-    # would otherwise be counted as a turn the model failed to answer, which is
-    # exactly the column that decides whether a benchmark row means anything.
-    RETRIES = 4
-    EXTRA_TOOLS: list[dict[str, Any]] = []
-    STATE_VIEW: Any = "screen"
+    # The generation of the shared loop, written into every result. Not in the
+    # config because it is not a knob a bot turns: it is a fact about this file.
+    harness_version = HARNESS
+
+    # The default config. A subclass overrides it with its own LLMConfig(...).
+    config: LLMConfig = LLMConfig()
 
     def __init__(self, seed: int = 0, endpoint: str | None = None,
                  token: str | None = None, model: str | None = None,
-                 verbose: bool = False, **overrides: Any) -> None:
+                 config: LLMConfig | None = None, verbose: bool = False,
+                 **overrides: Any) -> None:
         super().__init__(seed=seed)
         self.endpoint = (endpoint or os.environ.get("FW_ENDPOINT", "")).rstrip("/")
         self.token = token or os.environ.get("FW_TOKEN", "")
-        self.model = model or self.MODEL or os.environ.get("MODEL_ID", "")
+
+        # Per-instance config: start from the passed or class-declared config and
+        # apply any keyword overrides, so `LLMBot(temperature=0)` works in a
+        # notebook without a bot file. `view=` is accepted as a friendly alias
+        # for `state_view`. A submission should still declare its knobs on the
+        # class: the fingerprint covers the class, and a row whose view was chosen
+        # by the caller does not say what it played.
+        if "view" in overrides:
+            overrides["state_view"] = overrides.pop("view")
+        base = config or type(self).config
+        # Rebuilt through the model (not model_copy) so overrides are validated
+        # and an unknown one is rejected here rather than silently ignored.
+        self.cfg = LLMConfig(**{**base.model_dump(), **overrides})
+
+        self.model = model or self.cfg.model or os.environ.get("MODEL_ID", "")
         if not self.endpoint or not self.token:
             raise LLMConfigError(
                 "FW_ENDPOINT and FW_TOKEN are required, from the environment or "
@@ -309,26 +321,9 @@ class LLMBot(Bot):
             )
         if not self.model:
             raise LLMConfigError(
-                f"{type(self).__name__} pins no MODEL, so a model id is required\n"
+                f"{type(self).__name__} pins no model, so a model id is required\n"
                 '  export MODEL_ID="gpt-4o-mini"      or      --model gpt-4o-mini'
             )
-
-        # Per-instance copies of the class settings, so a caller can override one
-        # without editing the bot: create("llm-survivor") uses the declared ones,
-        # LLMBot(temperature=0) in a notebook does not.
-        self.system = overrides.pop("prompt", None) or self.PROMPT
-        self.temperature = overrides.pop("temperature", self.TEMPERATURE)
-        self.max_tokens = overrides.pop("max_tokens", self.MAX_TOKENS)
-        self.max_rounds = overrides.pop("max_rounds", self.MAX_ROUNDS)
-        self.memory = overrides.pop("memory", self.MEMORY)
-        # Settable here as well as on the class so an experiment can put four
-        # views on the same seeds without four bot folders. A SUBMISSION should
-        # still declare it on the class: the fingerprint covers the class, and a
-        # row whose view was chosen by the caller does not say what it played.
-        self.state_view = overrides.pop("view", None) or self.STATE_VIEW
-        self.token_budget = overrides.pop("token_budget", self.TOKEN_BUDGET)
-        if overrides:
-            raise TypeError(f"unknown settings: {', '.join(sorted(overrides))}")
         self.verbose = verbose or bool(os.environ.get("POKELIKE_VERBOSE"))
 
         # Checked once, here, rather than discovered fifty runs in. Without
@@ -355,24 +350,24 @@ class LLMBot(Bot):
         self.tokens_used = 0
         self.tokens_in = 0
         self.tokens_out = 0
-        self.retries = 0
+        self.retry_count = 0
         self.fallbacks = 0
         self.journal: list[str] = []
         self._last_why = ""
-        # The turn decided in `rearrange`, waiting for `choose` to collect it.
+        # The turn decided in `reorder`, waiting for `act` to collect it.
         self._pending: tuple[int | None, int | None, str] | None = None
 
     # ------------------------------------------------------------------ hooks
 
-    def on_start(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:
         self.seed = seed
         self.journal = []
         self._pending = None
         self.calls = self.turns = self.tokens_used = self.fallbacks = 0
-        self.tokens_in = self.tokens_out = self.retries = 0
+        self.tokens_in = self.tokens_out = self.retry_count = 0
         self._last_why = ""
 
-    def notes(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Ends up in the run registry, and in the result a benchmark records.
 
         `fallback_rate` is the honest column of an LLM benchmark. Every fallback
@@ -382,7 +377,7 @@ class LLMBot(Bot):
         """
         return {
             "model": self.model,
-            "harness": self.HARNESS,
+            "harness": self.harness_version,
             "bot": type(self).__name__,
             "calls": self.calls,
             "turns": self.turns,
@@ -391,17 +386,17 @@ class LLMBot(Bot):
             "tokens_out": self.tokens_out,
             # Transient failures that were retried rather than counted
             # against the model. High means the provider was struggling.
-            "retries": self.retries,
+            "retries": self.retry_count,
             "fallbacks": self.fallbacks,
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
-            "temperature": self.temperature,
+            "temperature": self.cfg.temperature,
             # False means this bot answers a different question from the others:
             # it gave the model tools they did not have, or took some away.
             "stock_tools": self.tool_names() == _STOCK_TOOL_NAMES,
             # What the model was looking at. Two rows with different views are
             # not answering the same question, any more than two with different
             # tools are.
-            "state_view": self.view_name(),
+            "state_view": self._state_view_label(),
             "reproducible": False,
         }
 
@@ -423,7 +418,7 @@ class LLMBot(Bot):
                 name="prompt.md",
                 kind="prompt",
                 description=f"system prompt, {type(self).__name__}",
-                text=self.system,
+                text=self.cfg.prompt,
             ),
             Artifact(
                 name="model.json",
@@ -431,16 +426,16 @@ class LLMBot(Bot):
                 description="which model answered, and how it was asked",
                 data={
                     "model": self.model,
-                    "pinned": self.MODEL is not None,
-                    "harness": self.HARNESS,
-                    "temperature": self.temperature,
-                    "max_tokens": self.max_tokens,
-                    "max_rounds": self.max_rounds,
-                    "memory": self.memory,
-                    "token_budget": self.token_budget,
+                    "pinned": type(self).config.model is not None,
+                    "harness": self.harness_version,
+                    "temperature": self.cfg.temperature,
+                    "max_tokens": self.cfg.max_tokens,
+                    "max_rounds": self.cfg.max_rounds,
+                    "memory": self.cfg.memory,
+                    "token_budget": self.cfg.token_budget,
                     "tools": self.tool_names(),
                     "stock_tools": self.tool_names() == _STOCK_TOOL_NAMES,
-                    "state_view": self.view_name(),
+                    "state_view": self._state_view_label(),
                     "reproducible": False,
                     "why_not": (
                         "providers change models behind a fixed name and sampling is "
@@ -452,16 +447,16 @@ class LLMBot(Bot):
 
     # --------------------------------------------------------------- decision
 
-    def explain(self) -> str:
+    def reason(self) -> str:
         return self._last_why
 
-    def rearrange(self, state: dict[str, Any]) -> tuple[int, int] | None:
+    def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Who leads, decided in the SAME model call as the move.
 
-        The run loop asks for this before `choose`, so the whole turn is thought
-        about once: `_agentic_round` runs here, the chosen action is cached, and
-        `choose` returns it without a second request. One HTTP call per turn —
-        the model simply gets one more tool.
+        The run loop asks for this before `act`, so the whole turn is thought
+        about once: `_run_turn` runs here, the chosen action is cached, and `act`
+        returns it without a second request. One HTTP call per turn — the model
+        simply gets one more tool.
 
         Offered only on the map screen. Elsewhere the options ARE the team (the
         swap screen, the equip modal), so reordering underneath would change what
@@ -471,50 +466,50 @@ class LLMBot(Bot):
         if state.get("screen") != "map-screen" or not state.get("can_reorder"):
             return None
         try:
-            index, why, lead = self._agentic_round(state, allow_lead=True)
+            index, why, lead = self._run_turn(state, allow_lead=True)
         except LLMConfigError:
             raise
-        except Exception:  # noqa: BLE001 — handled again, and counted, in choose
+        except Exception:  # noqa: BLE001 — handled again, and counted, in act
             return None
         team = state.get("team") or []
         if lead is None or not 0 < lead < len(team):
             self._pending = (state.get("steps"), index, why)
             return None
-        # Carried into the turn's explanation rather than set here: `choose`
+        # Carried into the turn's explanation rather than set here: `act`
         # overwrites `_last_why` with the move reason, so a lead decision set
         # here was performed and then never shown.
         why = f"lead {team[lead]['name']} | {why}"
         self._pending = (state.get("steps"), index, why)
         return (0, lead)
 
-    def choose(self, state: dict[str, Any]) -> int:
+    def act(self, state: dict[str, Any]) -> int:
         self.turns += 1
         n = len(state["actions"])
-        # Already decided in rearrange, this same turn. `steps` guards it: a
+        # Already decided in reorder, this same turn. `steps` guards it: a
         # cached index must never be replayed against a different turn.
         if self._pending and self._pending[0] == state.get("steps"):
             _, index, why = self._pending
             self._pending = None
             if isinstance(index, int) and 0 <= index < n:
-                return self._commit(state, index, why)
+                return self._cache_decision(state, index, why)
         try:
-            index, why, _ = self._agentic_round(state)
+            index, why, _ = self._run_turn(state)
         except (LLMConfigError, LLMBudgetError):
             # Not recoverable: every later call fails identically, or the run has
             # spent what it was allowed. Better to stop than to quietly hand the
             # rest of the run to the backup heuristic and file it as an LLM run.
             raise
         except Exception as e:  # noqa: BLE001 — a transient failure must not end the run
-            return self._fall_back(state, f"{type(e).__name__}: {e}"[:80])
+            return self._run_fallback(state, f"{type(e).__name__}: {e}"[:80])
 
         if not isinstance(index, int) or not 0 <= index < n:
-            return self._fall_back(state, f"model returned index {index}")
-        return self._commit(state, index, why)
+            return self._run_fallback(state, f"model returned index {index}")
+        return self._cache_decision(state, index, why)
 
-    def _commit(self, state: dict[str, Any], index: int, why: str) -> int:
+    def _cache_decision(self, state: dict[str, Any], index: int, why: str) -> int:
         self._last_why = why
         self.journal.append(self._journal_entry(state, index, why))
-        self.journal = self.journal[-self.memory:]
+        self.journal = self.journal[-self.cfg.memory:]
         if self.verbose:
             print(f"   [llm] -> [{index}] {why[:100]}")
         return index
@@ -535,23 +530,23 @@ class LLMBot(Bot):
         the same idea for five turns. It is just not evidence.
         """
         actions = state.get("actions") or []
-        act = actions[index] if 0 <= index < len(actions) else {}
-        if act.get("kind") == "node":
-            did = f"node {act.get('id', '?')} ({act.get('node', 'node')})"
+        chosen = actions[index] if 0 <= index < len(actions) else {}
+        if chosen.get("kind") == "node":
+            did = f"node {chosen.get('id', '?')} ({chosen.get('node', 'node')})"
         else:
-            did = str(act.get("label") or act.get("id") or "action")
+            did = str(chosen.get("label") or chosen.get("id") or "action")
         said = " ".join(str(why or "").split())[:200]
         return (f"step {state.get('steps')}: [{index}] {did}\n"
                 f"    it said: {said or '(nothing)'}")
 
-    def _fall_back(self, state: dict[str, Any], reason: str) -> int:
+    def _run_fallback(self, state: dict[str, Any], reason: str) -> int:
         self.fallbacks += 1
         self._last_why = f"(fell back: {reason})"
         if self.verbose:
             print(f"   [llm] fallback: {reason}")
-        return self._fallback(state)
+        return self.fallback_move(state)
 
-    def _fallback(self, state: dict[str, Any]) -> int:
+    def fallback_move(self, state: dict[str, Any]) -> int:
         """Backup choice when the model does not answer or gets it wrong.
 
         Not random: it prefers what keeps the team alive — heal first if someone
@@ -572,21 +567,21 @@ class LLMBot(Bot):
 
     # ---------------------------------------------------------- agentic loop
 
-    def _agentic_round(self, state: dict[str, Any],
-                       allow_lead: bool = False) -> tuple[int, str, int | None]:
+    def _run_turn(self, state: dict[str, Any],
+                  allow_lead: bool = False) -> tuple[int, str, int | None]:
         """One turn of thinking. Returns (action index, reason, lead or None)."""
         lead: int | None = None
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self.system},
-            {"role": "user", "content": self._situation(state)},
+            {"role": "system", "content": self.cfg.prompt},
+            {"role": "user", "content": self._build_user_message(state)},
         ]
 
-        for _ in range(self.max_rounds):
-            msg = self._call(messages)
+        for _ in range(self.cfg.max_rounds):
+            msg = self.call_model(messages)
             calls = msg.get("tool_calls") or []
             if not calls:
                 # No tool: maybe it wrote the index out in prose.
-                index = self._index_from_text(msg.get("content") or "", len(state["actions"]))
+                index = self._parse_index(msg.get("content") or "", len(state["actions"]))
                 if index is not None:
                     return index, "(read from prose)", lead
                 raise LLMError("the model called no tool")
@@ -628,23 +623,25 @@ class LLMBot(Bot):
                 messages.append({
                     "role": "tool",
                     "tool_call_id": c["id"],
-                    "content": self.run_tool(name, args, state),
+                    "content": self.answer_tool(name, args, state),
                 })
 
-        raise LLMError(f"no call to play() within {self.max_rounds} rounds")
+        raise LLMError(f"no call to play() within {self.cfg.max_rounds} rounds")
 
     # ------------------------------------------------------------------ tools
 
     def tools(self) -> list[dict[str, Any]]:
         """The tools this bot offers the model, in OpenAI function-calling form.
 
-        The shared four plus whatever `EXTRA_TOOLS` declares. Override to drop
-        or replace them — but `play` has to survive: it is how a turn ends, and
-        a model with no way to end the turn falls back on every single one.
+        The shared four plus whatever `config.extra_tools` declares. Override to
+        drop or replace them — but `play` has to survive: it is how a turn ends,
+        and a model with no way to end the turn falls back on every single one.
         """
-        return [*TOOLS, *self.EXTRA_TOOLS]
+        # `self.cfg` on a built bot, the class default when introspected unbuilt.
+        cfg = getattr(self, "cfg", None) or self.config
+        return [*TOOLS, *cfg.extra_tools]
 
-    def run_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
+    def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
         """Answers one tool call. Whatever this returns is shown to the model.
 
         Override for your own tools and call `super()` for the shared ones. An
@@ -655,23 +652,21 @@ class LLMBot(Bot):
         if name == "team_details":
             return render.team_view(state.get("team")) or "(empty team)"
         if name == "what_lies_ahead":
-            return self._exits(state)
+            return self._exits_text(state)
         return f"unknown tool: {name}"
 
     # ---------------------------------------------------------------- context
 
-    def view(self, state: dict[str, Any]) -> str:
+    def render_state(self, state: dict[str, Any]) -> str:
         """What the model reads each turn. THE hook for changing that.
 
-        Reads `STATE_VIEW` (or whatever was passed as `view=`). Override it
-        outright for anything the four settings do not cover -- the harness adds
-        the journal and the instruction line around whatever this returns, so
-        replacing it wholesale cannot silently cost the bot its memory or leave
-        the model without the range of legal indices. That was the shape of the
-        old private `_situation`, where the thing you wanted to change and the
-        plumbing you must not break lived in one method.
+        Reads `config.state_view` (or whatever was passed as `view=`). Override
+        it outright for anything the four settings do not cover -- the harness
+        adds the journal and the instruction line around whatever this returns,
+        so replacing it wholesale cannot silently cost the bot its memory or
+        leave the model without the range of legal indices.
         """
-        spec = self.state_view
+        spec = self.cfg.state_view
         if isinstance(spec, str) and spec == "screen":
             return render.screen(state)
         if isinstance(spec, str) and spec in ("json", "both"):
@@ -687,22 +682,22 @@ class LLMBot(Bot):
                 # view that quietly shrinks and a run that gets worse for reasons
                 # nobody can see.
                 if self.verbose:
-                    print(f"   [llm] STATE_VIEW: no {', '.join(missing)} on this screen")
+                    print(f"   [llm] state_view: no {', '.join(missing)} on this screen")
             return json.dumps({k: state[k] for k in spec if k in state},
                               separators=(",", ":"))
         raise LLMConfigError(
-            f"STATE_VIEW is {spec!r}. Use 'screen', 'json', 'both', a list of "
-            f"state keys, or override view(state) yourself."
+            f"state_view is {spec!r}. Use 'screen', 'json', 'both', a list of "
+            f"state keys, or override render_state(state) yourself."
         )
 
-    def view_name(self) -> str:
-        """What to record: the setting, or 'custom' if `view` was replaced."""
-        if type(self).view is not LLMBot.view:
+    def _state_view_label(self) -> str:
+        """What to record: the setting, or 'custom' if `render_state` was replaced."""
+        if type(self).render_state is not LLMBot.render_state:
             return "custom"
-        return self.state_view if isinstance(self.state_view, str) else \
-            "keys:" + ",".join(self.state_view)
+        spec = self.cfg.state_view
+        return spec if isinstance(spec, str) else "keys:" + ",".join(spec)
 
-    def _situation(self, state: dict[str, Any]) -> str:
+    def _build_user_message(self, state: dict[str, Any]) -> str:
         """The whole user message: the view, plus what the harness owns.
 
         Deliberately not the hook. The journal is what stops a bot walking the
@@ -715,7 +710,7 @@ class LLMBot(Bot):
         model's own sentences, which is the one arrangement that turns a guess
         into a fact by doing nothing at all.
         """
-        parts = [self.view(state)]
+        parts = [self.render_state(state)]
         if self.journal:
             parts += [
                 "",
@@ -731,7 +726,7 @@ class LLMBot(Bot):
         ]
         return "\n".join(parts)
 
-    def _exits(self, state: dict[str, Any]) -> str:
+    def _exits_text(self, state: dict[str, Any]) -> str:
         """Where each legal action leads, by reading the map's edges."""
         m = state.get("map")
         if not m:
@@ -749,18 +744,25 @@ class LLMBot(Bot):
 
     # ------------------------------------------------------------------- HTTP
 
-    def _call(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
-        if self.token_budget and self.tokens_used >= self.token_budget:
+    def call_model(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        """The whole of the network. Override this for a model that is not an
+        OpenAI-compatible HTTP endpoint (a local checkpoint, a client library),
+        and the loop, the tools, the journal and the fallback policy above it
+        keep working unchanged. Return the OpenAI-shaped `message` dict, keep the
+        token counters up to date, and raise `LLMConfigError` for anything that
+        would fail identically forever, `LLMError` for anything transient.
+        """
+        if self.cfg.token_budget and self.tokens_used >= self.cfg.token_budget:
             raise LLMBudgetError(
-                f"run spent {self.tokens_used} tokens, budget is {self.token_budget}"
+                f"run spent {self.tokens_used} tokens, budget is {self.cfg.token_budget}"
             )
         body = json.dumps({
             "model": self.model,
             "messages": messages,
             "tools": self.tools(),
             "tool_choice": "auto",
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
+            "max_tokens": self.cfg.max_tokens,
+            "temperature": self.cfg.temperature,
             # Best effort only. Providers that honour it get closer to repeatable
             # runs; most ignore it, and none of them promise it. Nothing here
             # depends on it working — see `reproducible: False` in the artifacts.
@@ -783,7 +785,7 @@ class LLMBot(Bot):
         # Auth and model-not-found are NOT retried -- they fail identically
         # forever, so trying again just wastes the run more slowly.
         answer: dict[str, Any] | None = None
-        for attempt in range(self.RETRIES + 1):
+        for attempt in range(self.cfg.retries + 1):
             try:
                 with urllib.request.urlopen(req, timeout=180) as r:
                     answer = json.loads(r.read())
@@ -803,14 +805,14 @@ class LLMBot(Bot):
                         f"does not serve MODEL_ID={self.model!r}.\n  {detail}"
                     ) from e
                 if e.code in (408, 409, 425, 429, 500, 502, 503, 504) \
-                        and attempt < self.RETRIES:
-                    self.retries += 1
+                        and attempt < self.cfg.retries:
+                    self.retry_count += 1
                     time.sleep(min(2 ** attempt, 30) + random.random())
                     continue
                 raise LLMError(f"HTTP {e.code}: {detail}") from e
             except Exception as e:  # network, timeout, malformed JSON
-                if attempt < self.RETRIES:
-                    self.retries += 1
+                if attempt < self.cfg.retries:
+                    self.retry_count += 1
                     time.sleep(min(2 ** attempt, 30) + random.random())
                     continue
                 raise LLMError(f"{type(e).__name__}: {e}") from e
@@ -837,7 +839,7 @@ class LLMBot(Bot):
         return choices[0].get("message") or {}
 
     @staticmethod
-    def _index_from_text(text: str, n: int) -> int | None:
+    def _parse_index(text: str, n: int) -> int | None:
         """Last resort: fish a valid index out of a prose answer."""
         import re
 

@@ -54,7 +54,7 @@ def test_every_harness_is_loadable_and_reports_itself(version):
     """
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
-    notes = bot.notes()
+    notes = bot.metadata()
     assert notes["harness"] == cls.HARNESS
     assert "play" in bot.tool_names()
     assert [a.name for a in bot.artifacts()]
@@ -243,7 +243,7 @@ def test_command_json_keeps_the_endpoint(tmp_path):
 
 def test_the_token_never_reaches_a_result_or_a_note(memory_harness):
     """It has exactly one destination: the Authorization header."""
-    blob = json.dumps(memory_harness.notes()) + json.dumps(
+    blob = json.dumps(memory_harness.metadata()) + json.dumps(
         [a.data for a in memory_harness.artifacts() if a.data]
     )
     assert OFFLINE["token"] not in blob
@@ -270,7 +270,7 @@ def test_the_notes_survive_the_end_of_a_run(memory_harness):
     kept = list(memory_harness.notebook)
     memory_harness.journal = ["step 3: [0] something"]
 
-    memory_harness.on_start(seed=12345)
+    memory_harness.reset(seed=12345)
 
     assert memory_harness.notebook == kept, "the notes are the point of this harness"
     assert memory_harness.journal == [], "the journal is per-run and must be cleared"
@@ -347,7 +347,7 @@ def test_v1_offers_the_three_memory_tools_and_still_ends_a_turn_with_play(memory
 def test_notes_reported_per_run_are_a_copy(memory_harness):
     """The row is a snapshot of what it believed then, not a live handle."""
     memory_harness._remember("remember", {"note": "a lesson"})
-    reported = memory_harness.notes()["notebook"]
+    reported = memory_harness.metadata()["notebook"]
     reported.append("mutated")
     assert "mutated" not in memory_harness.notebook
 
@@ -397,7 +397,7 @@ def test_a_memory_harness_reports_the_plan_and_the_notes(version):
     reach a log, and both are read off notes() by name."""
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
-    keys = bot.notes()
+    keys = bot.metadata()
     assert "notebook" in keys
     if version != "v1":          # the plan arrives with v2
         assert "plan" in keys

@@ -19,13 +19,13 @@ records which model that was. Pin it in your own bot if you want a leaderboard
 row that means one specific model for good.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class SurvivorBot(LLMBot):
     name = "llm-survivor"
 
-    PROMPT = GAME_RULES + """
+    config = LLMConfig(prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Early on you have one Pokemon. If it faints you have lost. Widening the team is
   worth more than any experience you could gain.
@@ -35,4 +35,4 @@ PLAY LIKE THIS
   Pokemon and scale with the map.
 - Type matchups decide battles. Check your team before choosing a fight.
 
-Think briefly, then call `play`. Always call `play`."""
+Think briefly, then call `play`. Always call `play`.""")

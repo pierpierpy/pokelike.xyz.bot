@@ -400,7 +400,7 @@ def cmd_bot(args) -> int:
             if not args.no_stats:
                 record(bot=args.bot, seed=seed, state=r["final_state"],
                        score=r["score_detail"], steps=r["steps"], alive=game.last_alive,
-                       extra=bot.notes() if hasattr(bot, "notes") else None)
+                       extra=bot.metadata() if hasattr(bot, "metadata") else None)
             # We print `score` (points without the time bonus) because it is the
             # only comparable one: the time bonus is worth ~1000 on a scale where
             # everything else is in the tens.
@@ -444,7 +444,7 @@ def cmd_new_bot(args) -> int:
         print("Try it, then measure it before you change anything:\n")
     print(f"  uv run pokelike bot run --bot {slug} --runs 5 -d")
     print(f"  uv run pokelike bot bench --bot {slug} --dry-run\n")
-    print("The whole path from here to a pull request is in GUIDE.md.")
+    print("The whole path from here to a pull request is in CONTRIBUTING.md.")
     return 0
 
 
@@ -561,7 +561,7 @@ def cmd_bench(args) -> int:
     print(f"    git push origin {result['bot']}")
     print("    then open the pull request GitHub offers you")
     print("\n  (if you cloned this repo instead of your own fork, origin is not")
-    print("   yours to push to: fork it and add that remote first. See GUIDE.md.)")
+    print("   yours to push to: fork it and add that remote first. See CONTRIBUTING.md.)")
     return 0
 
 

@@ -583,7 +583,7 @@
   "n_folded": 7129,
   "decisions": 964
  },
- "fingerprint": "a29c141fb0e2c4e46ed11025cf5606195f0dc8ec70cf5fc88791e730f35b62ed",
+ "fingerprint": "4d64662f83a898dade050c2649ad1995868185b4ac9dd4498a96e0b571c32ad6",
  "artifacts": [
   {
    "name": "weights.json",
@@ -611,6 +611,16 @@
    "fingerprint": "4d09d3c5ebe7635f0f8ac04914dfb32ee5499f9fc05444ca40a8d972e9b1998f",
    "reason": "src reorg: leaderboard moved to pokelike.arena.leaderboard; the only change to the measured file is that import path. No behaviour change; renderer, bridge, init and the shared files are byte-identical.",
    "at": "2026-08-21T09:43:12.900485+00:00"
+  },
+  {
+   "on": "2026-08-21T10:55:11+00:00",
+   "was": {
+    "fingerprint": "a29c141fb0e2c4e46ed11025cf5606195f0dc8ec70cf5fc88791e730f35b62ed"
+   },
+   "now": {
+    "fingerprint": "4d64662f83a898dade050c2649ad1995868185b4ac9dd4498a96e0b571c32ad6"
+   },
+   "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
   }
  ]
 }

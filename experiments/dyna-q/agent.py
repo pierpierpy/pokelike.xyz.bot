@@ -103,7 +103,7 @@ class DynaQ:
         best = max(self.value(state, a) for a in actions)
         return self.rng.choice([a for a in actions if self.value(state, a) == best])
 
-    def choose(self, state: tuple, actions: list[str], greedy: bool = False) -> str:
+    def act(self, state: tuple, actions: list[str], greedy: bool = False) -> str:
         """eps-greedy action selection (Sutton & Barto, section 2.2)."""
         if not greedy and self.rng.random() < self.epsilon:
             return self.rng.choice(actions)

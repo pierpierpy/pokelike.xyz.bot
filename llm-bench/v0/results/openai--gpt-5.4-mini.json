@@ -7,7 +7,7 @@
    "model": "openai/gpt-5.4-mini",
    "harness": "v0",
    "fingerprint": {
-    "bot.py": "407feac07531df00",
+    "bot.py": "1814971fec3bf556",
     "render.py": "6b8376165f05e24c",
     "bridge.js": "168fdada15fdcf42",
     "init.js": "6274624ff7590dd9"
@@ -1036,6 +1036,16 @@
       "bot.py": "407feac07531df00"
      },
      "why": "leaderboard moved to pokelike.arena.leaderboard; the harness bot.py changed in its import block only. No behaviour change: render.py, bridge.js, init.js and the shared files are byte-identical. The fingerprint is rewritten rather than left marked, and the old value kept here, so the swap is not silent."
+    },
+    {
+     "on": "2026-08-21T10:55:11+00:00",
+     "was": {
+      "bot.py": "407feac07531df00"
+     },
+     "now": {
+      "bot.py": "1814971fec3bf556"
+     },
+     "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
     }
    ]
   }

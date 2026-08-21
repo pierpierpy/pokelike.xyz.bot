@@ -68,8 +68,8 @@ of one's own choosing cannot be recorded.
 ## The harness is a copy, not a subclass
 
 `llm-bench/v0/harness/bot.py` reads `class HarnessV0(Bot)`, it inherits from `Bot`, not
-`LLMBot`, and `from pokelike.bot.llm import` appears zero times. So `choose` and
-`rearrange` there are not overrides, they are independent, parallel implementations of
+`LLMBot`, and `from pokelike.bot.llm import` appears zero times. So `act` and
+`reorder` there are not overrides, they are independent, parallel implementations of
 the LLM loop. They resemble `src/pokelike/bot/llm.py` only because the second was born
 from the first; they do not talk to each other.
 
@@ -134,7 +134,7 @@ One directory per command, `llm-bench/<version>/logs/<stamp>/`:
 | `<model>-passN-plan.log` | same, for the route it planned for each map |
 
 Every harness records its own tool calls, in its own dispatch loop, because `play` and
-`set_lead` never reach `run_tool` and nothing outside the harness can see them; a version
+`set_lead` never reach `answer_tool` and nothing outside the harness can see them; a version
 without `tool_calls_made()` fails the suite.
 
 Results live **apart**, in `results/<model>.json`, one file per model with every pass
@@ -153,7 +153,7 @@ is on you.
   say what you did in the pull request.
 - Two open holes worth knowing: the three shared keys are absent from the eleven results
   recorded before the scripts were extracted (writing today's hashes for an old run
-  would be false, so they stay unregistered = unverified), and `STATE_VIEW = "json"` on
+  would be false, so they stay unregistered = unverified), and `state_view="json"` on
   an old harness rerun would expose fields added after it was frozen (no recorded result
   used anything but `"screen"`).
 

@@ -19,13 +19,13 @@ records which model that was. Pin it in your own bot if you want a leaderboard
 row that means one specific model for good.
 """
 
-from pokelike.bot.llm import GAME_RULES, LLMBot
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 
 
 class ExplorerBot(LLMBot):
     name = "llm-explorer"
 
-    PROMPT = GAME_RULES + """
+    config = LLMConfig(prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Badges are the only thing that counts, and they come from pushing down the map.
   Do not linger on safe nodes that add nothing.
@@ -35,4 +35,4 @@ PLAY LIKE THIS
   nowhere.
 - Keep enough team to survive, but survival on its own scores nothing.
 
-Think briefly, then call `play`. Always call `play`."""
+Think briefly, then call `play`. Always call `play`.""")
