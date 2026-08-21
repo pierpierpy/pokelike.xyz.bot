@@ -21,6 +21,44 @@
   "version": "0.2.0",
   "configurations": [
     {
+      // STEP THROUGH EVERYTHING, from the first line executed. `stopOnEntry` breaks
+      // before anything runs, at the top of main.py, so you walk the whole thing: the
+      // imports, the parser being built, the dispatch, then the run itself.
+      //
+      // `justMyCode` is TRUE here, unlike the rest, and deliberately: with it false,
+      // stepping into the first `import` descends into the import machinery and you
+      // spend twenty minutes in the standard library before reaching anything of ours.
+      // Flip it when the frame you want really is inside Playwright.
+      //
+      // F5 continue, F10 step over, F11 step into, Shift+F11 step out.
+      // The random bot is the choice on purpose: no HTTP, no key, no waiting, so
+      // everything you see is the machinery.
+      "name": "STEP BY STEP from the first line (random bot)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["bot", "run", "--bot", "random", "--runs", "1", "-d"],
+      "stopOnEntry": true,
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // The same, with an LLM in the loop, for when the question is about the model's
+      // turn rather than about the game loop. Credentials come from .env.
+      "name": "STEP BY STEP from the first line (LLM bot)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["bot", "run", "--bot", "llm-raw", "--runs", "1", "-ddd"],
+      "stopOnEntry": true,
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
       // A run you drive yourself, in the terminal. Add "--watch" to the args and a real
       // window opens with the animations at human speed (tick 0), which is the fastest
       // way to see what a decision actually did.
