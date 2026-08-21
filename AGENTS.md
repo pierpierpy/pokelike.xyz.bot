@@ -4,14 +4,14 @@ Notes for agents working on this repo.
 
 **Read [README.md](README.md) first.** It is the human tour: what the project
 does, how it is installed and used. This file adds what someone *changing* the
-code needs — internals, pitfalls, and the reasoning behind decisions that look
-odd — and the per-folder `AGENTS.md` files add the specifics of each area:
+code needs, internals, pitfalls, and the reasoning behind decisions that look
+odd, and the per-folder `AGENTS.md` files add the specifics of each area:
 
-- **[bots/AGENTS.md](bots/AGENTS.md)** — the bot competition: how a folder becomes
+- **[bots/AGENTS.md](bots/AGENTS.md)**, the bot competition: how a folder becomes
   a bot, the fingerprint, self-containment, the LLM harness knobs and seams.
-- **[experiments/AGENTS.md](experiments/AGENTS.md)** — the research area: the MDP,
+- **[experiments/AGENTS.md](experiments/AGENTS.md)**, the research area: the MDP,
   the reward registry, what is tracked and why, measuring a candidate by path.
-- **[llm-bench/AGENTS.md](llm-bench/AGENTS.md)** — the model benchmark: the frozen
+- **[llm-bench/AGENTS.md](llm-bench/AGENTS.md)**, the model benchmark: the frozen
   harnesses, the seven-key fingerprint, what a pass writes.
 
 The human-facing counterpart of each is the `README.md` beside it.
@@ -24,6 +24,7 @@ The human-facing counterpart of each is the `README.md` beside it.
 
 **How it works**
 - [Talking to the game](#talking-to-the-game)
+- [The HTTP API](#the-http-api)
 - [Scoring](#scoring)
 - [Reproducibility](#reproducibility)
 - [Performance](#performance)
@@ -87,6 +88,22 @@ uv run pokelike bot bench --bot experiments/mine --dry-run   # measure a candida
 Two ports, kept distinct: the **asset server** (the game files, served to the
 headless browser) defaults to **8422** (`--port`); the **HTTP JSON API**
 (`pokelike api`) defaults to **8423** (`--api-port`).
+
+## Setup on minimal Linux
+
+`pokelike setup` downloads the browser and the offline game and checks the browser
+actually launches. On minimal images (Raspberry Pi, servers, containers) Chromium's
+system libraries are often missing, and `playwright install` exits 0 even when they are,
+it only warns, so `setup` launches the browser to check rather than trusting the exit
+code. When that is the case it prints the fix:
+
+```bash
+sudo $(which python) -m playwright install-deps chromium
+```
+
+Use `sudo $(which python)`, not plain `sudo playwright`: the virtualenv is not on root's
+PATH. There is no environment to activate, `uv run` handles it; `source
+.venv/bin/activate` and then dropping the `uv run` prefix works too.
 
 ## Architecture
 
@@ -191,7 +208,7 @@ the same for the random bot, a SARSA and a 400-billion-parameter LLM:
 **The state is a hand-written projection, not everything the game knows.** `obs`
 is a dict with seven keys (`team`, `bag`, `map`, `run`, `actions`, `steps`,
 `screen`). It is one turn's snapshot, so keys that only exist on other screens are
-absent, and — crucially — it lists only the fields `bridge.js` was written to
+absent, and, crucially, it lists only the fields `bridge.js` was written to
 expose. Nothing in Python can invent a field the bridge never read. See
 `uv run pokelike schema` for the live reference (generated from a real
 observation, so it cannot describe a game that no longer exists).
@@ -207,7 +224,7 @@ edges, raw base stats, most node ids).
 Inherit from `Bot` and *you* decide the move (you write the rule). Inherit from
 `LLMBot` and the *model* decides; your job is what it sees and can do. Overriding
 `choose` on an `LLMBot` throws away the agentic loop that was the reason to inherit
-from it — nobody does, and five of the six `llm-*` bots define no method at all.
+from it, nobody does, and five of the six `llm-*` bots define no method at all.
 
 **One model call decides the whole turn.** The loop calls `rearrange` before `choose`,
 so `LLMBot` makes its single HTTP call inside `rearrange`, caches the answer keyed by
@@ -221,7 +238,7 @@ safe move and is counted into `fallback_rate`. Detail in [bots/AGENTS.md](bots/A
 `bot/llm.py` *must* be free to improve, because `bots/` reads it. A benchmark wants
 the opposite: if a frozen harness imported the shared library, the next improvement
 for a submission would silently change what every recorded score meant. So
-`llm-bench/<v>/harness/bot.py` inherits from `Bot`, not `LLMBot` — those are
+`llm-bench/<v>/harness/bot.py` inherits from `Bot`, not `LLMBot`, those are
 independent, parallel implementations that merely resemble each other because the
 second was born from the first. Detail in [llm-bench/AGENTS.md](llm-bench/AGENTS.md).
 
@@ -243,8 +260,8 @@ The engine exposes everything as page globals. The useful ones:
 `__pk_layer()` (which screen or modal is active), `__pk_choices()` (the legal
 actions, in a stable order), `__pk_apply(c)` (perform one), `__pk_obs()` (the
 whole state as JSON), and `__pk_settle(ms)` (run the engine's own transitions
-forward between decisions). Half the engine is not on `window` — `MOVE_POOL`,
-`getBestMove`, `TYPE_CHART`, `TYPE_ITEM_MAP` are script-global lexical bindings —
+forward between decisions). Half the engine is not on `window`, `MOVE_POOL`,
+`getBestMove`, `TYPE_CHART`, `TYPE_ITEM_MAP` are script-global lexical bindings,
 so the bridge reads them with a one-line `g = (n) => { try { return eval(n) } ... }`
 helper. No pixels are looked at; screenshots exist (`Game.screenshot`) but are for
 humans only.
@@ -260,13 +277,35 @@ turn. It is exposed as its own verb (`Game.reorder(a, b)`, `Bot.rearrange()`,
 `can_reorder`. Folding it into `actions` would put fifteen swap pairs next to
 the moves at every map node and make the turn count mean something else. The
 engine binds it to a hand-rolled pointer drag on the team bar, outside every
-`.screen`; we do not simulate the drag — under all of it the drop is just
+`.screen`; we do not simulate the drag, under all of it the drop is just
 `[team[a], team[b]] = [team[b], team[a]]` and a re-render, and one primitive
 covers both the team bar and the Elite Four prep screen.
 
 To explore the bundle: `python3 tools/deobfuscate.py site/js/bundle.*.js`. It
 works out the obfuscator's internal names by itself, since they change with every
 release.
+
+## The HTTP API
+
+`pokelike api` (default port **8423**) exposes the five `Game` methods as JSON over
+`http.server`. It is **single-threaded by necessity**: Playwright's sync API is bound to
+the thread that created it, so `serve_forever()` must run on the thread that owns the
+game. The browser stays alive between calls.
+
+| Method | Route | What it does |
+|---|---|---|
+| `POST` | `/new` `{"seed":42}` | start a run |
+| `GET` | `/state` | full state + a ready-to-print `view` field |
+| `GET` | `/actions` | just the legal actions |
+| `POST` | `/action` `{"index":1}` | take it → new state (409 if illegal) |
+| `POST` | `/reorder` `{"a":0,"b":2}` | swap two team slots, free |
+| `GET` | `/score` | score using the game's own formula |
+| `GET` | `/screenshot` | a PNG of the current screen |
+| `GET` | `/schema` | what the state contains, described from itself |
+
+An illegal move returns 409 (`IllegalAction`); a malformed body, 400; an unknown route,
+404. The asset server that feeds the headless browser is a separate process on port
+**8422** (`--port`); the two are kept distinct.
 
 ## Scoring
 
@@ -411,7 +450,7 @@ anything:
   game greets a first-time player on every run. Those callouts sit outside every
   `.screen`, so they were never offered as actions; `HIDE_TUTORIAL_CSS` in
   `browser.py` hides them, including the `#tutorial-overlay` LAYER, not just
-  `.tutorial-callout` — leaving the layer visible stalled every step for 90 s.
+  `.tutorial-callout`, leaving the layer visible stalled every step for 90 s.
 - **Both JavaScript files are re-read from disk on every run.** `_init_js()` and
   `_bridge_js()` are called inside `load()`, so a process running for an hour
   injects whatever is on disk NOW. A `git pull` mid-run swaps both under a training
@@ -457,9 +496,9 @@ Regenerating it to make a red test go green defeats the point.
 
 `llm-bench/*/harness/` is a benchmark of *models*, and every recorded row is a
 claim about the exact files that played it. Nothing there is editable once a result
-exists beside it; an improvement is a new directory, not an edit. The full account —
+exists beside it; an improvement is a new directory, not an edit. The full account,
 the seven-key fingerprint, what each version asks, what a pass writes, and why
-`bridge.js` and `init.js` are more dangerous than the renderer — is in
+`bridge.js` and `init.js` are more dangerous than the renderer, is in
 [llm-bench/AGENTS.md](llm-bench/AGENTS.md). The one rule to carry everywhere else:
 **`bot/llm.py`, `core/render.py`, `core/bridge.js` and `core/init.js` are the
 living copies that `bots/` and the CLI use; the frozen harness copies are

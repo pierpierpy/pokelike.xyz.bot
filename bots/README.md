@@ -4,8 +4,17 @@ Every bot that plays this game lives here, one folder each, and the folder is th
 its code, whatever it needs to play, and what it scored.
 
 New here? **[CONTRIBUTING.md](../CONTRIBUTING.md)** walks the whole thing end to end,
-from a clone to a pull request. The internals — how a bot is loaded, the fingerprint,
-the full LLM harness reference — are in [AGENTS.md](AGENTS.md).
+from a clone to a pull request.
+
+---
+
+**Contents**
+
+- [Standings](#standings)
+- [Play any of them](#play-any-of-them)
+- [What a bot is](#what-a-bot-is)
+- [Adding one](#adding-one)
+- [Measuring a MODEL instead of a bot](#measuring-a-model-instead-of-a-bot)
 
 ---
 
@@ -65,17 +74,16 @@ uv run pokelike bot bench --bot mine --dry-run
 ```
 
 `pokelike bot new` writes a bot that already plays, so you can measure it before
-changing a line. The full walk-through — how it is judged, what makes results
-comparable, and how to open the pull request — is in
-[CONTRIBUTING.md](../CONTRIBUTING.md), and the mechanics behind it in
-[AGENTS.md](AGENTS.md).
+changing a line. The full walk-through, how it is judged, what makes results
+comparable, and how to open the pull request, is in
+[CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Measuring a MODEL instead of a bot
 
 An `llm` entry here ranks a **scaffold**: the prompt and tools are the idea, the model
-is whatever you pointed at. [`llm-bench/`](../llm-bench/) asks the other question — the
-harness is frozen and the model id is the only thing that changes. Nothing recorded
-there appears in these standings, and nothing here is compared with it.
+is whatever you pointed at. [`llm-bench/`](../llm-bench/README.md) asks the other
+question, the harness is frozen and the model id is the only thing that changes. Nothing
+recorded there appears in these standings, and nothing here is compared with it.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash

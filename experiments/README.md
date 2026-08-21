@@ -17,6 +17,19 @@ experiments/          research                 bots/          what it produced
 └── <yours>/   ignored by default, and yours   <yours>/
 ```
 
+---
+
+**Contents**
+
+- [The layout](#the-layout)
+- [`env/` and rewards](#env-and-rewards)
+- [Measuring a candidate](#measuring-a-candidate)
+- [What you show, and what you keep](#what-you-show-and-what-you-keep)
+
+---
+
+## The layout
+
 An experiment is named after the bot it produces, and every one has the same shape
 (`README.md`, `agent.py`, `train.py`, `output/`, `logs/`). Copy the one closest to your
 idea and work there:
@@ -27,26 +40,27 @@ uv run python -m experiments.example.train --episodes 20   # the shape of one
 uv run python -m experiments.sarsa.train --episodes 300    # the real thing
 ```
 
+## `env/` and rewards
+
 **`env/`** is the part every experiment shares: the game stated as an RL problem, with a
 registry of reward functions selectable by name (`--reward badges`). Reward matters more
 than the algorithm here.
 
-Measure a candidate right where it lives — the official 50 seeds, recorded nowhere:
+## Measuring a candidate
+
+Measure a candidate right where it lives, the official 50 seeds, recorded nowhere:
 
 ```bash
 uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
 When it earns its place, bring it into `bots/` the standard way and bench it there.
+Writing and submitting a bot is [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-The reward registry, the naming rules, how to publish your own experiment, and the
-findings that shaped how things are done here are in [AGENTS.md](AGENTS.md). Writing and
-submitting a bot is [CONTRIBUTING.md](../CONTRIBUTING.md).
+## What you show, and what you keep
 
----
-
-**What you have to show, and what you do not.** Submitting a bot reveals the bot: an
-entry archives the file that ran and hashes it, and that is the only reason the number
-beside it means anything. It does **not** reveal how you got there — the sweeps, the
-rewards you tried, the twenty runs that went nowhere. That is research, it lives here,
-and it stays yours. You show what your bot does, not how you arrived at it.
+Submitting a bot reveals the bot: an entry archives the file that ran and hashes it, and
+that is the only reason the number beside it means anything. It does **not** reveal how
+you got there, the sweeps, the rewards you tried, the twenty runs that went nowhere. That
+is research, it lives here, and it stays yours. You show what your bot does, not how you
+arrived at it.

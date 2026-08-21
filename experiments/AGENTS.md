@@ -66,8 +66,8 @@ work there.
 
 ## `env/`: the game as an MDP
 
-The part every experiment shares, whatever it is doing. An MDP — a Markov Decision
-Process — is the standard way of stating a problem so Reinforcement Learning applies:
+The part every experiment shares, whatever it is doing. An MDP, a Markov Decision
+Process, is the standard way of stating a problem so Reinforcement Learning applies:
 states, the actions available in each, and a reward. That is all `env/` is.
 
 | file | what it holds |
@@ -134,7 +134,7 @@ place, bring it into `bots/` the standard way and bench it there under its own n
 ## Findings kept as evidence
 
 Each folder's README has the detail; these are the results that shape how things are
-done here. The numbers are what a run measured at the time — for where anything
+done here. The numbers are what a run measured at the time, for where anything
 currently stands, read the generated standings in [bots/README.md](../bots/README.md).
 
 - **A tabular state key cannot see what decides this game.** `dyna-q` scored 0.62 badges

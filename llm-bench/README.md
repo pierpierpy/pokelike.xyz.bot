@@ -3,8 +3,8 @@
 **How well does a model play the game?**
 
 Same scaffold for everyone, same fifty seeds, only the model changes. That is the whole
-idea, and it is a different question from [`bots/`](../bots/), where the prompt is the
-submission and the model is whatever you happened to point it at.
+idea, and it is a different question from [`bots/`](../bots/README.md), where the prompt
+is the submission and the model is whatever you happened to point it at.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
@@ -13,8 +13,15 @@ uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
 
 That plays fifty games, records the result, and prints a row. Half an hour or so.
 
-The internals — why it is frozen, the seven-key fingerprint, what each version asks,
-where the files go, Docker — are in [AGENTS.md](AGENTS.md).
+---
+
+**Contents**
+
+- [Standings](#standings)
+- [Running it](#running-it)
+- [Reading the table](#reading-the-table)
+- [The harnesses](#the-harnesses)
+- [Watching a pass](#watching-a-pass)
 
 ---
 
@@ -78,7 +85,7 @@ and `--dry-run` all print and file nothing), and a **literal key on the command 
 readable by everyone on the machine, so `--api-key @path` reads it from a file instead.
 `--set KEY=VALUE` passes a setting straight to the harness (`--set notes=4` caps v4's
 notebook), and a **pre-flight** call before any seed catches a model that cannot emit a
-tool call. The full flag list is `--help`; the mechanics are in [AGENTS.md](AGENTS.md).
+tool call. The full flag list is `--help`.
 
 ## Reading the table
 
@@ -99,20 +106,19 @@ tool call. The full flag list is `--help`; the mechanics are in [AGENTS.md](AGEN
 
 Each is a frozen copy asking a different question. Rows are never compared across them.
 
-- **`v0`** — the plain loop: one call a turn, four tools, memory of the last six moves,
+- **`v0`**, the plain loop: one call a turn, four tools, memory of the last six moves,
   1500 tokens. The rules and no strategy.
-- **`v2`** — an agent loop: the last three turns travel with it, a `plan` tool, 4000
+- **`v2`**, an agent loop: the last three turns travel with it, a `plan` tool, 4000
   tokens, notes that survive the run, and a prompt that explains how to play. Sequential
   only, and it cannot measure a model served by OpenAI.
   [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
-- **`v4`** — the model is TOLD to run its memory rather than merely allowed to, with
+- **`v4`**, the model is TOLD to run its memory rather than merely allowed to, with
   examples, a cap you can set with `--set notes=N`, the node tooltips a person can read,
   and every tool call in the trace. Sequential only.
 
 `v1` and `v3` were deleted, both unmeasured; what v3 changed lives in v4. Each version's
 own README says exactly what it asks: [v0](v0/harness/README.md),
-[v2](v2/harness/README.md), [v4](v4/harness/README.md). Why the freeze works, and what a
-pass writes, are in [AGENTS.md](AGENTS.md).
+[v2](v2/harness/README.md), [v4](v4/harness/README.md).
 
 ## Watching a pass
 
@@ -126,7 +132,7 @@ bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
 container, on a pass started in another terminal, and on one that finished last week. It
 shows the finished runs, where the model is now, the tools it called this turn, the team
 and map it is standing on, and the notes and route it is holding. With more than one pass
-running it asks which — `--stamp` or `--model` (a prefix is enough) answers in advance.
+running it asks which, `--stamp` or `--model` (a prefix is enough) answers in advance.
 
-Long passes belong in Docker; the setup and its three non-negotiables (`shm_size`, the
-read-only `site/` mount, the write restriction) are in [AGENTS.md](AGENTS.md#in-docker).
+Long passes belong in Docker; the compose setup is in [`docker/`](docker/), it needs
+`shm_size: 2gb`, mounts your `site/` read-only, and keeps only `llm-bench/` writable.

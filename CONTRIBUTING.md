@@ -1,24 +1,34 @@
 # Contributing
 
-Two parts, and most people only need the first.
-
-- **[Part 1 — Write and submit a bot](#part-1--write-and-submit-a-bot)**, if you are
-  entering the competition. Six steps from a clone to a pull request.
-- **[Part 2 — Changing the repo itself](#part-2--changing-the-repo-itself)**, if you
-  found a bug in the shared code, want to change the library everyone runs on, or want
-  to propose a new benchmark harness.
-
-A bot needs nothing from Part 2: one folder in `bots/`, one pull request, and inside
-that folder the rules are yours.
+Two parts, and most people only need the first. **Part 1** is writing and submitting a
+bot, six steps from a clone to a pull request. **Part 2** is changing the repo itself: a
+bug, the shared library, or a new benchmark harness. A bot needs nothing from Part 2: one
+folder in `bots/`, one pull request, and inside that folder the rules are yours.
 
 ---
 
-# Part 1 — Write and submit a bot
+**Contents**
 
-Two things first — what qualifies, and where to try things out — then six steps from a
-clone to a pull request. Everything beyond the minimum — the optional hooks, the LLM
-harness knobs and seams, shipping your own `bridge.js`, and the rule that a folder must
-stand on its own — lives in [bots/AGENTS.md](bots/AGENTS.md).
+- [Part 1: Write and submit a bot](#part-1-write-and-submit-a-bot)
+  - [What counts as a bot](#what-counts-as-a-bot)
+  - [Where to experiment](#where-to-experiment)
+  - The six steps: [1 Set up](#1-set-up-once) · [2 See the state](#2-look-at-what-a-bot-receives) · [3 Create it](#3-create-it) · [4 Write it](#4-write-it) · [5 Measure it](#5-measure-it) · [6 Submit](#6-submit)
+- [Part 2: Changing the repo itself](#part-2-changing-the-repo-itself)
+  - [Found a bug](#found-a-bug)
+  - [What lands how](#what-lands-how)
+  - [Why `llm-bench/` is closed](#why-llm-bench-is-closed)
+  - [The one file to be careful with](#the-one-file-to-be-careful-with)
+  - [Proposing a new harness](#proposing-a-new-harness)
+  - [Running the tests](#running-the-tests)
+
+---
+
+# Part 1: Write and submit a bot
+
+Two things first, what qualifies, and where to try things out, then six steps from a
+clone to a pull request. Everything beyond the minimum, the optional hooks, the LLM
+harness knobs and seams, and shipping your own `bridge.js`, is documented in the classes
+you inherit from, `pokelike.bot.base.Bot` and `pokelike.bot.llm.LLMBot`.
 
 ## What counts as a bot
 
@@ -42,9 +52,9 @@ uv run pokelike bot bench --bot experiments/mine --dry-run   # by path, records 
 ```
 
 When it earns its place, bring it into `bots/` the standard way (step 3) and bench it
-there under its own name. The full account is in [experiments/](experiments/). That is
-the whole answer to "what do I have to reveal": **you show what your bot does, not how
-you arrived at it.**
+there under its own name. The research area is walked through in
+[experiments/README.md](experiments/README.md). That is the whole answer to "what do I
+have to reveal": **you show what your bot does, not how you arrived at it.**
 
 ## 1. Set up, once
 
@@ -164,9 +174,9 @@ Everything the game knows is in `state`, including things nothing on screen tell
 two of them is refused rather than guessed at.
 
 That is the minimum. The optional hooks (`rearrange`, `explain`, `on_start`, `on_end`,
-`artifacts`), the second road where a model picks the move (`LLMBot` and its knobs and
-seams), and how to ship your own `bridge.js` are all in
-[bots/AGENTS.md](bots/AGENTS.md#the-bot-contract-and-what-you-can-change).
+`artifacts`) are documented in `pokelike.bot.base`; the second road where a model picks
+the move (`LLMBot` and its knobs and seams) and how to ship your own `bridge.js` are
+documented in `pokelike.bot.llm`.
 
 ## 5. Measure it
 
@@ -196,8 +206,7 @@ uv run pokelike bot bench --bot mine --dry-run \
 A recorded result lands in `bots/mine/result.json`, next to the code that earned it,
 with a fingerprint over both. If you then edit the bot, the table marks the row **⚠︎**
 until you measure it again: a score can never quietly describe code that no longer
-exists. What makes results comparable is in
-[bots/AGENTS.md](bots/AGENTS.md#what-makes-results-comparable).
+exists.
 
 ## 6. Submit
 
@@ -213,17 +222,16 @@ git push origin my-bot
 Then open the pull request GitHub offers you, from your fork to this repo. Your whole
 submission is one folder. A pull request that touches only `bots/` is read as a
 submission and usually merged as is; one that also changes `src/` or `llm-bench/` gets a
-slower read, because those are what makes every recorded score comparable — that is
-[Part 2](#part-2--changing-the-repo-itself). Everything you are allowed to change lives
-inside your own folder, down to the JavaScript that decides what the state contains; the
-full account is in [bots/AGENTS.md](bots/AGENTS.md).
+slower read, because those are what makes every recorded score comparable, that is
+[Part 2](#part-2-changing-the-repo-itself). Everything you are allowed to change lives
+inside your own folder, down to the JavaScript that decides what the state contains.
 
 ---
 
-# Part 2 — Changing the repo itself
+# Part 2: Changing the repo itself
 
 This part is about the **repository**: bugs, the shared library, and the model
-benchmark. If you only want to build a bot, you are done — everything you need is
+benchmark. If you only want to build a bot, you are done, everything you need is
 Part 1, and a bot needs nothing from here.
 
 - [Found a bug](#found-a-bug)
@@ -296,9 +304,7 @@ than in review.
 
 `bridge.js` is frozen for a stronger reason than the renderer, and it is worth
 understanding: a bot answers with an **index** into `actions`, so reordering that list
-does not change what the model sees, it changes what its answer means. The full
-mechanics — the seven-key fingerprint, key-by-key comparison, what each version asks —
-are in [llm-bench/AGENTS.md](llm-bench/AGENTS.md).
+does not change what the model sees, it changes what its answer means.
 
 ## The one file to be careful with
 
@@ -322,7 +328,7 @@ number afterwards.
 The mechanics are small. Copy the four frozen files into `llm-bench/v<next>/harness/`,
 change them there, and nothing else needs editing: versions are discovered on disk, and
 whether a harness lets the model keep notes between runs is asked of the harness rather
-than configured. [llm-bench/AGENTS.md](llm-bench/AGENTS.md) has the details.
+than configured.
 
 ## Running the tests
 

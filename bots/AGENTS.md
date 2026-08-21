@@ -12,13 +12,14 @@ submit one is [CONTRIBUTING.md](../CONTRIBUTING.md); the cross-cutting internals
 - [The fingerprint, and result.json](#the-fingerprint-and-resultjson)
 - [What makes results comparable](#what-makes-results-comparable)
 - [The LLM harness: knobs and seams](#the-llm-harness-knobs-and-seams)
+- [Where and how to change each thing](#where-and-how-to-change-each-thing)
 - [Categories](#categories)
 
 ---
 
 ## What a bot is on disk
 
-A folder, and nothing registers it — someone hands you a bot by handing you a
+A folder, and nothing registers it, someone hands you a bot by handing you a
 directory.
 
 ```
@@ -32,7 +33,7 @@ bots/<name>/
 in Python can add a field the bridge never read; if your idea needs the engine to give
 up something nobody exposed, put your own bridge there and it is used when your bot
 runs. It lands in the fingerprint with everything else under `artifacts/`, so the score
-stays checkable. `init.js` is deliberately **not** overridable — see
+stays checkable. `init.js` is deliberately **not** overridable, see
 [AGENTS.md](../AGENTS.md#reproducibility).
 
 ## The Bot contract, and what you can change
@@ -45,15 +46,15 @@ fails the move. Five hooks are optional, each with a no-op default:
 |---|---|---|
 | `on_start(seed)` | before the first turn of each run | an RL bot resets its trajectory; an LLM resets its conversation |
 | `on_end(state, score)` | after the last turn, with the score | the reward signal for an RL bot |
-| `rearrange(state)` | before `choose`, while `state["can_reorder"]` | return `(a, b)` to swap two team slots — a **free** action, it does not cost the turn, which is why it is not folded into `actions` |
+| `rearrange(state)` | before `choose`, while `state["can_reorder"]` | return `(a, b)` to swap two team slots, a **free** action, it does not cost the turn, which is why it is not folded into `actions` |
 | `explain()` | after `choose` | one line for the `-d` decision log |
 | `artifacts()` | at record time | the weights/prompt/config to hash beside the result |
 
 **Two roads, and the fork is who picks the move.** Inherit from `Bot` and *you* write
 the rule that decides. Inherit from `LLMBot` and the *model* decides; your job is what it
-sees and can do — the [knobs and seams](#the-llm-harness-knobs-and-seams) below. Neither
+sees and can do, the [knobs and seams](#the-llm-harness-knobs-and-seams) below. Neither
 is the advanced one: `random`, `sarsa-*`, `dyna-q` and `lspi` take the first road, the
-six `llm-*` bots the second. **Do not override `choose` on an `LLMBot`** — it runs the
+six `llm-*` bots the second. **Do not override `choose` on an `LLMBot`**, it runs the
 agentic loop that was the reason to inherit from it. And on either road you can change
 **what is in the state** by shipping your own `artifacts/bridge.js`, above.
 
@@ -73,7 +74,7 @@ agentic loop that was the reason to inherit from it. And on either road you can 
   without shadowing.
 - **Names resolve by exact match, then unique prefix.** `--bot sarsa-v` finds
   `sarsa-v2`; `--bot sarsa` with both versions on disk is an error naming both. Picking
-  one silently is how you benchmark a bot for an afternoon and report the wrong one —
+  one silently is how you benchmark a bot for an afternoon and report the wrong one,
   the two share a name precisely because they are variants of one idea.
 
 `create(name)` also accepts a **path** (anything with a separator), which loads the
@@ -89,21 +90,21 @@ reasons, and the second is underestimated:
 
 A trained policy is only meaningful under the exact encoding it was trained with. If
 `bot.py` imported its feature code from your training scripts, improving those scripts
-would silently change what your own past score meant — and the fingerprint would not
+would silently change what your own past score meant, and the fingerprint would not
 catch it, because the measured file did not change.
 
 And a bot is meant to be handed around and re-run by someone with none of your setup. A
 folder that only works on the machine that made it is a screenshot, not a submission.
 
 **The one deliberate exception is `pokelike.bot.llm`**, the shared harness. Editing it
-reaches every LLM bot ever measured — exactly what self-containment prevents, from the
-other side — so it carries `HARNESS`, written into every result and flagged when it no
+reaches every LLM bot ever measured, exactly what self-containment prevents, from the
+other side, so it carries `HARNESS`, written into every result and flagged when it no
 longer matches. Bump it whenever a change there could move a decision.
 
 ## Two people, one name
 
 `bots/` is flat, so two submissions cannot share a folder name; git surfaces the
-conflict on the pull request and one of you renames — a plain conflict, visible, nothing
+conflict on the pull request and one of you renames, a plain conflict, visible, nothing
 auto-resolved. The `--author` passed to `bot bench` is what tells people apart in the
 standings. The fingerprint is deliberately **not** used as a name: it comes from the
 content, so it would change on every retrain and take every link with it.
@@ -115,9 +116,9 @@ sha256 over `bot.py` and every file under `artifacts/` (each file's relative pat
 hashed too, so a rename changes the fingerprint). `pokelike bot board` recomputes it on
 read:
 
-- **⚠︎ stale** — the fingerprint no longer matches disk: the files changed since the
+- **⚠︎ stale**, the fingerprint no longer matches disk: the files changed since the
   score was measured, so the row no longer describes what is there.
-- **? unverified** — the result carries no fingerprint at all, so it cannot be checked
+- **? unverified**, the result carries no fingerprint at all, so it cannot be checked
   either way. Reported rather than folded into "fine".
 
 Re-running the benchmark clears both. `result.json` records: the bot name, `author`,
@@ -134,28 +135,28 @@ block.
 
 ## What makes results comparable
 
-- **The same 50 seeds** — `STANDARD_SEEDS = range(10_000, 10_050)`, identical for
+- **The same 50 seeds**, `STANDARD_SEEDS = range(10_000, 10_050)`, identical for
   everyone. A partial run (`--runs N`) or `--dry-run` prints and records nothing: a
   score over 5 seeds is not comparable to one over 50.
-- **Ranked by badges** — the game's own progress counter. The score formula was written
+- **Ranked by badges**, the game's own progress counter. The score formula was written
   for the Battle Tower and two of its six terms never fire in Story mode, leaving
   `5·KO − 10·faints`, which rewards fighting rather than getting further. Score is still
   reported. See [AGENTS.md](../AGENTS.md#scoring).
-- **What 50 seeds can resolve** — badges vary run to run with a standard deviation near
+- **What 50 seeds can resolve**, badges vary run to run with a standard deviation near
   0.7, so the mean over 50 carries a standard error near 0.1. Two bots whose means
   differ by less than roughly **0.3 badges** are not distinguishable by this benchmark.
   Beating the leader means beating it by a visible margin, not a decimal.
-- **The game bundle's hash is recorded** — results from before and after an upstream
+- **The game bundle's hash is recorded**, results from before and after an upstream
   game update are not comparable, and without the hash a table mixes them silently.
-- **The code is fingerprinted** — above.
-- **And the run must reproduce** — the fingerprint proves the code has not changed; it
+- **The code is fingerprinted**, above.
+- **And the run must reproduce**, the fingerprint proves the code has not changed; it
   cannot prove the score was earned. Same seed and same bot must mean the same run.
   `uv run pokelike bot bench` twice on the same bot is the check, and it should agree
   with itself exactly. It once did not: an option's label carried a pictograph the game
   substitutes for a missing sprite, the linear features parse labels, and whether the
-  substitution had arrived depended on timing — five of one entry's fifty rows stopped
+  substitution had arrived depended on timing, five of one entry's fifty rows stopped
   reproducing. See [AGENTS.md](../AGENTS.md#real-pitfalls).
-- **For LLM bots, three more things** — which model answered, which `HARNESS` version
+- **For LLM bots, three more things**, which model answered, which `HARNESS` version
   asked it, and `fallback_rate`: the share of turns the model did not decide, when a
   call failed and the harness played a safe move under the model's name. A row above 0.1
   is flagged, because it measures us more than the model. LLM entries are accepted but
@@ -171,7 +172,7 @@ done: everything else has a default that works. `HARNESS = 1` today.
 
 | knob | default | decides |
 |---|---|---|
-| `PROMPT` | `GAME_RULES + CLOSING` | the system prompt — **this is the submission** |
+| `PROMPT` | `GAME_RULES + CLOSING` | the system prompt, **this is the submission** |
 | `MODEL` | `None` | model id, or `None` to take `$MODEL_ID` |
 | `TEMPERATURE` | `0.6` | sampling |
 | `MAX_TOKENS` | `1500` | ceiling on one answer |
@@ -185,7 +186,7 @@ done: everything else has a default that works. `HARNESS = 1` today.
 `STATE_VIEW` takes `"screen"` (the text a person sees, the default), `"json"` (the whole
 state dict as compact JSON, several times the tokens), `"both"`, or a list of keys
 (`["team", "actions"]`) as JSON. It decides what the model *knows*, not merely how the
-screen is drawn — with `"json"` there is no rendering. [`llm-raw`](llm-raw/) is
+screen is drawn, with `"json"` there is no rendering. [`llm-raw`](llm-raw/) is
 `llm-survivor` with only the view changed, so the pair measures exactly that.
 
 ### Seams (methods to override)
@@ -201,13 +202,13 @@ screen is drawn — with `"json"` there is no rendering. [`llm-raw`](llm-raw/) i
 The plumbing wraps whatever `view` returns: the journal and the "pick an index between 0
 and N" line are added around it, so replacing the view cannot cost a bot its memory or
 leave the model without the range. That is why `_situation()` is **not** the seam.
-**Do not override `choose`** — it runs the loop, so replacing it discards the reason to
+**Do not override `choose`**, it runs the loop, so replacing it discards the reason to
 inherit from `LLMBot`.
 
 ### The four shared tools
 
 `team_details` (full team stats via `render.team_view`), `what_lies_ahead` (where each
-legal option leads on the next layer), `set_lead(index)` (promote a slot to lead, free —
+legal option leads on the next layer), `set_lead(index)` (promote a slot to lead, free,
 recorded, applied by the loop), and `play(index, why)` (ends the turn). Their schemas
 cost tokens every turn whether called or not, so a fifth tool is not free.
 
@@ -232,6 +233,150 @@ The fallback is not random: it prefers keeping the team alive, healing first whe
 someone is hurt. Every fallback turn is counted into `fallback_rate`, because a high
 badge mean with a high fallback rate is measuring the heuristic, not the model.
 
+## Where and how to change each thing
+
+Worked on a bot at `bots/mine/`. Every knob, hook and seam is a **class attribute or
+method in `bots/mine/bot.py`**; the only lever outside that file is a custom state, which
+lives in `bots/mine/artifacts/`.
+
+### Road 1: you inherit `Bot`
+
+| method | when the loop calls it | where you put it | how (what you write) |
+|---|---|---|---|
+| `choose(state) -> int` | every turn (**required**) | a method in the class | `def choose(self, state): ...; return i` where `i` indexes `state["actions"]` |
+| `on_start(seed)` | before turn 1 of each run | a method in the class | `def on_start(self, seed): self.t = 0` (reset counters, open a client) |
+| `on_end(state, score)` | after the last turn, with the score | a method in the class | `def on_end(self, state, score): self.learn(score["points_no_time"])` |
+| `rearrange(state) -> (a,b) \| None` | before `choose`, while `state["can_reorder"]` | a method in the class | `def rearrange(self, state): return (0, 2)` to swap slots 0 and 2, or `return None` |
+| `explain() -> str` | after `choose`, for the `-d` log | a method in the class | `def explain(self): return self._why` (set `self._why` inside `choose`) |
+| `artifacts() -> list` | at `bot bench` record time | a method in the class | `def artifacts(self): from pokelike.leaderboard import Artifact; return [Artifact(name="weights", kind="weights-json", data=self.w)]` |
+
+```python
+# bots/mine/bot.py
+from typing import Any
+from pokelike.bot.base import Bot
+
+class MyBot(Bot):
+    name = "mine"                                   # class attribute (folder name)
+
+    def on_start(self, seed: int) -> None:          # an optional hook
+        self._why = ""
+
+    def choose(self, state: dict[str, Any]) -> int: # the one required method
+        for i, a in enumerate(state["actions"]):
+            if a.get("node") == "catch":
+                self._why = "catch when possible"
+                return i
+        self._why = "default"
+        return 0
+
+    def explain(self) -> str:                       # one line for the -d log
+        return self._why
+```
+
+### Road 2: you inherit `LLMBot`, the knobs
+
+Each knob is a **class attribute at the top of `class MyBot(LLMBot)`**. You set it by
+assignment; you write no method.
+
+| knob | decides | where | how (what you write) |
+|---|---|---|---|
+| `PROMPT` | the system prompt (the submission) | class attribute | `PROMPT = GAME_RULES + "Heal before it is urgent."` |
+| `MODEL` | model id (or `$MODEL_ID`) | class attribute **or** CLI flag | `MODEL = "openai/gpt-4o-mini"`, or leave unset and pass `--model openai/gpt-4o-mini` |
+| `TEMPERATURE` | sampling | class attribute | `TEMPERATURE = 0.3` |
+| `MAX_TOKENS` | ceiling on one answer | class attribute | `MAX_TOKENS = 2000` |
+| `MAX_ROUNDS` | tool rounds before giving up the turn | class attribute | `MAX_ROUNDS = 6` |
+| `MEMORY` | how many past turns are shown back | class attribute | `MEMORY = 10` |
+| `TOKEN_BUDGET` | tokens per run (0 = no cap) | class attribute | `TOKEN_BUDGET = 40000` |
+| `EXTRA_TOOLS` | your tools on top of the four shared | class attribute (list of dicts) plus a `run_tool` branch | see the seams table |
+| `STATE_VIEW` | what the model reads | class attribute | `STATE_VIEW = "json"` or `STATE_VIEW = ["team", "actions"]` |
+| `RETRIES` | attempts on a transient HTTP failure | class attribute | `RETRIES = 6` |
+
+Credentials (`--endpoint`, `--api-key`, `--model`) reach the constructor from the
+**command line**, so you do not hardcode them:
+`... bot run --bot mine --endpoint https://openrouter.ai/api --api-key @~/.key --model openai/gpt-4o-mini`.
+
+### Road 2: the seams (override a method)
+
+| method | override when | where | how (what you write) |
+|---|---|---|---|
+| `view(state) -> str` | none of the `STATE_VIEW` values fit | a method in the class | `def view(self, state): return f"{len(state['team'])} mons, {len(state['actions'])} options"` |
+| `tools() -> list` | you want to control the whole tool list | a method in the class | `def tools(self): return [t for t in super().tools() if t["function"]["name"] != "what_lies_ahead"]` |
+| `run_tool(name, args, state) -> str` | you added `EXTRA_TOOLS` and must answer them | a method in the class | `def run_tool(self, name, args, state): return ", ".join(state.get("bag") or []) if name == "bag" else super().run_tool(name, args, state)` |
+| `_call(messages) -> dict` | your model is not an OpenAI-style HTTP endpoint | a method in the class | `def _call(self, messages): return my_local_llm(messages)` (return `{"content": ..., "tool_calls": [...]}`) |
+| `_fallback(state) -> int` | change the backup move when a call fails | a method in the class | `def _fallback(self, state): return 0` |
+
+```python
+# bots/mine/bot.py
+from pokelike.bot.llm import LLMBot, GAME_RULES
+
+class MyBot(LLMBot):
+    name = "mine"                                   # class attribute
+    PROMPT = GAME_RULES + "Faints end runs. Heal early."   # class attribute
+    STATE_VIEW = "screen"                           # class attribute
+    TEMPERATURE = 0.3                               # class attribute
+    EXTRA_TOOLS = [{                                # class attribute
+        "type": "function",
+        "function": {"name": "bag", "description": "What you are carrying.",
+                     "parameters": {"type": "object", "properties": {}}},
+    }]
+
+    def run_tool(self, name, args, state):          # a seam, answers your tool
+        if name == "bag":
+            return ", ".join(state.get("bag") or []) or "nothing"
+        return super().run_tool(name, args, state)  # let the base answer the shared four
+```
+
+Do not define `choose` here: on the `LLMBot` road it already runs the agentic loop.
+
+### Using `render` in `view()`
+
+`core/render.py` is the shared state-to-text module, and a bot does **not** edit it
+(that would change the CLI and every bot's default view, a `src/` change). Instead you
+compose its pure functions inside your own `view()`. The blocks:
+
+| function | returns |
+|---|---|
+| `screen(obs)` | the whole turn (the default model view) |
+| `team_view(obs["team"])` | your team, with the move each Pokemon attacks with |
+| `map_view(obs["map"])` | the board, layer by layer |
+| `actions_view(obs["actions"])` | the numbered options with tooltips |
+| `graph_view(obs["map"])` | the map drawn with edges, for a terminal |
+| `tutor_view(obs)` | the move-tutor comparison |
+
+```python
+from pokelike.core import render
+
+def view(self, state):                              # team + options only, no map
+    return render.team_view(state["team"]) + "\n\n" + render.actions_view(state["actions"])
+```
+
+You do not override `render.py` itself, and you do not need to. `bridge.js` and `init.js`
+are overridable because they reach what Python cannot: the data that is in the state, and
+which game a seed plays. `render.py` only presents data already in `obs`, and `view()`
+already lets you present it any way you like, so a per-bot renderer would add nothing
+`view()` cannot already do. Ship a big custom renderer in `artifacts/` and call it from
+`view()` if you want; improving the rendering for everyone is a `src/` change instead.
+(The benchmark carries its own frozen copy of `render.py` for the opposite reason: to
+keep every model shown the state the same way, not to open it up.)
+
+### Changing what is in the state
+
+The only lever outside `bot.py`.
+
+| what you change | where | how (what you do) |
+|---|---|---|
+| the fields the state exposes | `bots/mine/artifacts/bridge.js` | `cp src/pokelike/core/bridge.js bots/mine/artifacts/bridge.js`, then edit `__pk_obs()` to read the engine value you need and add it to the returned object |
+| the seeded clock and RNG (`init.js`) | not changeable | it stays the shared file; a custom one would play a different game under the standard seeds' names |
+
+The run announces which bridge it used, and because the file sits under `artifacts/` it
+is folded into your fingerprint, so the score stays checkable. The one rule: the bridge
+only observes (it must never click, or the same seed stops replaying the same run).
+
+The whole "where": class attributes and methods in `bots/mine/bot.py` cover every knob,
+hook and seam; `bots/mine/artifacts/bridge.js` is the only way to change what the state
+contains; and command-line flags (`--model`, `--endpoint`, `--api-key`) override the
+model and credentials without editing code.
+
 ## Categories
 
 `--category` is a label, judged no differently: `rules` (hand-written logic), `rl`
@@ -240,6 +385,6 @@ reference), `other` (search, planning, hybrids). It is there so a reader can tel
 glance what kind of thing is winning.
 
 An `llm` entry here is a submission whose **prompt and tools are the idea**, and the
-model is usually whatever `$MODEL_ID` names — so this table ranks scaffolds. To measure
+model is usually whatever `$MODEL_ID` names, so this table ranks scaffolds. To measure
 a *model* with the scaffold held fixed, that is [`llm-bench/`](../llm-bench/), a
 different question whose rows never cross into these standings.
