@@ -217,7 +217,9 @@ def pick(version: str | None = None, stamp: str | None = None,
 
     running = live(version)
     if len(running) < 2:
-        return running[0] if running else newest(version)
+        # Nothing running means nothing to watch. NOT the most recent pass on disk:
+        # a finished run offered as "live" is exactly the confusion this removes.
+        return running[0] if running else None
 
     # Numbered by when each pass STARTED, because a number has to mean the same thing
     # twice in a row. Ordered by last write, which is how everything else here is
@@ -623,6 +625,12 @@ def dashboard(version: str | None = None, once: bool = False,
         if stamp or model:
             console.print(f"no pass here matches {stamp or model}")
             console.print("what there is:  uv run pokelike model watch --all")
+            return 1
+        if folders(version):
+            # Traces exist but none is running: this is the common case, and it is
+            # NOT an error to be pointed at. Say so, and offer the overview.
+            console.print("nothing is running right now.")
+            console.print("everything on disk:  uv run pokelike model watch --all")
             return 1
         where = f"llm-bench/{version}/logs" if version else "llm-bench/*/logs"
         console.print(f"nothing to watch: no trace under {where}")

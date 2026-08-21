@@ -329,6 +329,22 @@ def test_a_container_and_a_host_pass_sort_against_each_other(bench):
     assert sorted([utc, host], key=watch._started) == [host, utc]
 
 
+def test_nothing_running_is_not_a_finished_pass(bench, monkeypatch):
+    """With nothing live, watch follows NOTHING -- never the newest finished pass.
+
+    A `done` (or stalled) pass shown as the thing you are watching is the exact
+    confusion this removes: it looks like a live run that simply is not moving.
+    """
+    done = bench / "v9" / "logs" / "20260820-170000"
+    _trace(done, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
+    (done / "a--b-pass1.log").write_text("header\ndone  1 runs\n", encoding="utf-8")
+    monkeypatch.setattr(watch, "_containers", lambda: [])
+    assert watch.live() == []
+    assert watch.pick() is None
+    # And the dashboard says so plainly rather than pointing at a missing trace.
+    assert watch.dashboard(once=True) == 1
+
+
 def test_nothing_to_watch_is_an_answer(bench):
     assert watch.dashboard(once=True) == 1
     assert watch.overview() == 1
