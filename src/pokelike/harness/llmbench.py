@@ -700,6 +700,19 @@ class PassLog:
                                       name="pk-heartbeat", daemon=True)
         self._beat.start()
 
+    @property
+    def stamp(self) -> str:
+        """The pass's own name: its log directory, `20260821-162048-1435`.
+
+        The identity of a pass, and the half of a run's identity that the seed does
+        not carry. The standard fifty seeds are the same fifty for every model, on
+        purpose, so a seed alone names a game in every pass ever played; what names
+        one game is `(harness, model, stamp, seed)`. Read off the directory rather
+        than stored a second time, so it cannot claim to be somewhere the files are
+        not.
+        """
+        return self.path.parent.name
+
     def _say(self, line: str) -> None:
         self.fh.write(line + "\n")
 
@@ -1039,6 +1052,10 @@ def play_model(game, version: str, model: str, site: Path,
         raise
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
                    result.get("notes") or {}, fingerprint=stamp)
+    # Named explicitly, not only implied by the paths below: those are absolute
+    # and were written inside the container, so `/app/...` is a directory that does
+    # not exist on the host reading the result. The stamp is the portable half.
+    one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
     log.done(one)
@@ -1249,6 +1266,10 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     from ..arena.bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
                    fingerprint=stamp)
+    # Named explicitly, not only implied by the paths below: those are absolute
+    # and were written inside the container, so `/app/...` is a directory that does
+    # not exist on the host reading the result. The stamp is the portable half.
+    one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
     log.done(one)

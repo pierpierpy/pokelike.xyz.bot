@@ -124,6 +124,24 @@ def test_a_pass_falls_back_to_hashing_disk_when_given_nothing():
     assert one["fingerprint"] == L.fingerprints("v0")
 
 
+def test_a_pass_is_named_by_its_log_directory(tmp_path):
+    """`(harness, model, stamp, seed)` is what names one game, and this is the stamp.
+
+    The standard fifty seeds are the same fifty for every model, so a seed alone
+    names a game in every pass ever played. The stamp is the half that tells them
+    apart, and it is read off the directory so it cannot claim to be somewhere the
+    files are not.
+    """
+    folder = tmp_path / "20260821-162048-1435"
+    folder.mkdir()
+    log = L.PassLog("v0", "a/b", [10000], workers=1, folder=folder)
+    try:
+        assert log.stamp == "20260821-162048-1435"
+        assert log.path.parent == folder
+    finally:
+        log.close()
+
+
 def test_a_changed_harness_marks_the_row_stale(tmp_path):
     """The mechanism that catches drift instead of absorbing it."""
     stamp = {"bot.py": "deadbeefdeadbeef", "render.py": "cafecafecafecafe"}
