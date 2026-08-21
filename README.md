@@ -22,14 +22,14 @@ window, no account, no internet, from the command line, from Python, or over an 
 
 *A trained reinforcement-learning policy, mid-run. it decided to use squirtle over and over again apparently.. lol* 
 
-It is three things at once, and you can stop at whichever one you came for:
+This repo is 3 things, use it as you please. It is: 
 
-- **[Environment](#1-environment)**, a headless, reproducible copy of the game you can
+- an **[Environment](#1-environment)**, a headless, reproducible copy of the game you can
   simulate runs against, drive from a script or a notebook, and hand to a coding agent.
-- **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, the same frozen scaffold and
+- a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, the same frozen scaffold and
   the same fifty seeds for every language model, so a score says something about the
   *model* rather than about whoever tuned their prompt hardest.
-- **[Bot competition](#3-bot-competition)**, an open competition. Write something that
+- a **[Bot framework/competition](#3-bot-competition)**, an open competition. Write something that
   beats the game better than mine and open a pull request. A trained policy, a prompt, a
   rulebook, tree search, anything that turns a state into a move.
 
