@@ -1,19 +1,11 @@
 # The bots
 
-Every bot that plays this game lives here, one folder each, and the folder is
-the bot: its code, whatever it needs to play, and what it scored.
+Every bot that plays this game lives here, one folder each, and the folder is the bot:
+its code, whatever it needs to play, and what it scored.
 
-**Contents**
-- [Standings](#standings)
-- [What a bot is](#what-a-bot-is)
-- [Adding one](#adding-one)
-- [What makes results comparable](#what-makes-results-comparable)
-- [Categories](#categories)
-- [If someone already took the name](#if-someone-already-took-the-name)
-- [Verification](#verification)
-
-New here? **[GUIDE.md](../GUIDE.md)** walks the whole thing end to end, from a
-clone to a pull request. This page is the reference.
+New here? **[CONTRIBUTING.md](../CONTRIBUTING.md)** walks the whole thing end to end,
+from a clone to a pull request. The internals — how a bot is loaded, the fingerprint,
+the full LLM harness reference — are in [AGENTS.md](AGENTS.md).
 
 ---
 
@@ -33,183 +25,58 @@ Ranked by **badges**, the game's own progress counter. `badges~` is the mean ove
 
 <!-- END standings -->
 
-Rebuilt whenever a benchmark is recorded, so the pull request that adds a bot
-also carries its row.
+Rebuilt whenever a benchmark is recorded, so the pull request that adds a bot also
+carries its row.
 
-### Play any of them
+## Play any of them
 
-Nothing to download or train. Every bot ships with its weights, so pick a name
-out of the table above:
+Nothing to download or train. Every bot ships with its weights, so pick a name out of
+the table above:
 
 ```bash
 uv run pokelike bot run --bot sarsa-v2 --seed 40003 --runs 1 -g -dd
 ```
 
-`-g` draws the map beside each decision, `-dd` prints the value it gave every
-option before choosing. Drop both for a plain run.
-
-**Names are exact, and a prefix has to be unique.** `--bot sarsa-v` finds
-`sarsa-v2`; `--bot sarsa` is an error that names both, because variants of one
-idea share a name and picking one silently produces a result that looks entirely
-plausible and is about the wrong bot.
-
----
+`-g` draws the map beside each decision, `-dd` prints the value it gave every option
+before choosing. Drop both for a plain run. Names are exact, and a prefix has to be
+unique: `--bot sarsa-v` finds `sarsa-v2`; `--bot sarsa` is an error that names both.
 
 ## What a bot is
 
-A folder. Nothing is registered anywhere, so someone can hand you a bot by
-handing you a directory.
+A folder. Nothing is registered anywhere, so someone can hand you a bot by handing you a
+directory.
 
 ```
 bots/<name>/
 ├── bot.py        one class inheriting from Bot. The only method it must have
 │                 is choose(state) -> int
-├── artifacts/    weights, prompts, tables, whatever it needs to play, and
-│                 optionally a bridge.js of your own
+├── artifacts/    weights, prompts, tables, whatever it needs, and optionally
+│                 a bridge.js of your own
 └── result.json   what the benchmark measured, written by `pokelike bot bench`
 ```
-
-`artifacts/bridge.js` is optional. The state is a projection of the game written by
-hand, so nothing in Python can add a field it does not carry:
-if your idea needs the engine to give up something nobody thought to expose, put your
-own bridge there and it is used when your bot runs. It lands in the fingerprint along
-with everything else under `artifacts/`, so the score stays checkable. See
-[everything you can change](../GUIDE.md#everything-you-can-change).
-
-**It has to be self-contained.** Everything `bot.py` needs is either in the
-`pokelike` package or in its own folder, and nothing reaches into `experiments/`,
-and nothing reaches into another bot. Two reasons, and the second is the one
-people underestimate:
-
-A trained policy is only meaningful under the exact encoding it was trained
-with. If `bot.py` imported its feature code from your training scripts, then
-improving those scripts would silently change what your own past score meant.
-
-And a bot is meant to be handed around, re-run and checked by someone who has
-none of your setup. A folder that only works on the machine that made it is not
-a submission, it is a screenshot.
 
 ## Adding one
 
 ```bash
-uv run pokelike bot new mine     # creates bots/mine/ with a working skeleton
+uv run pokelike bot new mine          # a working skeleton in bots/mine/
+uv run pokelike bot new my-prompt --llm   # ... starting from the shared LLM harness
 uv run pokelike bot run --bot mine --runs 5 -d
 uv run pokelike bot bench --bot mine --dry-run
 ```
 
 `pokelike bot new` writes a bot that already plays, so you can measure it before
-changing a line and know the number moved because of you. The full walk-through,
-and how to open the pull request, is in [GUIDE.md](../GUIDE.md).
+changing a line. The full walk-through — how it is judged, what makes results
+comparable, and how to open the pull request — is in
+[CONTRIBUTING.md](../CONTRIBUTING.md), and the mechanics behind it in
+[AGENTS.md](AGENTS.md).
 
-**If your bot is a prompt**, `--llm` starts it from the shared harness instead
-and you write nothing but the prompt:
+## Measuring a MODEL instead of a bot
 
-```bash
-uv run pokelike bot new my-prompt --llm
-```
-
-### If someone already took the name
-
-`bots/` is flat and the folder name is the bot, so two submissions cannot share
-one. Git will say so on your pull request, a plain conflict, and one of you
-renames. Nothing is hidden and nothing is auto-resolved, which is the point.
-
-The `--author` you pass to `bot bench` is what distinguishes people in the
-standings; the fingerprint in `result.json` is a different mechanism answering a
-different question, and is deliberately **not** used as a name, because it is
-derived from the content, so it would change every time you retrained and take
-every link to your bot with it.
-
-## What makes results comparable
-
-**The same 50 seeds.** `pokelike bot bench` plays a fixed list, identical for
-everyone, so nobody wins by drawing kinder maps. A partial run (`--runs N`) or
-`--dry-run` prints the result and records nothing: a score over 5 seeds is not
-comparable to one over 50, so it is not a submission.
-
-**Ranked by badges.** The game's own progress counter. Its score formula was
-written for the Battle Tower and two of its six terms never fire in Story mode,
-leaving `5·KO − 10·faints`, which rewards fighting rather than getting further.
-Score is still reported, because a bot that scores badly while earning badges is
-telling you something about how it earns them.
-
-**What 50 seeds can resolve.** Badges vary run to run with a standard deviation
-around 0.7, so the mean over 50 seeds carries a standard error near 0.1 badges.
-Two bots whose means differ by less than roughly **0.3 badges** are not
-distinguishable by this benchmark: the gap between the top two rows is that
-kind of gap. Beating the leader means beating it by a visible margin, not by a
-decimal.
-
-**The game bundle's hash is recorded.** The game is updated upstream from time to
-time, and results from before and after an update are not comparable. Without
-recording it, a table mixes them silently.
-
-**The code is fingerprinted.** `result.json` carries a sha256 over `bot.py` and
-every artifact. `pokelike bot board` recomputes it on read and marks a row
-**⚠︎** when the files have changed since the score was measured, so a row can
-never quietly claim a number for code that no longer exists. A **?** means the
-result carries no fingerprint at all and cannot be checked either way, which is
-reported rather than folded into "fine". Re-running the benchmark clears both.
-
-**And the run has to reproduce.** The fingerprint proves the code has not changed;
-it cannot prove the score was earned. Same seed and same bot must mean the same
-run, and for a while that was not true, since an option's label carried a pictograph
-the game substitutes for a missing sprite, the feature sets parse labels, and
-whether the substitution had arrived depended on timing. Five of one entry's fifty
-rows stopped reproducing, including the one that put it top. If you cannot replay
-your own result, it is not a measurement. `uv run pokelike bot bench` twice on the
-same bot is the check, and it should agree with itself exactly.
-
-**And for LLM bots, three more things.** Which model actually answered, which
-version of the shared harness asked it, and the share of turns the model did not
-decide. That last one is `fallback_rate`: when a call times out or comes back
-unusable the harness plays a safe move so the run does not die, and those turns
-are our heuristic playing under the model's name. A row above 0.1 is flagged,
-because it is measuring us more than the model.
-
-## Categories
-
-`--category` is a label, not a rule; nothing is judged differently because of it.
-It is there so a reader can tell at a glance what kind of thing is winning.
-
-| | |
-|---|---|
-| `rules` | hand-written logic |
-| `rl` | anything trained: tabular, linear, deep |
-| `llm` | a language model in the loop. The six `llm-*` bots here are one shared harness: five are a prompt and nothing else, and `llm-example` turns every knob with a reason for each |
-| `human` | a person playing, for reference |
-| `other` | search, planning, hybrids, whatever else |
-
-## If you want to measure a MODEL instead of a bot
-
-An `llm` entry here is a submission whose **prompt and tools are the idea**; the
-model is usually whatever `$MODEL_ID` happens to name, so this table ranks
-scaffolds and two `llm-*` rows can differ because of the prompt, the model, or
-both.
-
-[`llm-bench/`](../llm-bench/) asks the other question. There the harness is frozen
-and the model id is the only thing that changes, so a row says something about the
-model. Nothing recorded there appears in these standings, and nothing here is
-compared with it.
+An `llm` entry here ranks a **scaffold**: the prompt and tools are the idea, the model
+is whatever you pointed at. [`llm-bench/`](../llm-bench/) asks the other question — the
+harness is frozen and the model id is the only thing that changes. Nothing recorded
+there appears in these standings, and nothing here is compared with it.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
 ```
-
-## Verification
-
-**Results are not re-run for you.** A number in the table is one somebody
-reported from their own machine, and the fingerprint only proves the code has not
-changed since, not that the run happened.
-
-What makes it checkable is that everything needed is here. The bot, its weights,
-the seeds, the game hash. Anyone can do this and compare:
-
-```bash
-uv run pokelike bot bench --bot sarsa-v2 --dry-run
-```
-
-**LLM bots are accepted and flagged as not independently reproducible.**
-Providers change models behind a fixed name and sampling is stochastic, so the
-same prompt on the same seed is not guaranteed to make the same move. That is a
-property of the method, not a fault of the submission.

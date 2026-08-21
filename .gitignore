@@ -12,6 +12,11 @@ dist/
 
 .env
 
+# Generated on demand by `pokelike schema --markdown` from a live observation.
+# Not committed: the docs point at `uv run pokelike schema` (stdout) instead, so
+# the state reference cannot describe a game that no longer exists.
+STATE.md
+
 # working list, not documentation
 TODO.md
 
@@ -33,6 +38,7 @@ img/*.mp4
 # read as worked examples. Anything else you create is yours and is ignored.
 experiments/*
 !experiments/README.md
+!experiments/AGENTS.md
 !experiments/__init__.py
 !experiments/env/
 !experiments/example/

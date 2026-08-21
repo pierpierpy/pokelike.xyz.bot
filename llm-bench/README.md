@@ -2,9 +2,9 @@
 
 **How well does a model play the game?**
 
-Same scaffold for everyone, same fifty seeds, only the model changes. That is the
-whole idea, and it is a different question from [`bots/`](../bots/), where the
-prompt is the submission and the model is whatever you happened to point it at.
+Same scaffold for everyone, same fifty seeds, only the model changes. That is the whole
+idea, and it is a different question from [`bots/`](../bots/), where the prompt is the
+submission and the model is whatever you happened to point it at.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
@@ -13,16 +13,8 @@ uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
 
 That plays fifty games, records the result, and prints a row. Half an hour or so.
 
-**Contents**
-- [Standings](#standings)
-- [Running it](#running-it)
-- [Flags](#flags)
-- [Reading the table](#reading-the-table)
-- [The harnesses](#the-harnesses)
-- [Where the files go](#where-the-files-go)
-- [In Docker](#in-docker)
-- [Why it is frozen](#why-it-is-frozen)
-- [What the fingerprint covers](#what-the-fingerprint-covers)
+The internals — why it is frozen, the seven-key fingerprint, what each version asks,
+where the files go, Docker — are in [AGENTS.md](AGENTS.md).
 
 ---
 
@@ -57,254 +49,84 @@ _No models measured under harness `v4` yet._
 
 <!-- END llm-bench -->
 
-Regenerate with `pokelike model board --harness <v>`, which prints that one
-version and rewrites every table here. Rows are grouped by version and
-**never ranked across versions**. Two models asked different questions were
-not compared.
+Regenerate with `pokelike model board --harness <v>`, which prints that one version and
+rewrites every table here. Rows are grouped by version and **never ranked across
+versions**: two models asked different questions were not compared.
 
 ## Running it
 
-Credentials, either way. Flags win over the environment.
+Credentials come from flags or the environment; flags win.
 
 ```bash
-# as flags
---endpoint https://openrouter.ai/api --api-key sk-or-...
---endpoint https://openrouter.ai/api --api-key @~/.key     # from a file
-
-# or exported once
 export FW_ENDPOINT="https://openrouter.ai/api"
-export FW_TOKEN="sk-or-..."
+export FW_TOKEN="sk-or-..."      # or --endpoint / --api-key (--api-key @path reads a file)
 ```
-
-Then:
 
 ```bash
 # one model, the real thing: 50 seeds, recorded
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
-
-# several models, one after another
-uv run pokelike model bench --harness v0 --models a/b,c/d
-
-# a quick check first: 2 games, nothing recorded
-uv run pokelike model bench --harness v0 --model a/b --runs 2 --dry-run
-
-# faster: play the seeds in 8 processes at once
-uv run pokelike model bench --harness v0 --model a/b --workers 8
-
-# three passes, so you can see the model's own variance
-uv run pokelike model bench --harness v0 --model a/b --repeat 3
-
-# print what has been measured on v0, and rewrite the tables above
-uv run pokelike model board --harness v0
+uv run pokelike model bench --harness v0 --models a/b,c/d      # several, one after another
+uv run pokelike model bench --harness v0 --model a/b --runs 2 --dry-run   # quick check, records nothing
+uv run pokelike model bench --harness v0 --model a/b --workers 8          # play the seeds in parallel
+uv run pokelike model bench --harness v0 --model a/b --repeat 3           # see the model's own variance
+uv run pokelike model board --harness v0                                  # print + rewrite the tables above
 ```
 
-## Flags
-
-| flag | what it does |
-|---|---|
-| `--harness v4` | which frozen harness. **Required**, there is no default: the version is the question a row answers, see [below](#the-harnesses) |
-| `--model a/b` | one model id |
-| `--models a/b,c/d` | several, comma separated, played one after another |
-| `--endpoint URL` | OpenAI-compatible base URL, no `/v1`. Overrides `$FW_ENDPOINT` |
-| `--api-key KEY` | the key, or `@path` to read it from a file. Overrides `$FW_TOKEN` |
-| `--workers N` | play the seeds in N processes at once. Refused by a harness that keeps notes between runs, since its runs are not independent |
-| `--repeat N` | N passes of each model, kept separately |
-| `--runs N` | only the first N seeds. **Records nothing** |
-| `--seeds 10010,10011` | pick the seeds. Also `10010-10019`. **Records nothing** |
-| `--dry-run` | play everything, print the result, record nothing |
-| `--no-preflight` | skip the one test call made before spending anything |
-| `--table` | print the standings and regenerate the table in this file |
-| `--set KEY=VALUE` | a setting this harness understands, repeatable. `--set notes=4` caps v4's notebook |
-
-Those are the flags every version needs. `--set` is the one that is not: it goes
-straight to the harness constructor, which refuses by name what it does not know, so a
-version's own knob is the version's business and nothing on the command line has to
-learn a word that means nothing to the others. It is recorded with the pass, because a
-pass with a different setting is answering a different question.
-
-Two rules hide in that list and are worth stating plainly:
-
-- **Only the standard fifty seeds record a result.** `--runs`, `--seeds` and
-  `--dry-run` all print and file nothing. A score over five seeds is not comparable
-  to one over fifty, and a set you chose yourself is not comparable to anyone's.
-- **A literal key on the command line is readable by everyone** on the machine, in
-  `ps`, and your shell saves it in history. `--api-key @path` avoids both.
-
-The **pre-flight** is one small call per model before any seed is played. A model
-that cannot emit a tool call would otherwise score zero for half an hour and look
-like a bad player. It also prints what the pass is likely to cost.
+`--harness` is **required**: the version is the question a row answers. Two rules that
+are easy to miss: **only the standard fifty seeds record a result** (`--runs`, `--seeds`
+and `--dry-run` all print and file nothing), and a **literal key on the command line** is
+readable by everyone on the machine, so `--api-key @path` reads it from a file instead.
+`--set KEY=VALUE` passes a setting straight to the harness (`--set notes=4` caps v4's
+notebook), and a **pre-flight** call before any seed catches a model that cannot emit a
+tool call. The full flag list is `--help`; the mechanics are in [AGENTS.md](AGENTS.md).
 
 ## Reading the table
 
-**`±sem` before the order.** Badges vary run to run with a standard deviation near
-0.7, so fifty runs carry a standard error near 0.1. Two models whose means differ
-by less than roughly twice that are not distinguishable, however confidently the
-rows are sorted.
-
-**One pass is not a measurement.** Same seed, same prompt, different answer. LLM
-runs are not reproducible. Three passes of one model can differ by about 0.2
-badges, which is roughly the entire gap between the top two entries in `bots/`.
-`--repeat 3` is what tells you which case you are in.
-
-**`fallback` disqualifies.** When a call fails or the model never calls `play`, the
-harness plays a safe move so the run survives, and that turn was decided by our
-heuristic under the model's name. Above 0.1 the row measures the harness.
-
-**Tokens are counted, money is not.** In and out separately, because output costs
-several times more. The `usd` column is computed when the table is printed, from
-OpenRouter's public prices, and never stored: a cost written into a file is a claim
-about today that nobody can correct later.
+- **`±sem` before the order.** Badges vary with a standard deviation near 0.7, so fifty
+  runs carry a standard error near 0.1. Two models whose means differ by less than
+  roughly twice that are not distinguishable, however confidently the rows are sorted.
+- **One pass is not a measurement.** Same seed, same prompt, different answer. Three
+  passes of one model can differ by ~0.2 badges, about the whole gap between the top two
+  entries in `bots/`. `--repeat 3` tells you which case you are in.
+- **`fallback` disqualifies.** When a call fails or the model never calls `play`, the
+  harness plays a safe move, and that turn was our heuristic under the model's name.
+  Above 0.1 the row measures the harness.
+- **Tokens are counted, money is not.** The `$` column is computed from public prices
+  when the table is printed and never stored: a cost written into a file is a claim about
+  today that nobody can correct later.
 
 ## The harnesses
 
-Each is a frozen copy, and each asks a different question. Rows are never compared
-across them.
+Each is a frozen copy asking a different question. Rows are never compared across them.
 
-- **`v0`** — the plain loop. One call a turn, four tools, memory of the last six
-  moves, 1500 tokens an answer. The rules and no strategy.
-- **`v2`** — plus an actual agent loop: the last three turns travel with it, a `plan`
-  tool for the route through the map, 4000 tokens an answer, and a prompt that
-  explains all of it and how to play. Sequential only, and it cannot measure a model
-  served by OpenAI: the history it sends carries a tool call that was never answered,
-  which OpenAI's API refuses and other providers accept.
+- **`v0`** — the plain loop: one call a turn, four tools, memory of the last six moves,
+  1500 tokens. The rules and no strategy.
+- **`v2`** — an agent loop: the last three turns travel with it, a `plan` tool, 4000
+  tokens, notes that survive the run, and a prompt that explains how to play. Sequential
+  only, and it cannot measure a model served by OpenAI.
   [Why](v2/harness/README.md#models-served-by-openai-cannot-be-measured-here).
 - **`v4`** — the model is TOLD to run its memory rather than merely allowed to, with
-  examples of a note and a plan worth writing, a cap you can set with
-  `--set notes=N`, the node tooltips a person can read, every tool call in the trace,
-  and the `play` call answered so any provider accepts the conversation. Sequential
-  only.
+  examples, a cap you can set with `--set notes=N`, the node tooltips a person can read,
+  and every tool call in the trace. Sequential only.
 
-`v1` and `v3` were deleted, both unmeasured. A version directory exists to keep
-recorded rows meaningful, and one with no rows keeps nothing. What v3 changed lives
-in v4. The numbers are not compacted, because `HARNESS` is written into every result.
+`v1` and `v3` were deleted, both unmeasured; what v3 changed lives in v4. Each version's
+own README says exactly what it asks: [v0](v0/harness/README.md),
+[v2](v2/harness/README.md), [v4](v4/harness/README.md). Why the freeze works, and what a
+pass writes, are in [AGENTS.md](AGENTS.md).
 
-Each carries four frozen files, so nothing outside its directory can move under a
-recorded row: `bot.py` (the loop), `render.py` (the text the model reads), `bridge.js`
-(what is in the state, and the order `actions` come in) and `init.js` (the seeded
-`Math.random` and the pinned clock). `browser.py`, `game.py` and `runner.py` drive the
-game and are hashed rather than copied.
-
-Each has its own README with exactly what it asks a model:
-
-- [v0](v0/harness/README.md)
-- [v2](v2/harness/README.md)
-- [v4](v4/harness/README.md)
-
-## Where the files go
-
-One directory per command under `llm-bench/<version>/logs/<stamp>/`, holding
-`command.json`, a `.log` per pass (one line a game, tail-able), a `.jsonl` (one
-decision each, with the reason, the tools called, the team and the map), and under
-any harness that keeps notes a `notebook.log` and a `plan.log`. Results live apart, one file per model with every pass inside. Layout and
-rationale: [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
+## Watching a pass
 
 ```bash
 uv run pokelike model watch                     # follow the running pass
 uv run pokelike model watch --all               # every pass on this machine
-ls -t llm-bench/v0/logs/                        # the directories, newest first
 bash llm-bench/run.sh <model> --harness <v>     # the script for the common case
 ```
 
-`model watch` reads the trace the pass is already writing, so it works the same
-on a container, on a pass started in another terminal, and on one that finished
-last week. It shows the runs that are done, where the model is now, the tools it
-called this turn, the team and the map it is standing on, and the notes and route
-it is holding.
+`model watch` reads the trace the pass is already writing, so it works the same on a
+container, on a pass started in another terminal, and on one that finished last week. It
+shows the finished runs, where the model is now, the tools it called this turn, the team
+and map it is standing on, and the notes and route it is holding. With more than one pass
+running it asks which — `--stamp` or `--model` (a prefix is enough) answers in advance.
 
-With more than one pass running it asks which. `--stamp 20260820-153310` or
-`--model qwen/qwen3.7-flash` answers in advance, and part of either is enough.
-Once it is following one it stays on it: the newest write alternates between two
-live passes, so following that would flip the view every couple of seconds.
-
-What counts as running is asked of docker, since docker is the only thing that knows.
-`run.sh` names each container after the model it plays, so three containers up means
-three passes to choose from. With nothing containerised, or no docker, the clock
-decides instead, which is what a pass played on the host looks like.
-
-`run.sh` builds, runs detached, names the container after the model, picks the worker
-count the harness allows, and removes it when done. Credentials come from `.env`.
-
-## In Docker
-
-Worth it for anything long: the run then cannot notice a library upgrade, a
-Chromium update, or your laptop going to sleep.
-
-```bash
-docker compose -f llm-bench/docker/docker-compose.yml build          # once, ~2 GB
-
-docker compose -f llm-bench/docker/docker-compose.yml run -d --name glm bench \
-  --harness v0 --model z-ai/glm-5.2:free --workers 2 \
-  --endpoint https://openrouter.ai/api --api-key sk-or-...
-
-docker logs -f glm
-```
-
-Flags after the `bench` service name are exactly the flags above. Credentials can
-come from the flags, or from a `.env` at the repo root (`cp .env.example .env`)
-which compose reads if it exists.
-
-Three things about it:
-
-- **The game is not downloaded**, it is your `site/` mounted read-only. `site/` is
-  in `.dockerignore`, so the image stays small and the container plays the copy you
-  already verified.
-- **`shm_size: 2gb` is not optional.** Docker gives a container 64 MB of shared
-  memory and Chromium wants far more. Without it browsers die mid-run with errors
-  that read like the game crashed.
-- **Only `llm-bench/` is writable.** The image could run any `pokelike` command, so
-  without that restraint a stray `bench --bot sarsa-v2` would record a result inside
-  the container and lose it on exit.
-
-## Why it is frozen
-
-A row here claims something about the **model**, not about whoever tuned the scaffold
-hardest. That only holds if every model was asked the same question, so the scaffold
-cannot move.
-
-Each version therefore carries its own copies rather than importing the shared code,
-which is meant to improve because the CLI and the bots in `bots/` both read it. Four
-files per version, and nothing outside that directory can reach them:
-
-| file | decides |
-|---|---|
-| `bot.py` | the loop, the prompt, the tools |
-| `render.py` | the text the model reads |
-| `bridge.js` | what is in the state, and the order `actions` come in |
-| `init.js` | the seeded `Math.random` and the pinned clock |
-
-They are not equally dangerous. The renderer decides how the state is **shown**;
-`bridge.js` decides what it **is**, and since a bot answers with an *index* into
-`actions`, reordering that list does not change what the model sees, it changes what
-the same answer means. `init.js` is worse again: a run's seed is built from `Date.now()`
-and `Math.random()`, so moving a constant there does not mark a recorded score, it
-voids it. Every seed would map to a different run and the table would carry on
-answering, about a game nobody else can replay.
-
-A harness is never edited once a result exists beside it, and a check on every pull
-request refuses one that tries. A new idea is a new directory.
-
-## What the fingerprint covers
-
-Seven sha256 hashes, taken **before the first seed is played**, so an edit part way
-through a pass cannot produce a row certifying code it never ran:
-
-| | |
-|---|---|
-| the four frozen files | cannot move, because nothing outside the version's directory touches them |
-| `browser.py`, `game.py`, `runner.py` | shared and hashed. They drive the game, and freezing them would mean each version carrying its own browser plumbing |
-
-Plus the game bundle, recorded separately by name and hash, because it is downloaded
-rather than committed and an upstream release changes it.
-
-A row is marked when any recorded hash stops matching disk. The comparison is **key by
-key**, over the keys that pass actually recorded, so adding a file to the fingerprint
-later does not retroactively mark rows that could not have carried it.
-
-**What it does not cover, and what to do about it.** The seed list, which is recorded
-as data in every pass rather than hashed, so it is checkable by reading. And
-`pokelike/instrument/llmbench.py`, which builds the bot and drives the pass: a change there is not
-reported, so treat it the way you would treat the frozen files and say what you did in
-the pull request.
-
-The internals, and the reasoning that is only interesting if you are changing the
-code, are in [CLAUDE.md](../CLAUDE.md#the-frozen-harnesses-in-llm-bench).
+Long passes belong in Docker; the setup and its three non-negotiables (`shm_size`, the
+read-only `site/` mount, the write restriction) are in [AGENTS.md](AGENTS.md#in-docker).
