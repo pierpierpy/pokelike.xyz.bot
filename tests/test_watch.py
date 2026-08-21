@@ -632,3 +632,85 @@ def test_a_pass_writes_its_runs_file_with_the_score(tmp_path):
     # And the human log grew a score column beside badges.
     assert "score" in L.PassLog.COLUMNS
     assert "-35" in log.path.read_text(encoding="utf-8")
+
+
+# ------------------------------------------------- who is playing, and is it still there
+#
+# A pass writes `pid=... host=...` so it can be found and stopped, and the reader uses
+# the same line to know at once when it is over instead of waiting out the heartbeat.
+# The first version of that check lumped two cases together and got this wrong: a pass
+# running OUTSIDE a container writes this machine's hostname, which can never appear in
+# a list of container names, so every local pass vanished from `model watch` the moment
+# any container happened to be up. These lock the distinction.
+
+
+def _pass_owned_by(bench, pid, host):
+    """A running pass whose heartbeat names `pid` and `host`. Returns the trace."""
+    folder = bench / "v9" / "logs" / "20260820-170000"
+    _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    trace = folder / "a--b-pass1.jsonl"
+    trace.with_suffix(".alive").write_text(f"pid={pid} host={host}\n", encoding="utf-8")
+    return folder, trace
+
+
+def test_a_pass_outside_a_container_is_not_killed_off_by_other_containers(bench):
+    """The regression. A local pass is judged by its pid, never by the container list.
+
+    In: a pass naming this machine and a live pid, with containers up. Out: running.
+    """
+    import importlib
+    import os
+    import socket
+    rd = importlib.import_module("pokelike.harness.watch.read")
+
+    folder, trace = _pass_owned_by(bench, os.getpid(), socket.gethostname())
+    up = ["pk_v4_something", "5953fbc2470e"]
+    assert rd._owner_gone(trace, up) is False
+    assert watch.read(folder, up).state == "running"
+
+
+def test_a_local_pass_whose_process_is_gone_is_over_at_once(bench):
+    """The other half: no waiting out the five-minute heartbeat when we can just ask.
+
+    In: a pass naming this machine and a pid that no longer exists. Out: not running.
+    """
+    import importlib
+    import socket
+    import subprocess
+    import sys
+    rd = importlib.import_module("pokelike.harness.watch.read")
+
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    folder, trace = _pass_owned_by(bench, dead.pid, socket.gethostname())
+    assert rd._owner_gone(trace, ["pk_v4_something"]) is True
+    assert watch.read(folder, ["pk_v4_something"]).state != "running"
+
+
+def test_a_container_pass_follows_its_container(bench):
+    """A hostname that is not this machine is a container id.
+
+    In: a pass naming a container. Out: running while it is up, over when it is not.
+    """
+    import importlib
+    rd = importlib.import_module("pokelike.harness.watch.read")
+
+    folder, trace = _pass_owned_by(bench, 10, "5953fbc2470e")
+    assert rd._owner_gone(trace, ["pk_v4_x", "5953fbc2470e"]) is False
+    assert rd._owner_gone(trace, ["pk_v4_x", "aaaaaaaaaaaa"]) is True
+    # Nothing to compare against is not evidence of death.
+    assert rd._owner_gone(trace, []) is False
+
+
+def test_a_pass_that_never_said_who_it_is_falls_back_to_the_heartbeat(bench):
+    """Older passes wrote an empty heartbeat, and must keep working unchanged.
+
+    In: a pass with an empty .alive. Out: the owner check abstains.
+    """
+    import importlib
+    rd = importlib.import_module("pokelike.harness.watch.read")
+
+    folder, trace = _pass_owned_by(bench, 10, "5953fbc2470e")
+    trace.with_suffix(".alive").write_text("", encoding="utf-8")
+    assert rd._owner_gone(trace, ["pk_v4_x"]) is False
+    assert watch.read(folder, ["pk_v4_x"]).state == "running"

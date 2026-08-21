@@ -1,0 +1,23 @@
+{
+  // The interpreter to use, so "Run and Debug" and the test explorer both find the
+  // environment `uv sync` built. There is nothing to activate: this IS the environment.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // Tests. `-m "not slow"` is what CI runs, ~160 tests in a few seconds and no browser;
+  // the ones it leaves out play real games and want the game on disk (`pokelike setup`).
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests", "-m", "not slow"],
+
+  // The game and the environment are large and not ours to search.
+  "search.exclude": {
+    "site/**": true,
+    ".venv/**": true,
+    "llm-bench/*/logs/**": true
+  },
+  "files.watcherExclude": {
+    "site/**": true,
+    ".venv/**": true,
+    "llm-bench/*/logs/**": true
+  }
+}

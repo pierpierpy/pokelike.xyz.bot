@@ -16,7 +16,9 @@ v4 was holding, which only the notebook file records.
 from __future__ import annotations
 
 import json
+import os
 import re
+import socket
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -330,24 +332,50 @@ def _add_scores(trace: Path, p: "Pass") -> None:
 
 
 def _owner_gone(trace: Path, up: list[str] | None) -> bool:
-    """Whether the pass named a container that is no longer running.
+    """Whether the pass's own process is provably no longer there.
 
     In: the trace path (the heartbeat sits beside it) and the containers up now.
-    Out: True only when the pass named one and it is absent.
+    Out: True only when the pass said who was playing it and that is demonstrably
+    gone.
     """
-    # Conservative by construction, because a false True would hide a pass that is
-    # genuinely playing. It needs BOTH a list of containers to compare against and a
-    # pass that said which one it is. Anything unknown, an older pass with no owner
-    # line, a machine without docker, a pass playing outside a container, leaves the
+    # Conservative by construction, because a false True hides a pass that is
+    # genuinely playing, which is exactly what it did on the first attempt: a pass
+    # running OUTSIDE a container writes this machine's hostname, that can never
+    # appear in a list of container names, and so every local pass looked dead the
+    # moment any container happened to be up.
+    #
+    # So the two cases are told apart rather than lumped together:
+    #   this machine  -> the pid is in OUR namespace and can be asked directly
+    #   anything else -> a container id, which is gone when it is not up
+    # Anything unknown (no owner line, an older pass, no docker) leaves the
     # heartbeat as the only signal, exactly as before.
-    if not up:
-        return False
     alive = trace.with_suffix(".alive")
     try:
         text = alive.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
-    host = dict(re.findall(r"(pid|host)=(\S+)", text)).get("host")
+    owner = dict(re.findall(r"(pid|host)=(\S+)", text))
+    host = owner.get("host")
     if not host:
+        return False
+
+    if host == socket.gethostname():
+        pid = owner.get("pid", "")
+        if not pid.isdigit():
+            return False
+        # A pid that no longer exists is the fastest honest answer there is. One
+        # that does is trusted, and it does not matter that pids are eventually
+        # reused: a reused pid means a live process, and the heartbeat it is being
+        # judged with was fresh anyway.
+        try:
+            os.kill(int(pid), 0)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        return False
+
+    # A container id. Only decidable when there is a list to compare against.
+    if not up:
         return False
     return not any(host == x or x.startswith(host) or host.startswith(x) for x in up)

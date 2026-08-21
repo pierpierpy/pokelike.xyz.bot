@@ -1,0 +1,155 @@
+{
+  // Debugging pokelike in VS Code. Every entry launches the CLI as a MODULE, which is
+  // the same thing the `pokelike` script does (`pokelike.interfaces.cli.main:main`), so
+  // what you step through is exactly what runs in a terminal.
+  //
+  // Two things about this project that a debugger runs into, and both are in
+  // AGENTS.md at more length:
+  //
+  //   1. PLAYWRIGHT TIMEOUTS FIRE WHILE YOU ARE PAUSED. The browser calls have real
+  //      budgets (10 s around a reset, 30 s to launch, 90 s in `_settle`), so a long
+  //      pause INSIDE a `Game.step()` ends with a timeout that looks like a bug in the
+  //      game. Break between decisions (in `core/runner.play_run`) rather than in the
+  //      middle of one, or raise those numbers while you are looking.
+  //   2. The game's own clock does NOT run while you are stopped: `Date.now` is frozen
+  //      and `performance.now()` only advances when it is read. So the run does not get
+  //      away from you at a breakpoint, which is the opposite of what a real clock
+  //      would do.
+  //
+  // `justMyCode` is false everywhere on purpose: the interesting frames are often in
+  // Playwright, and with it true you cannot step into them.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // A run you drive yourself, in the terminal. Add "--watch" to the args and a real
+      // window opens with the animations at human speed (tick 0), which is the fastest
+      // way to see what a decision actually did.
+      "name": "play (interactive, seed 42)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["play", "--seed", "42"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // The whole loop with the simplest possible decision, so anything you see is the
+      // machinery rather than the bot. Start here when the question is "how does a run
+      // work": break in core/runner.py, play_run().
+      "name": "bot run: random, one run, logged",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["bot", "run", "--bot", "random", "--runs", "1", "-d"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // One LLM turn, end to end. Credentials come from .env at the repository root, so
+      // nothing needs to be typed here. Useful breakpoints:
+      //   bot/llm/agent.py      reorder()   the single model call for the turn
+      //   bot/llm/loop.py       the agentic rounds
+      //   bot/llm/transport.py  call_model_http()  the request and the retries
+      //   bot/llm/fallback.py   what plays when a call fails
+      "name": "bot run: an LLM bot, one run, full reasoning",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["bot", "run", "--bot", "llm-raw", "--runs", "1", "-ddd"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // A benchmark pass, kept to two seeds and recording nothing. --dry-run matters:
+      // without it a partial pass would still be a partial pass, and only the standard
+      // fifty seeds may record, but there is no reason to write logs while debugging.
+      "name": "model bench: v5, two seeds, records nothing",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["model", "bench", "--harness", "v5", "--runs", "2", "--dry-run",
+               "--model", "google/gemini-2.5-flash-lite"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // Reading side only: no browser, no model, no money. It parses the files a pass
+      // is writing, so it is the cheapest thing to step through.
+      //   harness/watch/read.py       a trace into records
+      //   harness/watch/discover.py   which passes exist, and which are live
+      //   harness/watch/overview.py   the -o table
+      "name": "model watch -o (no browser, no cost)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["model", "watch", "-o"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // What a bot receives, printed from a LIVE game. Good for stepping the bridge and
+      // the schema together: core/game.py state(), then core/schema/describe.py.
+      "name": "schema (from a live game)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["schema"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // The HTTP face. Single-threaded by necessity (Playwright's sync API is bound to
+      // the thread that created the game), which is why serve_forever runs on that
+      // thread: a breakpoint in a handler stops the whole server, and that is fine.
+      "name": "api server (port 8423)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pokelike.interfaces.cli.main",
+      "args": ["api"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // The file you are looking at, as a test. `-m "not slow"` is what CI runs and
+      // needs no browser; drop it to include the ones that play real games.
+      "name": "pytest: the current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-q", "-s", "${file}"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      // For a process you did not start from here: a long pass in another terminal, or
+      // one inside the container. Start it with
+      //   python -m debugpy --listen 5678 --wait-for-client -m pokelike.interfaces.cli.main ...
+      // and attach. In Docker the port has to be published, and the path mapping below
+      // is what lets breakpoints land: the repository is /app in there.
+      "name": "attach to a running pass (port 5678)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "127.0.0.1", "port": 5678 },
+      "justMyCode": false,
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}", "remoteRoot": "/app" }
+      ]
+    }
+  ]
+}
