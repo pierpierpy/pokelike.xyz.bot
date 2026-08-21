@@ -35,7 +35,8 @@ _No models measured under harness `v5` yet._
 
 | # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
+| 1 | `openai/gpt-5-nano` | 1 | 50 | **0.8** | 0.099 | 3 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
+| 2 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
