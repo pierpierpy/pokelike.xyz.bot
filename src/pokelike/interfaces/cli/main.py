@@ -961,32 +961,28 @@ except ImportError:  # pragma: no cover
 
 # Three boxes, one per thing this repo does, and every command lives in exactly one.
 FAMILIES = (
-    ("the game", "run it, look at it",
-     "Headless and reproducible: same seed, same run, every time.",
-     (("setup", "browser plus an offline copy of the game. Once"),
-      ("play", "play it yourself in the terminal"),
-      ("api", "drive it over HTTP"),
-      ("schema", "what a bot receives: state, actions, node kinds"),
-      ("history", "what you have played here. Not comparable with anyone"),
-      ("mirror", "rebuild the offline copy if it breaks"))),
-    ("pokelike bot", "the competition",
-     "Your code is the entry and the game is fixed, so the standings rank ideas.",
-     (("new", "write a bot folder that already plays"),
-      ("run", "play it and watch the decisions"),
-      ("bench", "the 50 standard seeds, records a result"),
-      ("board", "the standings"))),
-    ("pokelike model", "the instrument",
-     "The loop, the text it reads, the state and the seed are frozen, so the model "
-     "is the only thing that varies.",
-     (("bench", "a model against one frozen harness version"),
-      ("board", "what has been measured, per version"),
-      ("watch", "follow a pass while it plays"))),
+    ("the game", (
+        ("setup", "browser plus an offline copy of the game. Once"),
+        ("play", "play it yourself in the terminal"),
+        ("api", "drive it over HTTP"),
+        ("schema", "what a bot receives: state, actions, node kinds"),
+        ("history", "what you have played here"),
+        ("mirror", "rebuild the offline copy if it breaks"))),
+    ("pokelike bot", (
+        ("new", "write a bot folder that already plays"),
+        ("run", "play it and watch the decisions"),
+        ("bench", "the 50 standard seeds, records a result"),
+        ("board", "the standings"))),
+    ("pokelike model", (
+        ("bench", "a model against one frozen harness version"),
+        ("board", "what has been measured, per version"),
+        ("watch", "follow a pass while it plays"))),
 )
 
 PLAIN_GROUPS = """
   the game         setup, play, api, schema, history, mirror
-  pokelike bot     new, run, bench, board     your code is the entry
-  pokelike model   bench, board               the model is the entry
+  pokelike bot     new, run, bench, board
+  pokelike model   bench, board, watch
 
 `pokelike <command> --help` for any of them.
 """
@@ -999,30 +995,26 @@ def groups_epilog() -> str:
     must work in an environment where an optional dependency did not install.
     """
     try:
-        from rich.console import Console, Group
+        from rich.console import Console
         from rich.panel import Panel
         from rich.table import Table
-        from rich.text import Text
     except ImportError:  # pragma: no cover
         return PLAIN_GROUPS
 
     console = Console(width=min(84, Console().width), record=True)
     with console.capture() as cap:
         console.print()
-        for name, tag, blurb, verbs in FAMILIES:
+        for name, verbs in FAMILIES:
             verb_rows = Table.grid(padding=(0, 2))
             verb_rows.add_column(style="bold",
                                  width=max(len(v) for v, _ in verbs) + 1)
             verb_rows.add_column()
             for verb, help_ in verbs:
                 verb_rows.add_row(verb, help_)
-            # The blurb goes INSIDE the box: as a subtitle rich truncates it to the
-            # border width, and the sentence that explains the difference is the one
-            # thing that must not be cut.
             console.print(Panel(
-                Group(Text(blurb, style="italic dim"), "", verb_rows),
-                title=f"[bold]{name}[/bold]  [dim]{tag}[/dim]",
-                title_align="left", border_style="dim", padding=(0, 2),
+                verb_rows,
+                title=f"[bold]{name}[/bold]",
+                title_align="left", border_style="dim", padding=(0, 1),
             ))
             console.print()
         console.print("[dim]`pokelike <command> --help` for any of them.[/dim]")
@@ -1194,9 +1186,7 @@ def main(argv: list[str] | None = None) -> int:
     # ---- the competition: your code is the entry -------------------------------
     fam = sub.add_parser(
         "bot",
-        description="The competition. Your code is the entry and the game is fixed, so "
-                    "the standings rank ideas. To measure a MODEL with the scaffold "
-                    "held still, see `pokelike model`.",
+        description="Write and run bots against the fixed game; the standings rank ideas.",
     )
     bots = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
     _bot_new_args(bots.add_parser("new", help="write a bot folder that already plays"))
@@ -1208,13 +1198,10 @@ def main(argv: list[str] | None = None) -> int:
     ))
     bots.add_parser("board", help="the standings").set_defaults(func=cmd_leaderboard)
 
-    # ---- the instrument: the model is the entry --------------------------------
+    # ---- the model benchmark: the model is the entry ---------------------------
     fam = sub.add_parser(
         "model",
-        description="The instrument. Every version freezes the loop, the text the "
-                    "model reads, the state and the seed, so the model is the only "
-                    "thing that varies and a row says something about it. To rank "
-                    "your own code instead, see `pokelike bot`.",
+        description="Benchmark a model against a frozen harness; the row measures the model.",
     )
     models = fam.add_subparsers(dest="verb", required=True, metavar="<verb>")
     _model_bench_args(models.add_parser(
