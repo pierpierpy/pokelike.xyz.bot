@@ -517,20 +517,24 @@ def session_dir(version: str) -> Path:
     three days build up one model's history, and splitting it by invocation would
     destroy the only thing it is for.
     """
-    d = BENCH / version / "logs" / datetime.now().strftime("%Y%m%d-%H%M%S")
-    # One command = one directory, and two commands launched in the same second
-    # (parallel containers, a shell loop) must NOT land in the same one: they
-    # would share a command.json and blur together in `model watch`. mkdir with
-    # exist_ok=False is atomic, so a collision just takes the next free suffix,
-    # which is race-safe across processes and containers alike.
-    base, stamp, n = d.parent, d.name, 2
+    import uuid
+
+    # One command = one directory. The timestamp is kept because it is readable
+    # and sorts (`ls -t` lists your commands in order), but uniqueness must NOT
+    # rest on it: two commands launched in the same second (parallel containers,
+    # a shell loop) would otherwise share a directory and a command.json and blur
+    # together in `model watch`. A short random suffix makes the name unique by
+    # construction; mkdir(exist_ok=False) is the atomic backstop on the ~1-in-65k
+    # chance two draw the same four hex in the same second.
+    base = BENCH / version / "logs"
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     while True:
+        d = base / f"{ts}-{uuid.uuid4().hex[:4]}"
         try:
             d.mkdir(parents=True, exist_ok=False)
             return d
         except FileExistsError:
-            d = base / f"{stamp}-{n}"
-            n += 1
+            continue
 
 
 def parse_settings(pairs: list[str] | None) -> dict[str, Any]:
