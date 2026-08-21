@@ -212,36 +212,44 @@ HARNESS = 6
 #     An earlier version of this prompt did exactly that.
 #   * Choosing a node CLOSES the others on that layer, forever.
 
-GAME_RULES = """You are playing Pokelike, a Pokemon roguelike.
+GAME_RULES = """You are playing Pokelike, a Pokemon roguelike autobattler.
 
-YOUR GOAL: earn as many gym badges as you can before your team is wiped out.
-Badges measure how far you got. A run ends when every Pokemon has fainted.
+THE GAME
+You draft a starter, then cross a branching map made of several stages. Each stage
+ends in a Gym Leader; beating one earns a BADGE, and badges are how far you got.
+Clear the gyms and you reach the Elite Four, five hard battles back to back.
+The twist: BATTLES FIGHT THEMSELVES. You never pick a move in combat. The whole
+game is the decisions you make BETWEEN fights: which route to take, who to catch,
+which item to hold and on whom, which Pokemon leads the next battle, when to trade,
+when to heal. A battle is usually won or lost before it begins, by how you prepared.
+
+YOUR GOAL: earn as many gym badges as you can before your team is wiped out. A run
+ends the instant every Pokemon has fainted, no matter how well it was going.
 
 HOW A TURN WORKS
-- The map is a layered graph running top to bottom, with a boss at the bottom.
-- You pick one node from the legal ones. The moment you pick, every other node on
-  that layer CLOSES FOREVER. The choice is irreversible and it also decides which
-  nodes you will be able to reach next.
-- Battles resolve themselves. You never choose moves. What you decide is where to
-  go, who to catch, which item to take and who to give it to.
-- Your team holds up to 6 Pokemon.
+- The map is a layered graph running top to bottom, with the gym (boss) at the
+  bottom. You pick one node from the legal ones.
+- The moment you pick, every other node on that layer CLOSES FOREVER. The choice
+  is irreversible, and it also decides which nodes you can reach on the next layer.
+- Your team holds up to 6 Pokemon. Slot 0 leads the next battle.
 
 NODE TYPES
   o catch        adds a Pokemon to your team
   x wild fight   one wild Pokemon, gives experience
   T trainer      1 Pokemon on map 0, 2 on maps 1-2, 3 from map 3 onwards
-  i item         an item to equip or keep
-  + pokecenter   restores HP
+  i item         an item to equip or keep (some are passive: kept for the whole run)
+  + pokecenter   restores your team's HP
   ? unknown      only revealed when you enter it
-  $ trade        M move tutor    S shop    B boss
+  $ trade        swap a Pokemon for a stronger one
+  M move tutor   teach one of your team a stronger move    S shop    B gym leader
 
 WHAT ACTUALLY KILLS RUNS
 Losing Pokemon. Every faint is permanent for that run, and once the team is empty
-it is over, no matter how well you were doing.
+it is over. Survival comes first: a wiped team scores nothing, however far ahead.
 
 TYPE MATCHUPS DECIDE BATTLES
 Battles resolve on their own, but WHO you send in first and WHAT its move type is
-decides most of them. The team view now shows, for each Pokemon, its move's type,
+decides most of them. The team view shows, for each Pokemon, its move's type,
 whether it is physical (ph) or special (sp), and STAB.
   - Super effective (2x): your move's type beats the enemy's type. Dual types
     multiply, so a Water move against a Rock/Ground enemy is 4x.
@@ -249,6 +257,30 @@ whether it is physical (ph) or special (sp), and STAB.
   - STAB: a move whose type matches its user's own type hits 1.5x harder.
 A node's tooltip tells you the types a trainer or gym uses. Line your lead's MOVE
 TYPE up against it -- use `set_lead` to put the right Pokemon first before a fight.
+
+QUICK TYPE CHART (the attacker is SUPER EFFECTIVE, 2x, against):
+  Water    -> Fire, Ground, Rock         Fire     -> Grass, Bug, Ice, Steel
+  Grass    -> Water, Ground, Rock        Electric -> Water, Flying  (nothing vs Ground)
+  Ground   -> Fire, Electric, Poison, Rock, Steel
+  Rock     -> Fire, Ice, Flying, Bug     Ice      -> Grass, Ground, Flying, Dragon
+  Fighting -> Normal, Rock, Steel, Ice, Dark       Flying -> Grass, Fighting, Bug
+  Psychic  -> Fighting, Poison           Bug      -> Grass, Psychic, Dark
+  Ghost    -> Psychic, Ghost             Dark     -> Psychic, Ghost
+  Poison   -> Grass, Fairy               Steel    -> Ice, Rock, Fairy
+  Dragon   -> Dragon                     Fairy    -> Dragon, Dark, Fighting
+  Normal   -> nothing in particular
+If your move's type appears in the ENEMY's list above, they RESIST it (1/2x): switch.
+
+FINDING YOUR OWN STRATEGY
+Nobody is going to hand you a strategy. How to play this well is FOR YOU TO WORK
+OUT, run by run, and to WRITE DOWN: use your notes to record what actually worked
+and what lost you a run, then sharpen them as later runs prove them right or wrong.
+That growing notebook IS your strategy. A few kinds of note worth keeping:
+  - what a given gym used, and which lead beat it;
+  - which catches, items or trades paid off, and which wasted a turn;
+  - a mistake you do not want to repeat.
+Revise a note when a run contradicts it, forget one that stops being true. You have
+the type chart above and what the screen shows you; the rest is yours to discover.
 
 WHAT YOU REMEMBER, AND FOR HOW LONG
 Four different things, with four different lifetimes. Knowing which is which is
