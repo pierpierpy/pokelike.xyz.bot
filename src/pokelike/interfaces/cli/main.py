@@ -979,30 +979,32 @@ FAMILIES = (
         ("watch", "follow a pass while it plays"))),
 )
 
-PLAIN_GROUPS = """
-  the game         setup, play, api, schema, history, mirror
-  pokelike bot     new, run, bench, board
-  pokelike model   bench, board, watch
-"""
+_FAMILY = dict(FAMILIES)   # name -> verbs, for the per-group boxes
 
 
-def groups_epilog() -> str:
-    """The family overview, boxed with rich when it is available.
+def _boxes(families) -> str:
+    """One bordered box per family (title + its verbs). Shared by the top-level
+    help and by every group screen, so all of them look the same.
 
-    Falls back to plain text rather than failing: `--help` is the one command that
-    must work in an environment where an optional dependency did not install.
+    Falls back to plain text rather than failing: `--help` is the one thing that
+    must work even where an optional dependency did not install.
     """
     try:
         from rich.console import Console
         from rich.panel import Panel
         from rich.table import Table
     except ImportError:  # pragma: no cover
-        return PLAIN_GROUPS
+        out = [""]
+        for name, verbs in families:
+            out.append(f"{name}:")
+            out += [f"  {v:<9}{h}" for v, h in verbs]
+            out.append("")
+        return "\n".join(out)
 
     console = Console(width=min(84, Console().width), record=True)
     with console.capture() as cap:
         console.print()
-        for name, verbs in FAMILIES:
+        for name, verbs in families:
             verb_rows = Table.grid(padding=(0, 2))
             verb_rows.add_column(style="bold",
                                  width=max(len(v) for v, _ in verbs) + 1)
@@ -1016,6 +1018,10 @@ def groups_epilog() -> str:
             ))
             console.print()
     return cap.get()
+
+
+def groups_epilog() -> str:
+    return _boxes(FAMILIES)
 
 
 def _bot_run_args(s) -> None:
@@ -1182,10 +1188,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # ---- the competition: your code is the entry -------------------------------
     fam = sub.add_parser(
-        "bot",
-        description="Write and run bots against the fixed game; the standings rank ideas.",
+        "bot", usage=argparse.SUPPRESS, add_help=False, formatter_class=_FORMATTER,
+        epilog=_boxes([("pokelike bot", _FAMILY["pokelike bot"])]),
     )
-    bots = fam.add_subparsers(dest="verb", required=False, metavar="<verb>")
+    fam.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
+    bots = fam.add_subparsers(dest="verb", required=False, metavar="<verb>",
+                              help=argparse.SUPPRESS)
     fam.set_defaults(func=lambda a, _p=fam: _p.print_help() or 0)
     _bot_new_args(bots.add_parser("new", help="write a bot folder that already plays"))
     _bot_run_args(bots.add_parser("run", help="play it and watch the decisions"))
@@ -1198,10 +1206,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # ---- the model benchmark: the model is the entry ---------------------------
     fam = sub.add_parser(
-        "model",
-        description="Benchmark a model against a frozen harness; the row measures the model.",
+        "model", usage=argparse.SUPPRESS, add_help=False, formatter_class=_FORMATTER,
+        epilog=_boxes([("pokelike model", _FAMILY["pokelike model"])]),
     )
-    models = fam.add_subparsers(dest="verb", required=False, metavar="<verb>")
+    fam.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
+    models = fam.add_subparsers(dest="verb", required=False, metavar="<verb>",
+                                help=argparse.SUPPRESS)
     fam.set_defaults(func=lambda a, _p=fam: _p.print_help() or 0)
     _model_bench_args(models.add_parser(
         "bench", help="a model against one frozen harness version"))

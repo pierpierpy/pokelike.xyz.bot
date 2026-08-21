@@ -19,32 +19,21 @@ themselves, what a player decides is the roguelike part: where to go, who to cat
 which item to hold, who leads the next fight. This repo lets you play it headless, no
 window, no account, no internet, from the command line, from Python, or over an HTTP API.
 
-![A trained policy playing a run](img/reinforcement_learning.gif)
+<p align="center">
+  <img src="img/reinforcement_learning.gif" alt="A trained policy playing a run"><br>
+  <sub><i>A trained RL policy mid-run: it just keeps sending Squirtle in, apparently. lol</i></sub>
+</p>
 
-*A trained reinforcement-learning policy, mid-run. it decided to use squirtle over and over again apparently.. lol* 
+This repo is 3 things in one, use it as you please. It is:
 
-This repo is 3 things in one, use it as you please. It is: 
-
-- an **[Environment](#1-environment)**, a headless, reproducible copy of the game you can
+-  &nbsp;an **[Environment](#1-environment)**, a headless, reproducible copy of the game you can
   simulate runs against, drive from a script or a notebook, and hand to a coding agent.
-- a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, an agentic harness that runs on
-  the same fifty seeds for every LLM, the output score tells the agentic/planning capabilities of a model 
-- a **[Bot framework/competition](#3-bot-competition)**, you write a bot and your goal is
+-  &nbsp;a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, an agentic harness that runs on
+  the same fifty seeds for every LLM, the output score tells the agentic/planning capabilities of a model
+-  &nbsp;a **[Bot framework/competition](#3-bot-competition)**, you write a bot and your goal is
   to beat the game. The bot can be anything, a trained policy, a prompt, a
   rulebook, tree search, anything that turns a state into a move.
 
----
-
-**Contents**
-
-- [Environment](#1-environment)
-- [LLM agentic benchmark](#2-llm-agentic-benchmark)
-- [Bot competition](#3-bot-competition)
-- [Install](#install)
-- [Commands](#commands)
-- [Documentation](#documentation)
-- [Getting help](#getting-help)
-- [Maintainers & contributing](#maintainers--contributing)
 
 ---
 
