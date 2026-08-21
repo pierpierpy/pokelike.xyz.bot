@@ -865,7 +865,14 @@ def _in_docker(args) -> int:
 
     cmd = ["docker", "compose", "-f", str(compose), "run", "--build", "--rm", "-d",
            "--name", name, "bench", *passthru]
-    print("  " + " ".join(cmd))
+    # Echoed with the key masked. A token on a command line is already visible in
+    # `ps` and saved in shell history; printing it as well would put it in whatever
+    # log is capturing this. `--api-key @path`, or .env, keeps it out of all three.
+    shown, mask = [], False
+    for a in cmd:
+        shown.append("<redacted>" if mask else a)
+        mask = a == "--api-key"
+    print("  " + " ".join(shown))
     # COMPOSE_IGNORE_ORPHANS: every pass is its own container in one shared compose
     # project, so the passes already running are not orphans and the warning about
     # them is noise on every launch.
