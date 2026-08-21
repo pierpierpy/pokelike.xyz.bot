@@ -214,6 +214,11 @@ HARNESS = 6
 
 GAME_RULES = """You are playing Pokelike, a Pokemon roguelike autobattler.
 
+You are an experienced Pokemon player: you know the types, their weaknesses, STAB
+and stats. But you have NEVER played THIS game before. Its maps, its gyms, which
+teams, items and trades actually work here, none of that is known to you at the
+start. You learn it only by playing, and by the notes you carry from run to run.
+
 THE GAME
 You draft a starter, then cross a branching map made of several stages. Each stage
 ends in a Gym Leader; beating one earns a BADGE, and badges are how far you got.
@@ -247,29 +252,13 @@ WHAT ACTUALLY KILLS RUNS
 Losing Pokemon. Every faint is permanent for that run, and once the team is empty
 it is over. Survival comes first: a wiped team scores nothing, however far ahead.
 
-TYPE MATCHUPS DECIDE BATTLES
-Battles resolve on their own, but WHO you send in first and WHAT its move type is
-decides most of them. The team view shows, for each Pokemon, its move's type,
-whether it is physical (ph) or special (sp), and STAB.
-  - Super effective (2x): your move's type beats the enemy's type. Dual types
-    multiply, so a Water move against a Rock/Ground enemy is 4x.
-  - Not very effective (1/2x): the enemy resists your move's type.
-  - STAB: a move whose type matches its user's own type hits 1.5x harder.
-A node's tooltip tells you the types a trainer or gym uses. Line your lead's MOVE
-TYPE up against it -- use `set_lead` to put the right Pokemon first before a fight.
-
-QUICK TYPE CHART (the attacker is SUPER EFFECTIVE, 2x, against):
-  Water    -> Fire, Ground, Rock         Fire     -> Grass, Bug, Ice, Steel
-  Grass    -> Water, Ground, Rock        Electric -> Water, Flying  (nothing vs Ground)
-  Ground   -> Fire, Electric, Poison, Rock, Steel
-  Rock     -> Fire, Ice, Flying, Bug     Ice      -> Grass, Ground, Flying, Dragon
-  Fighting -> Normal, Rock, Steel, Ice, Dark       Flying -> Grass, Fighting, Bug
-  Psychic  -> Fighting, Poison           Bug      -> Grass, Psychic, Dark
-  Ghost    -> Psychic, Ghost             Dark     -> Psychic, Ghost
-  Poison   -> Grass, Fairy               Steel    -> Ice, Rock, Fairy
-  Dragon   -> Dragon                     Fairy    -> Dragon, Dark, Fighting
-  Normal   -> nothing in particular
-If your move's type appears in the ENEMY's list above, they RESIST it (1/2x): switch.
+HOW BATTLES ARE DECIDED
+You already know Pokemon type matchups, weaknesses and stats. What is specific to
+THIS game is that battles are AUTOMATIC, so a fight is decided before it starts by
+WHO LEADS (slot 0) and whether its move type beats what is in front of it. The team
+view shows each Pokemon's move type, physical or special, and STAB; a node's tooltip
+shows the types a trainer or gym uses. Put the right lead in front with `set_lead`
+(it is free, it does not cost the turn) before a fight.
 
 FINDING YOUR OWN STRATEGY
 Nobody is going to hand you a strategy. How to play this well is FOR YOU TO WORK
@@ -279,8 +268,13 @@ That growing notebook IS your strategy. A few kinds of note worth keeping:
   - what a given gym used, and which lead beat it;
   - which catches, items or trades paid off, and which wasted a turn;
   - a mistake you do not want to repeat.
-Revise a note when a run contradicts it, forget one that stops being true. You have
-the type chart above and what the screen shows you; the rest is yours to discover.
+Revise a note when a run contradicts it, forget one that stops being true. You know
+Pokemon; you do not yet know Pokelike, and this is how you learn it.
+
+BEFORE YOU PLAN, READ YOUR NOTES. They are shown to you every turn; they are what
+your past runs learned. Plan the run from them: call `plan` and write it out in as
+much detail as you like. There is no limit on the length of your plan or on how much
+you think out loud, so spell out the route you mean to take and why, in full.
 
 WHAT YOU REMEMBER, AND FOR HOW LONG
 Four different things, with four different lifetimes. Knowing which is which is
@@ -637,12 +631,11 @@ class HarnessV4(Bot):
     PROMPT = GAME_RULES + CLOSING
     MODEL: str | None = None
     TEMPERATURE = 0.0
-    # 1500 in v0 and v1, and that number DISQUALIFIED a model rather than
-    # measuring it: openai/gpt-5-nano spent more output than input reasoning and
-    # fell back on 45% of its turns, which is our ceiling being reported as its
-    # incompetence. A harness that cannot let a reasoner finish a sentence is
-    # measuring itself.
-    MAX_TOKENS = 4000
+    # No practical ceiling: the model may think and write as much as it wants. A
+    # low cap (1500 in v0/v1) once DISQUALIFIED a model rather than measuring it,
+    # gpt-5-nano fell back on 45% of turns because it ran out of room to finish, so
+    # this is set high enough that output length never ends a turn.
+    MAX_TOKENS = 16000
     # Six, not v0's four. Three more tools means a model may spend rounds
     # curating notes before it gets to play(), and a turn that runs out of rounds
     # falls back -- which would be counted against the model for doing exactly
@@ -671,7 +664,7 @@ class HarnessV4(Bot):
     # which is the condition where deciding in advance beats reacting -- and it is
     # where these models lose, arriving at the second gym under-levelled because of
     # a choice made twenty moves earlier.
-    PLAN_CHARS = 300
+    PLAN_CHARS = 1200
     EXTRA_TOOLS: list[dict[str, Any]] = []
     STATE_VIEW: Any = "screen"
 
