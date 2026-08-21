@@ -854,3 +854,76 @@ def test_a_bots_own_bridge_lands_in_its_fingerprint(tmp_path):
     (d / "artifacts" / "bridge.js").unlink()
     (d / "bridge.js").write_text("// mine\n")
     assert fingerprint(d) == before
+
+
+# ---------------------------------------------------------------- .env as a source
+#
+# `.env` was already where credentials lived for the container (compose reads it
+# through `env_file:`), but nothing on the host did, so every local run needed an
+# export or `--api-key` on the command line, which is the one place a key must not
+# be: `ps` shows it to every other user of the machine and the shell saves it.
+
+
+def _dotenv_at(root, body: str, monkeypatch):
+    """Points the loader at a .env written under tmp_path, and clears the vars."""
+    import pokelike.interfaces.cli.shared as sh
+
+    (root / ".env").write_text(body, encoding="utf-8")
+    # The loader finds the file from its own location, so the location is what the
+    # test has to move.
+    fake = root / "src" / "pokelike" / "interfaces" / "cli" / "shared.py"
+    fake.parent.mkdir(parents=True, exist_ok=True)
+    fake.touch()
+    monkeypatch.setattr(sh, "__file__", str(fake))
+    return sh
+
+
+def test_env_file_fills_what_the_shell_did_not(tmp_path, monkeypatch):
+    for name in ("FW_ENDPOINT", "FW_TOKEN", "MODEL_ID"):
+        monkeypatch.delenv(name, raising=False)
+    sh = _dotenv_at(tmp_path, "FW_ENDPOINT=https://e\nFW_TOKEN=abc\nMODEL_ID=a/b\n",
+                    monkeypatch)
+    assert sorted(sh.load_dotenv()) == ["FW_ENDPOINT", "FW_TOKEN", "MODEL_ID"]
+    import os
+    assert os.environ["FW_ENDPOINT"] == "https://e"
+    assert os.environ["FW_TOKEN"] == "abc"
+
+
+def test_the_shell_wins_over_the_file(tmp_path, monkeypatch):
+    """Precedence, and the reason it is `setdefault` and not assignment.
+
+    A variable exported for one command must not be quietly replaced by a file.
+    """
+    monkeypatch.setenv("FW_ENDPOINT", "https://exported")
+    monkeypatch.delenv("FW_TOKEN", raising=False)
+    sh = _dotenv_at(tmp_path, "FW_ENDPOINT=https://from-file\nFW_TOKEN=abc\n", monkeypatch)
+    filled = sh.load_dotenv()
+    import os
+    assert os.environ["FW_ENDPOINT"] == "https://exported"
+    assert "FW_ENDPOINT" not in filled, "it must report only what it actually set"
+    assert os.environ["FW_TOKEN"] == "abc"
+
+
+def test_the_file_may_be_written_the_way_people_write_shell(tmp_path, monkeypatch):
+    """Comments, blank lines, `export`, and quotes around a value."""
+    for name in ("A_ONE", "A_TWO", "A_THREE", "A_FOUR"):
+        monkeypatch.delenv(name, raising=False)
+    sh = _dotenv_at(tmp_path, "\n# a comment\n\nexport A_ONE=1\n"
+                              'A_TWO="two words"\nA_THREE=\'quoted\'\n'
+                              "not a pair\nA_FOUR=has=equals\n", monkeypatch)
+    sh.load_dotenv()
+    import os
+    assert os.environ["A_ONE"] == "1"
+    assert os.environ["A_TWO"] == "two words"
+    assert os.environ["A_THREE"] == "quoted"
+    assert os.environ["A_FOUR"] == "has=equals", "only the first = separates"
+
+
+def test_no_env_file_is_not_an_error(tmp_path, monkeypatch):
+    import pokelike.interfaces.cli.shared as sh
+
+    fake = tmp_path / "src" / "pokelike" / "interfaces" / "cli" / "shared.py"
+    fake.parent.mkdir(parents=True, exist_ok=True)
+    fake.touch()
+    monkeypatch.setattr(sh, "__file__", str(fake))
+    assert sh.load_dotenv() == []

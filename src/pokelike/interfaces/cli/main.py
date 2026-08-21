@@ -14,7 +14,7 @@ import sys
 
 from ...assets.mirror import PHASES
 from .help import _FAMILY, _FORMATTER, _boxes, groups_epilog
-from .shared import seed_arg
+from .shared import load_dotenv, seed_arg
 from .commands.general import (cmd_api, cmd_mirror, cmd_play, cmd_schema,
                                cmd_setup, cmd_stats)
 from .commands.bot import (bot_bench_args, bot_new_args, bot_run_args, cmd_bench,
@@ -122,6 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(func=cmd_stats)
 
     args = p.parse_args(list(argv) if argv is not None else sys.argv[1:])
+
+    # Credentials from `.env` at the repository root, if it is there and the shell
+    # has not already said otherwise. Here rather than inside the commands because
+    # the harness bots read `FW_ENDPOINT`/`FW_TOKEN`/`MODEL_ID` from the environment
+    # themselves, in their own constructors, so the environment is the one place
+    # that reaches all of them. It never overrides what you exported.
+    load_dotenv()
 
     # Bare `pokelike` (no command) shows the help rather than erroring: the help
     # is the most useful thing to see when you have not said what to do yet.

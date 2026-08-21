@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -58,6 +59,50 @@ def add_llm_flags(parser, with_model: bool = True) -> None:
     if with_model:
         g.add_argument("--model", default=None, metavar="ID",
                        help="model id (overrides $MODEL_ID, unless the bot pins one)")
+
+
+def load_dotenv() -> list[str]:
+    """Fills the environment from `.env` at the repository root, without overriding.
+
+    In: nothing (the file is found from this module's location). Out: the names of
+    the variables it set, never their values.
+    """
+    # WHY THIS EXISTS. `.env` was already the documented home for credentials, but
+    # only `docker compose` read it (`env_file:`), so a run on the host saw nothing
+    # and the only ways left were exporting by hand or passing `--api-key`, which
+    # puts the key in `ps` for every other user of the machine and in your shell
+    # history. That is the failure mode this removes: the file the container already
+    # trusts is now the file the CLI trusts too.
+    #
+    # `setdefault`, never assignment, so the precedence is the one you would guess:
+    # an explicit flag beats the environment, and the environment beats this file. A
+    # variable you exported for one command is not silently replaced by the file.
+    root = Path(__file__).resolve().parents[3].parent
+    path = root / ".env"
+    if not path.is_file():
+        return []
+    filled = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        name, _, value = line.partition("=")
+        name, value = name.strip(), value.strip()
+        # Quotes are how a value with spaces is written in a file like this, and
+        # they are not part of the value.
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if not name or name in os.environ:
+            continue
+        os.environ[name] = value
+        filled.append(name)
+    return filled
 
 
 def llm_settings(args) -> dict[str, str]:

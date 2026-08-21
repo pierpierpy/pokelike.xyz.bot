@@ -57,11 +57,16 @@ class LLMBot(Bot):
         self.model = model or self.cfg.model or os.environ.get("MODEL_ID", "")
         if not self.endpoint or not self.token:
             raise LLMConfigError(
-                "FW_ENDPOINT and FW_TOKEN are required, from the environment or "
-                "from the command line\n"
+                "FW_ENDPOINT and FW_TOKEN are required, from a .env file, the "
+                "environment, or the command line\n"
+                "  .env at the repository root, which is gitignored and which the\n"
+                "  container reads too. The easiest, and the key stays out of `ps`:\n"
+                '    FW_ENDPOINT=https://...\n'
+                '    FW_TOKEN=...\n'
+                "or exported, which wins over the file:\n"
                 '  export FW_ENDPOINT="https://..."   # base URL, no /v1\n'
                 '  export FW_TOKEN="..."\n'
-                "or, without exporting anything:\n"
+                "or on the command line, which wins over both:\n"
                 "  --endpoint https://... --api-key sk-...\n"
                 "  --endpoint https://... --api-key @path/to/key   # keeps it out of `ps`"
             )

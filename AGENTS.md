@@ -519,10 +519,16 @@ independent and must never import them.**
 
 ## Secrets
 
-LLM credentials come from `FW_ENDPOINT`, `FW_TOKEN`, `MODEL_ID`, or from the
-`--endpoint`, `--api-key` and `--model` flags, which override them. `--api-key`
-also takes `@path` and reads the file, because a literal key on a command line is
-visible in `ps` to every user of the machine and is saved in shell history.
+LLM credentials come from three places, and the later one always wins: a `.env`
+file at the repository root, the environment (`FW_ENDPOINT`, `FW_TOKEN`,
+`MODEL_ID`), then the `--endpoint`, `--api-key` and `--model` flags.
+
+**`.env` is the one to use.** It is gitignored, the container already reads it
+(compose `env_file:`), and since the CLI loads it too (`cli/shared.load_dotenv`,
+called once in `main()` with `setdefault`, so it never overrides an export) a local
+run needs no flags at all. A literal key on a command line is visible in `ps` to
+every user of the machine and is saved in shell history, which is why `--api-key`
+also takes `@path` and reads the file.
 
 Never write a credential into code, comments, the README or the run registry. The
 token reaches exactly one place, the `Authorization` header, and must never
