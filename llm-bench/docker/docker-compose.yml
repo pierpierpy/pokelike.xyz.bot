@@ -31,6 +31,14 @@ name: pokelike-llm-bench
 
 services:
   bench:
+    # Tagged per build rather than one moving `latest`, and the tag is the commit
+    # the image was built from. A moving tag means that the moment you rebuild, the
+    # image every RUNNING container is pinned to loses its name, and `docker ps`
+    # prints a bare hash for a pass that is perfectly healthy. Worse, it prints the
+    # same name for containers running different code. With this, `docker ps` says
+    # which commit each pass is playing, and rebuilding at the same commit reuses the
+    # same tag, so nothing is orphaned when nothing changed.
+    image: pokelike-llm-bench:${PK_TAG:-latest}
     build:
       # The context is the REPOSITORY ROOT, not this directory, and it has to be:
       # the image installs the pokelike package from src/ with pyproject.toml and

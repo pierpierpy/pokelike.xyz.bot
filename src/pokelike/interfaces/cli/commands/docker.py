@@ -51,10 +51,15 @@ def _in_docker(args) -> int:
     while passthru and passthru[0] in ("model", "bench"):
         passthru.pop(0)
 
+    tag = _image_tag(root)
     reaped = reap_exited()
     if reaped:
         print(f"  removed {len(reaped)} container(s) that had already exited: "
               f"{', '.join(reaped)}")
+    # After the containers, because an image cannot go while one refers to it.
+    dropped = reap_images(tag)
+    if dropped:
+        print(f"  removed {len(dropped)} unused image(s): {', '.join(dropped)}")
 
     model = (args.model or args.models or "many").replace("/", "-").replace(":", "-")
     # A short random suffix, for the same reason the pass directory carries one: two
@@ -81,7 +86,8 @@ def _in_docker(args) -> int:
     # root. They are shell variables rather than environment ones, so they have to
     # be put in the environment here or compose would fall back to its default.
     env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true",
-           "UID": str(os.getuid()), "GID": str(os.getgid())}
+           "UID": str(os.getuid()), "GID": str(os.getgid()),
+           "PK_TAG": tag}
     r = subprocess.run(cmd, cwd=root, env=env)
     if r.returncode == 0:
         print(f"\n  {name} is playing. Follow it with:\n"
@@ -120,3 +126,60 @@ def reap_exited() -> list[str]:
     except (OSError, subprocess.SubprocessError):
         return []
     return ids
+
+
+def _image_tag(root: Path) -> str:
+    """The tag to build under: the commit the image is built from.
+
+    In: the repository root. Out: a short tag such as `b05f452` or `b05f452-dirty`,
+    falling back to `latest` outside a git checkout.
+    """
+    # Readable, and stable for the same code, which is the point: an unchanged
+    # checkout rebuilds to the same tag and no running container is orphaned. A dirty
+    # tree is marked as such because the image then holds something no commit does.
+    # This is for the eye only: what makes a recorded result trustworthy is the
+    # seven-key fingerprint, not the tag on an image.
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root,
+                             capture_output=True, text=True, timeout=10)
+        if sha.returncode != 0 or not sha.stdout.strip():
+            return "latest"
+        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root,
+                               capture_output=True, text=True, timeout=15)
+        return sha.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
+    except (OSError, subprocess.SubprocessError):
+        return "latest"
+
+
+def reap_images(keep: str) -> list[str]:
+    """Removes our own image tags that no container is using.
+
+    In: the tag being kept (the one about to run). Out: the tags removed.
+    """
+    # Only images named `pokelike-llm-bench`, so nothing else on the machine is at
+    # risk, and only those no container refers to: an image in use cannot be removed
+    # anyway, and a pass playing from an older commit must keep the name it shows in
+    # `docker ps`. Left alone otherwise these accumulate a few GB per build.
+    try:
+        imgs = subprocess.run(
+            ["docker", "images", "pokelike-llm-bench", "--format", "{{.Tag}} {{.ID}}"],
+            capture_output=True, text=True, timeout=10)
+        used = subprocess.run(["docker", "ps", "-a", "--format", "{{.Image}}"],
+                              capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    busy = set(used.stdout.split())
+    gone = []
+    for line in imgs.stdout.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        tag, ident = parts
+        ref = f"pokelike-llm-bench:{tag}"
+        if tag in ("<none>", keep) or ref in busy or ident in busy:
+            continue
+        r = subprocess.run(["docker", "rmi", ref], capture_output=True, text=True,
+                           timeout=60)
+        if r.returncode == 0:
+            gone.append(ref)
+    return gone
