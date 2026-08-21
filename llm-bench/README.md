@@ -74,12 +74,19 @@ versions**: two models asked different questions were not compared.
 
 ## Running it
 
-Credentials come from flags or the environment; flags win.
+Credentials come from three places, and the later one wins: a `.env` file, the
+environment, then the flags. **Write the file and forget about it**: it is gitignored,
+the container reads it too, and nothing then needs a key on a command line.
 
 ```bash
-export FW_ENDPOINT="https://openrouter.ai/api"
-export FW_TOKEN="sk-or-..."      # or --endpoint / --api-key (--api-key @path reads a file)
+# .env at the repository root, and that is the whole setup
+FW_ENDPOINT=https://openrouter.ai/api
+FW_TOKEN=sk-or-...
+MODEL_ID=google/gemini-2.5-flash      # optional, the default when --model is absent
 ```
+
+Exporting still works and beats the file, and `--endpoint` / `--api-key` beat both
+(`--api-key @path` reads the key from a file, so it stays out of `ps`).
 
 ```bash
 # one model, the real thing: 50 seeds, recorded
@@ -94,7 +101,8 @@ uv run pokelike model board --harness v0                                  # prin
 `--harness` is **required**: the version is the question a row answers. Two rules that
 are easy to miss: **only the standard fifty seeds record a result** (`--runs`, `--seeds`
 and `--dry-run` all print and file nothing), and a **literal key on the command line** is
-readable by everyone on the machine, so `--api-key @path` reads it from a file instead.
+readable by everyone on the machine and saved in your shell history, which is what
+`.env` above is for (`--api-key @path` reads it from a file if you would rather).
 `--set KEY=VALUE` passes a setting straight to the harness (`--set notes=4` caps v4's
 notebook), and a **pre-flight** call before any seed catches a model that cannot emit a
 tool call. The full flag list is `--help`.
@@ -129,5 +137,18 @@ shows the finished runs, where the model is now, the tools it called this turn, 
 and map it is standing on, and the notes and route it is holding. With more than one pass
 running it asks which, `--stamp` or `--model` (a prefix is enough) answers in advance.
 
-Long passes belong in Docker; the compose setup is in [`docker/`](docker/), it needs
-`shm_size: 2gb`, mounts your `site/` read-only, and keeps only `llm-bench/` writable.
+Long passes belong in Docker, and `--docker` puts one there:
+
+```bash
+uv run pokelike model bench --harness v5 --model a/b --docker
+```
+
+The same flags, forwarded untouched, plus the ones that are easy to get wrong by hand:
+the image is rebuilt first so a pass can never run stale code, the container removes
+itself when the pass ends, and it is named after the harness, the model and a short
+random suffix, so two passes of the same model can run at once and stay tellable apart.
+It also clears away any bench container that has already exited, and tags the image with
+the commit it was built from, so `docker ps` says which code each pass is playing. The
+compose setup behind it is in [`docker/`](docker/): `shm_size: 2gb`, because Chromium
+needs far more than Docker's default, your `site/` mounted read-only, only `llm-bench/`
+writable, and the container running as you rather than as root.

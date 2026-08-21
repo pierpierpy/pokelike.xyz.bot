@@ -235,7 +235,8 @@ uv run pokelike bot board
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
 uv run pokelike model board --harness v0
 uv run pokelike model watch --all
-# credentials: $FW_ENDPOINT/$FW_TOKEN, or --endpoint/--api-key (--api-key @path reads a file)
+# credentials: a .env at the repo root (gitignored, the container reads it too),
+# or $FW_ENDPOINT/$FW_TOKEN, or --endpoint/--api-key. Later wins
 ```
 
 ## Documentation

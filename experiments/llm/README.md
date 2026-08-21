@@ -44,11 +44,20 @@ better", which ten runs can actually answer.
 
 ## What it costs
 
-Roughly 30k tokens a run, one HTTP call per decision. Credentials come from the
-environment or from the command line, never from a file in the repo:
+Roughly 30k tokens a run, one HTTP call per decision. Credentials come from `.env`
+at the repository root, from the environment, or from the command line, and the
+later one always wins. `.env` is gitignored and never committed, which is what
+makes it the safe place: a key on a command line is readable by every user of the
+machine in `ps` and is saved in your shell history.
 
 ```bash
-export FW_ENDPOINT="https://..."     # the base url, no path
+# .env, and nothing else is needed
+FW_ENDPOINT=https://...              # the base url, no path
+FW_TOKEN=...
+MODEL_ID=...
+
+# or exported, which beats the file
+export FW_ENDPOINT="https://..."
 export FW_TOKEN="..."
 export MODEL_ID="..."
 

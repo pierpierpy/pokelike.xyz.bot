@@ -6,10 +6,16 @@ request it lands in. Not a contender: it is not benchmarked, because a bot that
 moves everything at once cannot tell you which move mattered.
 
 ```bash
-export FW_ENDPOINT="https://..."   # base URL, no /v1
+# .env at the repository root is enough, and it is gitignored:
+#   FW_ENDPOINT=https://...        base URL, no /v1
+#   FW_TOKEN=...
+#   MODEL_ID=...
+uv run pokelike bot run --bot llm-example --runs 1 -d
+
+# exporting works too, and beats the file
+export FW_ENDPOINT="https://..."
 export FW_TOKEN="..."
 export MODEL_ID="..."
-uv run pokelike bot run --bot llm-example --runs 1 -d
 
 # or pass the three as flags, which override the environment
 uv run pokelike bot run --bot llm-example --runs 1 -d \

@@ -118,8 +118,7 @@ it.
 ## Reproducing a row
 
 ```bash
-export FW_ENDPOINT="https://openrouter.ai/api"
-export FW_TOKEN="..."
+# credentials from .env at the repository root (gitignored), or exported, or as flags
 uv run pokelike model bench --harness v0 --model <the model id> --repeat 1
 
 # or, without exporting anything

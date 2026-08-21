@@ -74,8 +74,9 @@ uv run pokelike model watch                         # follow the running pass
 uv run pokelike model watch --stamp 20260820-1533   # pick one, when several run
 uv run pokelike model watch --all                   # every pass on this machine
 # --harness is REQUIRED on both: a version is the question a row answers
-# credentials: $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, or --endpoint/--api-key/--model
-# (--api-key @path reads a file, keeping the key out of ps and shell history)
+# credentials: .env at the repo root, then $FW_ENDPOINT/$FW_TOKEN/$MODEL_ID, then
+# --endpoint/--api-key/--model. Later always wins, and .env is the one to use:
+# a key on a command line is in ps for every user and in your shell history
 #
 # The flat names `bench`, `leaderboard`, `llm-bench` and `new-bot` were removed,
 # not aliased, and there is no implicit verb: `pokelike bot` alone is an error.
