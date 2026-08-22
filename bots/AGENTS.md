@@ -215,6 +215,92 @@ journal. A kept turn is about a thousand characters, so a ninety-decision run en
 carrying roughly 22k tokens in its last request and around a million across the run,
 against 200k with three turns kept: affordable, and worth knowing before you set it.
 
+### The four layers of one request, and the knob for each
+
+The same thing again, from the outside in, with where each layer is assembled. Read it
+when you are about to change something and want to know what it lands on.
+
+**Layer 1: the HTTP body.** Assembled in `transport.py`, seven keys, always the same ones.
+
+| key | knob | default |
+|---|---|---|
+| `model` | `model` | `$MODEL_ID` |
+| `messages` | layer 2 | |
+| `tools` | layer 4 | |
+| `tool_choice` | none, fixed `"auto"` | |
+| `max_tokens` | `max_tokens` | 1500 |
+| `temperature` | `temperature` | 0.6 |
+| `seed` | the run's seed | best effort, almost no provider honours it |
+
+Outside the body but on the same call: `retries` (attempts on a transient failure),
+`token_budget` (per-run cap, exceeding it KILLS the run), `max_rounds` (tool rounds before
+the turn is given up to the fallback).
+
+**Layer 2: the messages.** Built in `loop.py`, in this order.
+
+| # | role | content | knob |
+|---|---|---|---|
+| 0 | system | the whole prompt | `prompt` |
+| 1..2N | user + assistant | the SCRATCHPAD: the last N finished turns, verbatim | `scratch_turns` (0 = off, -1 = all) |
+| last | user | this turn | layer 3 |
+
+The scratchpad travels as whole turns flattened, so `scratch_turns=3` is six messages. The
+user slot of a kept turn cannot be dropped (an assistant message must follow a user one)
+but its content is a choice: `scratch_state="line"` a marker, `"brief"` a line of facts,
+`"full"` the screen as it was, measured at six and a half times the input tokens.
+
+**Layer 3: inside the last user message.** Assembled by `_build_user_message`, always in
+this order.
+
+| section | written by | knob | when off |
+|---|---|---|---|
+| the state view | `render_state` | `state_view` | cannot be turned off |
+| `WHAT YOU HAVE LEARNED (kept across runs, n/max)` | `notebook.py` | `notes_cap` (0 = no notebook) | the section is absent |
+| `YOUR PLAN FOR THIS MAP` | `agent.py` | `plan_chars` (0 = no plan) | absent |
+| `WHAT YOU DID, AND WHAT YOU SAID AT THE TIME` | `journal.py` | `memory` (lines kept, -1 = all) | absent |
+| `LAST REGION: ...` | `agent.py` | `region_opening`, and ONLY while the journal is empty | goes by itself |
+| `Pick an index between 0 and N and call play().` | `journal.py` | none, cannot be removed | |
+
+The view has four modes: `"screen"` (~880 chars), `"json"` (~5900), `"both"`, or a list of
+keys. All of them carry the region, the first in the header, the second as a key.
+
+**Layer 4: the tools.**
+
+| group | tools | knob |
+|---|---|---|
+| always there | `play` | may be neither dropped nor redeclared |
+| shared | `team_details`, `what_lies_ahead`, `set_lead` | `drop_tools` to leave one out |
+| notebook | `remember`, `revise`, `forget` | `notes_cap > 0` |
+| plan | `plan` | `plan_chars > 0` |
+| bag | `bag` | `bag_tool=True` |
+| yours | anything | `@tool` on a method, or `extra_tools` |
+
+They cost tokens EVERY turn, called or not: ten of them is about 3,500 characters, which in
+a full request is nearly half the body.
+
+**The knobs that do not touch the request.**
+
+| knob | what it does |
+|---|---|
+| `note_chars` | per-note ceiling, 160 |
+| `cross_run_memory` | the notes survive `reset()`, so they survive the run |
+| `keep_across_regions` | what survives a region boundary, default `("notes",)` |
+| `token_budget`, `retries`, `max_rounds` | when a run dies, retries, or gives up |
+
+**The seams, and what each one kills.** Overriding a method turns off the knob that feeds it:
+
+| seam | knob that stops meaning anything |
+|---|---|
+| `render_state` | `state_view` |
+| `render_scratch` | `scratch_state` |
+| `tools()` | `drop_tools` (you are doing it by hand) |
+
+Which is why `llm-example2` EXTENDS them by calling `super()` instead of replacing them.
+
+And the rule that is paid silently: **the turn ENDS at `play`**, so a `plan` or a `remember`
+called after it in the same message is discarded. A model that orders them the wrong way
+believes it saved a note and did not.
+
 ### Value-only knobs (LLMConfig fields)
 
 | knob | default | decides |
