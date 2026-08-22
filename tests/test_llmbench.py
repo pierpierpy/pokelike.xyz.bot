@@ -742,3 +742,22 @@ def test_the_recorder_is_called_for_every_tool_the_model_asks_for(version):
     loop = src[src.index("for c in calls:"):]
     assert "self._note_call(name, args)" in loop[:400], (
         f"{version} extracts the tool name and does not record it")
+
+
+def test_a_finished_game_is_counted_separately_from_eight_badges():
+    """Badges stop at 8, so winning has to be its own number.
+
+    In: runs ending in a win and in a loss, both at 8 badges. Out: `won` counts only
+    the win, while badges cannot tell them apart.
+    """
+    # The engine has eight gym leaders and the Elite Four that follows them awards no
+    # badge, so 8 is the ceiling: a model that FINISHES the game scores exactly what
+    # one that reaches the Elite Four and dies scores.
+    runs = [{"seed": s, "badges": 8, "turns": 80, "fallbacks": 0,
+             "ending": "win-screen" if s == 10000 else "gameover-screen"}
+            for s in (10000, 10001, 10002)]
+    one = L._as_pass("v4", "a/b", [10000, 10001, 10002], runs, {}, {})
+    row = L.stats({"model": "a/b", "harness": "v4", "passes": [one]})
+    assert row["badges_best"] == 8
+    assert row["badges_mean"] == 8.0, "badges cannot see the difference"
+    assert row["won"] == 1, "the win can"

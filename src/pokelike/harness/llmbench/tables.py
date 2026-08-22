@@ -43,7 +43,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     # seeds against the last ten is noise with a suggestive name.
     learns = cross_run_memory(version)
     head = (f"{'model':<34}{'passes':>7}{'runs':>6}{'badges~':>9}{'±sem':>7}"
-            f"{'med':>5}{'best':>6}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
+            f"{'med':>5}{'best':>6}{'won':>5}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
             # `$` rather than `usd`, and the per-run figure beside the total: the
             # total answers "what did this row cost", the per-run answers "what
@@ -62,7 +62,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
         out.append(
             f"{str(r['model'])[:33]:<34}{r['passes']:>7}{r['runs']:>6}"
             f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
-            f"{r['badges_best']:>6}"
+            f"{r['badges_best']:>6}{r.get('won', 0):>5}"
             + ((f"{lc['delta']:>+8.2f}" if lc.get("delta") is not None else f"{'-':>8}")
                + f"{r.get('notes_kept') if r.get('notes_kept') is not None else '-':>7}"
                if learns else "")

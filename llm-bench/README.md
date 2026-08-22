@@ -35,7 +35,7 @@ _No models measured under harness `v5` yet._
 | # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | -0.20 | 12 | 226220 | 72712 | 0.07 | 14.41 | 0.2883 |
-| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.10 | 0.0220 |
+| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.01 | 0.0203 |
 | 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
 | 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
 | 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
@@ -121,6 +121,11 @@ tool call. The full flag list is `--help`.
 - **One pass is not a measurement.** Same seed, same prompt, different answer. Three
   passes of one model can differ by ~0.2 badges, about the whole gap between the top two
   entries in `bots/`. `--repeat 3` tells you which case you are in.
+- **Badges stop at 8, `won` is the rest of the story.** The engine has eight gym leaders
+  (Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine, Giovanni) and the Elite Four
+  after them awards none, so 8 is the ceiling: a model that FINISHES the game scores what
+  one that reaches the Elite Four and dies scores. `won` counts the runs that ended on the
+  win screen, and out of 1400 recorded runs there has been exactly one.
 - **`fallback` disqualifies.** When a call fails or the model never calls `play`, the
   harness plays a safe move, and that turn was our heuristic under the model's name.
   Above 0.1 the row measures the harness.

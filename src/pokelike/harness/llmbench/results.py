@@ -144,6 +144,11 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
         "badges_sem": round(sd / len(badges) ** 0.5, 3) if sd else 0.0,
         "badges_median": statistics.median(badges),
         "badges_best": max(badges),
+        # Runs that finished the game. Badges STOP AT 8, because the engine has eight
+        # gym leaders and the Elite Four that follows them awards none, so a model
+        # that WINS scores exactly what one that reaches the Elite Four and dies
+        # scores. Without this column the ranking cannot tell them apart.
+        "won": sum(1 for r in runs if r.get("ending") == "win-screen"),
         # Sampling noise on its own: the seeds are fixed, so what moves between
         # passes is the model.
         "pass_spread": round(max(per_pass) - min(per_pass), 3) if len(per_pass) > 1 else None,

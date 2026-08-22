@@ -121,6 +121,23 @@ edit in `harness/llmbench/`. It controls three things:
   something between runs.
 - The pass log opens the notebook and plan files.
 
+## The badge ceiling
+
+Eight. `GYM_LEADERS` in the bundle has exactly eight entries, and the Elite Four that
+follows the eighth awards no badge: `showWinScreen()` is reached through the
+`elite_four` achievement, with `state["badges"]` untouched on that path. So a run that
+BEATS THE GAME and a run that clears every gym and dies to the Elite Four both record 8,
+and `badges~` cannot separate them.
+
+That is why `stats()` also counts `won` (runs whose `ending` is `win-screen`) and the
+table prints it. Measured over the 1400 runs recorded so far: 294 ended at 0 badges, 934
+at 1, then it thins out to 3 at 6, none at 7, and 7 at 8. Eight is not a hard run, it is
+an ABSORBING one: every deep run piles up there because nothing more can be earned. The
+one win so far is moonshotai/kimi-k2.6 on seed 10014 under v4.
+
+If a future version wants to measure past the ceiling, the thing to record is how far
+into the Elite Four a run got, which the state does not expose today.
+
 ## What a pass writes, and where
 
 One directory per command, `llm-bench/<version>/logs/<stamp>/`:
