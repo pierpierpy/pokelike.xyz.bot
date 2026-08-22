@@ -192,15 +192,28 @@ this well:
 | journal | text inside the last user message: `WHAT YOU DID, AND WHAT YOU SAID` | `memory` turns, per run |
 | notes and plan | text inside the last user message, the model edits them with tools | notes cross runs when `cross_run_memory`, the plan dies with the map |
 
-In a kept scratchpad turn the SCREEN is replaced by one line,
-`[the screen you were shown that turn, since changed]`. The slot has to stay (an
+In a kept scratchpad turn the SCREEN is not sent again. The slot has to stay (an
 assistant message must follow a user one, or the request is malformed) but its content
-must not: measured in v5, keeping the whole screen cost 269k input tokens for ONE run
-against 41k, six and a half times, because every kept turn dragged another render of
-team, map and actions along. It is also wrong on its own terms, a stale screen invites
-reasoning about a map that has already changed, while the current one is right there in
-the fresh message. What stays is what the model SAID and what the tools ANSWERED, which
-is the part nothing else can reconstruct.
+is a choice, and `scratch_state` makes it:
+
+| `scratch_state` | the kept slot holds | size |
+|---|---|---|
+| `"line"` (default) | `[the screen you were shown that turn, since changed]` | 52 chars |
+| `"brief"` | one line of facts: step, screen, map, badges, team HP | ~120 chars |
+| `"full"` | the screen as it was | ~2,200 chars |
+
+`"full"` is there for completeness and costs what v5 measured before dropping it: 269k
+input tokens for ONE run against 41k, six and a half times, because every kept turn
+drags another render of team, map and actions along. It is also wrong on its own terms,
+a stale screen invites reasoning about a map that has already changed while the current
+one is right there in the fresh message. What the other two keep is what the model SAID
+and what the tools ANSWERED, the part nothing else can reconstruct. `render_scratch(state)`
+is the seam if none of the three fits.
+
+`scratch_turns = -1` keeps every turn of the run, the way `memory = -1` does for the
+journal. A kept turn is about a thousand characters, so a ninety-decision run ends up
+carrying roughly 22k tokens in its last request and around a million across the run,
+against 200k with three turns kept: affordable, and worth knowing before you set it.
 
 ### Value-only knobs (LLMConfig fields)
 

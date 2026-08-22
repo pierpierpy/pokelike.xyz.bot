@@ -1059,3 +1059,74 @@ def test_the_scratchpad_keeps_the_words_and_drops_the_screen():
     sent.clear()
     bot.act({**obs, "steps": 0})
     assert [r[0] for r in sent[0]] == ["system", "user"], "reset emptied the scratchpad"
+
+
+def test_what_a_kept_turn_shows_is_a_choice(monkeypatch):
+    """Three modes for the user slot of a kept turn, and a seam behind them.
+
+    In: scratch_state set each way. Out: a marker, a line of facts, or the screen.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}],
+           "team": [{"name": "Bulbasaur", "level": 5, "hp": 19, "max_hp": 19}],
+           "bag": [], "map": {"nodes": []}, "run": {"badges": 0, "map": 0},
+           "screen": "map-screen", "seed": 1, "steps": 3}
+
+    def kept_slot(**cfg):
+        sent = []
+
+        class P(LLMBot):
+            def render_state(self, state):
+                return "THE FULL SCREEN"
+            def call_model(self, messages):
+                sent.append(messages)
+                return {"content": "", "tool_calls": [
+                    {"id": f"c{len(sent)}", "type": "function",
+                     "function": {"name": "play", "arguments": '{"index":0,"why":"x"}'}}]}
+
+        b = P(seed=0, endpoint="http://x", token="t", model="m/m", **cfg)
+        b.reset(1)
+        b.act(obs)
+        b.act({**obs, "steps": 4})
+        return [m["content"] for m in sent[-1] if m["role"] == "user"][0]
+
+    assert "since changed" in kept_slot(scratch_turns=2)
+    brief = kept_slot(scratch_turns=2, scratch_state="brief")
+    assert "step 3" in brief and "Bulbasaur L5 19/19" in brief and len(brief) < 200
+    assert kept_slot(scratch_turns=2, scratch_state="full") == "THE FULL SCREEN"
+
+
+def test_scratch_turns_minus_one_keeps_every_turn():
+    """-1 is keep-all, like memory=-1 for the journal.
+
+    In: scratch_turns=-1 over several turns. Out: none of them dropped.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}], "team": [],
+           "bag": [], "map": {"nodes": []}, "run": {"badges": 0}, "screen": "map-screen",
+           "seed": 1, "steps": 0}
+
+    def held(turns, **cfg):
+        sent = []
+
+        class P(LLMBot):
+            def render_state(self, state):
+                return "screen"
+            def call_model(self, messages):
+                sent.append(messages)
+                return {"content": "", "tool_calls": [
+                    {"id": f"c{len(sent)}", "type": "function",
+                     "function": {"name": "play", "arguments": '{"index":0,"why":"x"}'}}]}
+
+        b = P(seed=0, endpoint="http://x", token="t", model="m/m", **cfg)
+        b.reset(1)
+        for step in range(turns):
+            b.act({**obs, "steps": step})
+        # the assistant messages of the LAST request, minus the current turn's own
+        return sum(1 for m in sent[-1] if m["role"] == "assistant") - 1
+
+    assert held(5, scratch_turns=-1) == 4, "every earlier turn kept"
+    assert held(5, scratch_turns=2) == 2, "capped at two"
+    assert held(5, scratch_turns=0) == 0, "off"

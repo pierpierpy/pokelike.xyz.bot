@@ -116,6 +116,7 @@ class LLMBot(Bot):
         self._pending: tuple[int | None, int | None, str] | None = None
         # Scratchpad: the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
+        self._turn_state: dict[str, Any] | None = None
 
     def reset(self, seed: int) -> None:
         """Resets all per-run state for a new game.
@@ -133,6 +134,7 @@ class LLMBot(Bot):
         # THIS map, and the scratchpad is this episode's reasoning.
         self.plan = ""
         self._scratch: list[list[dict[str, Any]]] = []
+        self._turn_state: dict[str, Any] | None = None
         # Notebook survives reset only when cross_run_memory is on.
         if self._notebook and not self.cfg.cross_run_memory:
             self._notebook.clear()
@@ -164,8 +166,9 @@ class LLMBot(Bot):
             meta["plan"] = self.plan
         if self.cfg.bag_tool:
             meta["bag_tool"] = True
-        if self.cfg.scratch_turns > 0:
+        if self.cfg.scratch_turns != 0:
             meta["scratch_turns"] = self.cfg.scratch_turns
+            meta["scratch_state"] = self.cfg.scratch_state
             meta["scratch_held"] = len(self._scratch)
         return meta
 
@@ -282,6 +285,7 @@ class LLMBot(Bot):
         # Flatten the scratchpad into the history the loop inserts between the
         # system prompt and the fresh user message. When scratch_turns is 0 the
         # list is empty and the messages are exactly [system, user].
+        self._turn_state = state
         history: list[dict[str, Any]] = [m for turn in self._scratch for m in turn]
         try:
             index, why, lead, this_turn = run_turn(
@@ -303,6 +307,39 @@ class LLMBot(Bot):
         self._remember_turn(this_turn)
         return index, why, lead
 
+    def render_scratch(self, state: dict[str, Any]) -> str:
+        """What a KEPT turn shows where its screen used to be.
+
+        In: the state of the turn being kept. Out: the text to put in its user slot.
+        """
+        # A seam, because this is a judgement rather than a fact: how much of a turn
+        # is worth carrying is exactly the sort of thing a bot is submitted to try.
+        # Override it and return whatever you like.
+        mode = self.cfg.scratch_state
+        if mode == "full":
+            return self.render_state(state)
+        if mode == "brief":
+            return self._brief_state(state)
+        return "[the screen you were shown that turn, since changed]"
+
+    def _brief_state(self, state: dict[str, Any]) -> str:
+        """One line of facts about a turn, for `scratch_state="brief"`.
+
+        In: the state of that turn. Out: a single line, roughly 120 characters.
+        """
+        # What changes from turn to turn and is worth a glance in sequence: where it
+        # was, how it was doing, and the health of the team. Not the map or the
+        # options, which are the expensive half and are stale the moment the turn
+        # ends.
+        run = state.get("run") or {}
+        team = ", ".join(
+            f"{p.get('name')} L{p.get('level')} {p.get('hp')}/{p.get('max_hp')}"
+            for p in (state.get("team") or [])[:6])
+        return (f"[that turn: step {state.get('steps')}, {state.get('screen')}, "
+                f"map {run.get('map', state.get('map', 0))}, "
+                f"badges {run.get('badges', 0)}"
+                + (f", team {team}" if team else "") + "]")
+
     def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
         """Adds one finished exchange to the scratchpad, oldest dropped first.
 
@@ -320,16 +357,16 @@ class LLMBot(Bot):
 
         In: the list of messages for the turn just finished. Out: nothing.
         """
-        if self.cfg.scratch_turns <= 0:
+        if self.cfg.scratch_turns == 0:
             return
+        shown = self.render_scratch(self._turn_state or {})
         kept = [
-            {"role": "user",
-             "content": "[the screen you were shown that turn, since changed]"}
-            if m.get("role") == "user" else m
+            {"role": "user", "content": shown} if m.get("role") == "user" else m
             for m in turn
         ]
         self._scratch.append(kept)
-        self._scratch = self._scratch[-self.cfg.scratch_turns:]
+        if self.cfg.scratch_turns > 0:
+            self._scratch = self._scratch[-self.cfg.scratch_turns:]
 
     def _record_call(self, name: str, args: dict[str, Any]) -> None:
         """Keeps one tool call, as made, for this turn's trace.

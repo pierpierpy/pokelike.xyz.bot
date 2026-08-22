@@ -85,7 +85,8 @@ remembers is yours to set:
 | setting | what it gives the model | default |
 |---|---|---|
 | `memory` | past turns summarised, one line each (`-1` for all of them) | `6` |
-| `scratch_turns` | the last N turns in full, its own words included | `0` |
+| `scratch_turns` | the last N turns in full, its own words included (`-1` for all) | `0` |
+| `scratch_state` | what a kept turn shows instead of its old screen: `line`, `brief`, `full` | `line` |
 | `notes_cap`, `note_chars` | a notebook it writes and edits itself | `0`, `160` |
 | `cross_run_memory` | those notes surviving into the next run | `False` |
 | `plan_chars` | a route it plans for the map, shown back every turn | `0` |

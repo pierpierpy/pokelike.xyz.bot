@@ -80,11 +80,25 @@ class LLMConfig(BaseModel):
     bag_tool: bool = False                       # True = offer the bag tool
 
     # --- scratchpad: the last N finished turns travel verbatim ---
-    scratch_turns: int = 0                       # 0 = off; how many exchanges to keep
+    scratch_turns: int = 0        # whole turns kept verbatim; 0 = off, -1 = all of them
+    # What fills the user slot of a KEPT turn. The slot cannot be dropped (an
+    # assistant message must follow a user one) but its content is a free choice:
+    #   "line"  a single marker. Cheapest, and it cannot be mistaken for the state
+    #   "brief" one line of facts, so the model can see what changed over the turns
+    #   "full"  the screen as it was. Measured at six and a half times the input
+    #           tokens, and it invites reasoning about a map that has since changed
+    scratch_state: str = "line"
+
+    @field_validator("scratch_state")
+    @classmethod
+    def _known_scratch_state(cls, v: str) -> str:
+        if v not in ("line", "brief", "full"):
+            raise ValueError('scratch_state must be "line", "brief" or "full"')
+        return v
 
     @field_validator("scratch_turns")
     @classmethod
     def _scratch_turns_not_negative(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError("scratch_turns must not be negative")
+        if v < -1:
+            raise ValueError("scratch_turns must be -1 (keep all) or 0 or more")
         return v
