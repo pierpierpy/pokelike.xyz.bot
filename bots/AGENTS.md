@@ -273,8 +273,9 @@ inherit from `LLMBot`.
 which is the fastest way to see what a bot actually sends. The shape of it:
 
 ```python
-live = session()            # KEEP the name: drop it and the asset server is collected
-game = live.__enter__()     # with-less on purpose, so the cells can be re-run
+from pokelike import open_game        # the same door example.ipynb uses
+
+game = open_game()
 bot = build(load_class("bots/llm-example2/bot.py"))
 bot.reset(42)
 state = game.reset(seed=42)
@@ -291,12 +292,11 @@ index = bot.act(state)      # one decision, and nothing moves until you step
 state = game.step(index)
 ```
 
-Two things it is worth knowing before writing something like it. `session()` is a
-generator-backed context manager, so `session().__enter__()` without keeping the object
-alive gets collected mid-run and the browser then navigates to a dead port
-(`ERR_CONNECTION_REFUSED`), which reads like a broken game. And the notes and plan are
-private on the bot: read them through `metadata()`, which is the public route, rather
-than reaching for `_notebook`.
+`open_game()` rather than `session()`: `session()` is a context manager, and
+`session().__enter__()` without keeping the object in a name gets collected mid-run,
+after which the browser navigates to a dead port and it reads like a broken game.
+`open_game()` hands back a game that lives until `close()`, which is what a notebook
+wants. The notes and plan are private on the bot: read them through `metadata()`.
 
 Wrapping `call_model` is the same trick `pokelike/logging/conversation.py` uses to write
 the chat file, and it works for any bot that talks to a model, frozen harnesses included.
