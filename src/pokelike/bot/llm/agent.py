@@ -175,7 +175,7 @@ class LLMBot(Bot):
         dec = collect_decorated_tools(type(self))
         if dec:
             meta["decorated_tools"] = [t["function"]["name"] for t in dec]
-        return meta
+        return {**meta, **self.add_metadata()}
 
     def tool_names(self) -> list[str]:
         """Returns the names of all tools offered to the model."""

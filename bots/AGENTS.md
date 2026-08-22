@@ -259,6 +259,7 @@ screen is drawn, with `"json"` there is no rendering. [`llm-raw`](llm-raw/) is
 | `answer_tool(name, args, state) -> str` | answer your own `extra_tools`; call `super()` for the shared ones |
 | `call_model(messages) -> dict` | your model is not an OpenAI-compatible HTTP endpoint |
 | `fallback_move(state) -> int` | change the backup move policy |
+| `add_metadata() -> dict` | record a knob of your own beside the score. Merged for you, so nothing already recorded is lost |
 
 The plumbing wraps whatever `render_state` returns: the journal and the "pick an index between 0
 and N" line are added around it, so replacing the view cannot cost a bot its memory or

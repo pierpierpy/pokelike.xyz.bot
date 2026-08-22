@@ -101,6 +101,17 @@ class Bot(ABC):
         Never put the API token or endpoint in here: `result.json` is committed
         and gets pasted into issues.
         """
+        return {**self.add_metadata()}
+
+    def add_metadata(self) -> dict[str, Any]:
+        """Your own facts, added to whatever the harness already records.
+
+        In: nothing. Out: any dict; it is merged into `metadata()`.
+        """
+        # The easy half of the pair. `metadata()` may already be full (an LLM bot's
+        # is), so overriding it means remembering to merge, and forgetting to merge
+        # silently throws away the model, the harness generation and the fallback
+        # rate. Return your dict here and the merging is not your problem.
         return {}
 
     def artifacts(self) -> list:

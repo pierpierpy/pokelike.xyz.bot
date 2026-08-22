@@ -100,6 +100,10 @@ class MyBot(LLMBot):
     config = LLMConfig(prompt=MY_PROMPT, notes_cap=12, cross_run_memory=True)
 ```
 
+Tools are one line each: `@tool("...")` on a method adds one, the same named after a
+shared tool replaces it, and `drop_tools=("what_lies_ahead",)` removes one. `play` is the
+exception: it is how the model says what it chose, so it cannot be removed or replaced.
+
 And if none of that fits, inherit `Bot` instead and write `act(state) -> int`: no loop,
 no prompt, no constraints beyond returning a legal index.
 
