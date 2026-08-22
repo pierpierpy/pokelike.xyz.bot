@@ -11,9 +11,9 @@
     "render.py": "58cfafcbbffe2690",
     "bridge.js": "ed4607926573b2cc",
     "init.js": "6274624ff7590dd9",
-    "shared/browser.py": "9a71111f47eeb94b",
-    "shared/game.py": "495f7ef41807192d",
-    "shared/runner.py": "243053ac72930b66"
+    "shared/browser.py": "e4600def5df8fc88",
+    "shared/game.py": "454435d2fc44ae19",
+    "shared/runner.py": "38fd7b148e40d1f0"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1853,7 +1853,23 @@
    ],
    "stamp": "20260821-184228-d2d8",
    "log": "/app/llm-bench/v5/logs/20260821-184228-d2d8/Qwen--Qwen3.8-27B-FP8-pass1.log",
-   "trace": "/app/llm-bench/v5/logs/20260821-184228-d2d8/Qwen--Qwen3.8-27B-FP8-pass1.jsonl"
+   "trace": "/app/llm-bench/v5/logs/20260821-184228-d2d8/Qwen--Qwen3.8-27B-FP8-pass1.jsonl",
+   "refingerprinted": [
+    {
+     "on": "2026-08-22T16:47:14+00:00",
+     "was": {
+      "shared/browser.py": "9a71111f47eeb94b",
+      "shared/game.py": "495f7ef41807192d",
+      "shared/runner.py": "243053ac72930b66"
+     },
+     "now": {
+      "shared/browser.py": "e4600def5df8fc88",
+      "shared/game.py": "454435d2fc44ae19",
+      "shared/runner.py": "38fd7b148e40d1f0"
+     },
+     "why": "regions, second pass: core/runner.py changed again to stamp the region on a campaign's flattened trace. Every row here played Kanto under the code of its day; its numbers are untouched."
+    }
+   ]
   }
  ]
 }
