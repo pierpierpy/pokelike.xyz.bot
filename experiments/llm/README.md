@@ -26,6 +26,7 @@ nothing but the prompt, which is what makes the four comparable:
 | [`llm-analyst`](../../bots/llm-analyst/) | read the tools first, commit last |
 | [`llm-raw`](../../bots/llm-raw/) | `llm-survivor`'s prompt, reading the raw state dict instead of the view |
 | [`llm-example`](../../bots/llm-example/) | every knob turned, with reasons. A reference, not a contender |
+| [`llm-example2`](../../bots/llm-example2/) | the same for harness generation 2: the notebook, the plan, the scratchpad. Also not a contender |
 
 `llm-raw` is not a fifth prompt: it is `llm-survivor` with one variable moved, so
 the pair measures the state view rather than the wording.
