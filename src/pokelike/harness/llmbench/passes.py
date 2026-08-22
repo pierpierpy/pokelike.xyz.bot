@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, run_benchmark
-from .passlog import PassLog
+from ...logging.trace import enrich_decision
+from ...logging import PassLog
 from .results import _as_pass, learning
 from .versions import (ROOT, cross_run_memory, fingerprints,
                        harness_path, script_paths, slug)
@@ -108,23 +109,8 @@ def play_model(game, version: str, model: str, site: Path,
         picture is the same in every copy anyway. What the model actually read is
         fixed by the harness and reproducible from it.
         """
-        extra: dict[str, Any] = {}
-        # Every harness keeps this list. The one that did not was v0, and the
-        # answer was to give it one rather than to guess from outside: `play` and
-        # `set_lead` never reach `run_tool`, so a wrapper around that method could
-        # not see the decision itself.
-        called = bot.tool_calls_made()
-        if called:
-            extra["tools"] = called
-        obs = seen.get("obs")
-        if obs and (obs.get("map") or {}).get("nodes"):
-            from ...core import render
-
-            picture = render.map_view(obs["map"])
-            if picture and picture != drawn[0]:
-                extra["map_view"] = picture
-                drawn[0] = picture
-        log.decision({**e, **extra} if extra else e)
+        enriched = enrich_decision(e, bot, seen.get("obs"), drawn)
+        log.decision(enriched)
 
     try:
         result = run_benchmark(

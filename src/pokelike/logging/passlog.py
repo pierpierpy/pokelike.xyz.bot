@@ -18,9 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .command import session_dir
-from .heartbeat import HEARTBEAT_SECS, HEARTBEAT_STALE, HeartbeatThread
-from .versions import slug
+from .heartbeat import HeartbeatThread
 
 # How many runs at each end of a pass make up the learning comparison. Ten of
 # fifty: long enough to average out a lucky seed, short enough that the two
@@ -31,68 +29,86 @@ LEARN_K = 10
 class PassLog:
     """One line per finished run, flushed as it happens.
 
-    In: version, model, seeds, worker count, optional memory/folder/attempt.
-    Out: call run() per row, decision() per trace entry, done()/fail()/close().
+    In: folder, file stem, seed list, worker count, header lines, optional
+    memory flag and done/fail callbacks. Out: call run() per row, decision()
+    per trace entry, done()/fail()/close().
+
+    The constructor accepts the generalised form (folder, stem, seeds, workers,
+    header_lines, memory) AND the legacy positional form (version, model, seeds,
+    workers) used by the model benchmark, so existing call sites need no change.
     """
     # Flushed per line on purpose: a log that buffers tells you nothing about a run
     # still in progress, which is the only time you need it, and loses the ending if
     # the process dies: which is exactly the ending worth reading.
-    #
-    # In parallel, lines arrive in completion order rather than seed order, because
-    # they are written as workers finish. That is not a defect: it is what tells you
-    # a particular worker has been stuck on one game for two minutes.
 
     COLUMNS = ("  seed  badges   score  steps        in       out  fell  retry     secs")
     COLUMNS_MEMORY = COLUMNS + "  notes"
 
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
                  memory: bool = False, folder: Path | None = None,
-                 attempt: int = 1) -> None:
-        # The command's directory, made by the caller so that every pass of a
-        # sweep lands in the same one. Created here when there is no caller to ask.
-        folder = folder or session_dir(version)
-        # Numbered rather than timestamped: inside one command the pass number is
-        # what tells them apart, and it sorts correctly.
-        self.path = folder / f"{slug(model)}-pass{attempt}.log"
+                 attempt: int = 1,
+                 # Generalised parameters: when these are given the caller owns
+                 # the vocabulary. When absent, the legacy model-benchmark
+                 # defaults are used.
+                 stem: str | None = None,
+                 header_lines: list[str] | None = None,
+                 done_summary: Any = None,
+                 notebook_header: str | None = None,
+                 plan_header: str | None = None) -> None:
+        # Legacy: if folder is not provided, use session_dir(version) from the
+        # model benchmark. Deferred import so the package stays neutral.
+        if folder is None:
+            from ..harness.llmbench.command import session_dir
+            folder = session_dir(version)
+
+        # File naming: the stem is either provided explicitly (generalised) or
+        # built from the model slug and attempt number (legacy model benchmark).
+        if stem is None:
+            from ..harness.llmbench.versions import slug
+            stem = f"{slug(model)}-pass{attempt}"
+
+        self.path = folder / f"{stem}.log"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.started = time.time()
         self.n = 0
         self.total = len(seeds)
         self.badges: list[int] = []
-        # Last notebook seen, so the log can show what CHANGED rather than
-        # reprinting twelve unchanged notes fifty times.
         self.memory = memory
         self.model = model
         self.book: list[str] = []
-        # Per seed, the last (in, out) seen for it. Two jobs from one dict: the
-        # difference against the previous reading is what a turn cost, and the sum
-        # over every seed is what the pass has cost (including runs still in flight).
         self.spent: dict[int, tuple[int, int]] = {}
         self.fh = self.path.open("w", encoding="utf-8", buffering=1)
-        # What the model decided and why, one JSON object per decision.
-        # NOT in the result: twenty decisions a run times fifty runs would multiply
-        # the size of a file whose job is to hold one comparable row per seed.
+        # Per-decision JSONL trace.
         self.trace_path = self.path.with_suffix(".jsonl")
         self.tf = self.trace_path.open("w", encoding="utf-8", buffering=1)
-        # The two things the model WRITES, each in its own file, one block per run.
-        # Opened on demand rather than up front: v0 has neither.
+        # Notebook and plan files, opened on demand.
         self.book_path = self.path.with_name(self.path.stem + "-notebook.log")
         self.plan_path = self.path.with_name(self.path.stem + "-plan.log")
-        # One JSON line per finished run, so a watcher can read what the fixed-width
-        # log is only meant to show a person: the score above all, which the
-        # decision trace cannot carry because it is not known until the run ends.
+        # Per-run JSON lines (score, badges, etc.).
         self.runs_path = self.path.with_name(self.path.stem + "-runs.jsonl")
         self.bf: Any = None
         self.pf: Any = None
         self.rf: Any = None
         self._last_book: list[str] | None = None
         self._last_plan: str | None = None
-        self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
-        self._say(f"{len(seeds)} seeds, {workers} worker{'s' if workers != 1 else ''}, "
-                  f"seeds {seeds[0]}..{seeds[-1]}")
-        if memory:
-            self._say("this harness keeps the model's notes between runs: they are "
-                      "logged as they change.")
+        # Caller-provided headers for the notebook/plan files.
+        self._notebook_header = notebook_header
+        self._plan_header = plan_header
+        # Caller-provided summary callback (called from done()).
+        self._done_summary = done_summary
+
+        # Write the header. When header_lines are provided, use them directly;
+        # otherwise produce the legacy model-benchmark header.
+        if header_lines is not None:
+            for line in header_lines:
+                self._say(line)
+        else:
+            self._say(f"{datetime.now():%Y-%m-%d %H:%M:%S}  harness {version}  {model}")
+            self._say(f"{len(seeds)} seeds, {workers} worker{'s' if workers != 1 else ''}, "
+                      f"seeds {seeds[0]}..{seeds[-1]}")
+            if memory:
+                self._say("this harness keeps the model's notes between runs: they are "
+                          "logged as they change.")
         self._say(self.COLUMNS_MEMORY if memory else self.COLUMNS)
 
         # Liveness heartbeat.
@@ -106,9 +122,6 @@ class PassLog:
 
         In: nothing. Out: the directory name string (e.g. '20260821-162048-1435').
         """
-        # The identity of a pass, and the half of a run's identity that the seed does
-        # not carry. Read off the directory rather than stored a second time, so it
-        # cannot claim to be somewhere the files are not.
         return self.path.parent.name
 
     def _say(self, line: str) -> None:
@@ -125,8 +138,6 @@ class PassLog:
                                        row.get("tokens_out") or 0)
         self._say(
             f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}"
-            # The engine's own points_no_time. A run can legitimately score
-            # negative (5*KO - 10*faints in Story mode), so no sign is assumed.
             f"{(row.get('score') if row.get('score') is not None else 0):>8}"
             f"{row.get('steps') or 0:>7}"
             f"{row.get('tokens_in') or 0:>10}{row.get('tokens_out') or 0:>10}"
@@ -136,7 +147,6 @@ class PassLog:
             + ("   <- fell back" if (row.get("fallbacks") or 0) else "")
             + ("   <- STALLED" if row.get("stalled") else "")
         )
-        # What the model changed its mind about, when it did.
         if self.memory and "notebook" in row:
             book = list(row["notebook"])
             for note in [x for x in book if x not in self.book]:
@@ -147,7 +157,6 @@ class PassLog:
         self._write_notebook(row)
         self._write_plan(row)
         self._write_run_row(row)
-        # A mark every ten runs, with where it is and when it should finish.
         if self.total and self.n % 10 == 0 and self.n < self.total:
             done = time.time() - self.started
             left = done / self.n * (self.total - self.n)
@@ -163,7 +172,13 @@ class PassLog:
 
         In: the assembled pass dict. Out: summary lines written to the log.
         """
-        from .results import learning
+        # If a custom done_summary callable was given, delegate to it.
+        if self._done_summary is not None:
+            self._done_summary(self, one_pass)
+            return
+
+        # Legacy model-benchmark summary.
+        from ..harness.llmbench.results import learning
 
         s = one_pass.get("summary") or {}
         mins = (time.time() - self.started) / 60
@@ -193,11 +208,6 @@ class PassLog:
 
         In: the run's result dict. Out: a line appended to `<pass>-runs.jsonl`.
         """
-        # The decision trace cannot carry the score: it is one line per DECISION,
-        # and the score exists only once the run is over. The human log has the row
-        # but as fixed-width columns, which is for reading, not for parsing. So the
-        # rows are written once more here, as JSON, which is what lets `model watch`
-        # show the score of a pass that is still playing. Fifty short lines a pass.
         if self.rf is None:
             self.rf = self.runs_path.open("w", encoding="utf-8", buffering=1)
         self.rf.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -209,8 +219,10 @@ class PassLog:
             return
         if self.bf is None:
             self.bf = self.book_path.open("w", encoding="utf-8", buffering=1)
-            self.bf.write(f"notes {self.model} kept between runs\n"
-                          f"one block per finished run, in the order played\n\n")
+            header = (self._notebook_header
+                      or f"notes {self.model} kept between runs\n"
+                         f"one block per finished run, in the order played\n")
+            self.bf.write(header + "\n")
         head = f"run {self.n:>2}  seed {row.get('seed')}  ({len(book)} notes)"
         if book == self._last_book:
             self.bf.write(f"{head}  unchanged\n")
@@ -229,8 +241,10 @@ class PassLog:
             return
         if self.pf is None:
             self.pf = self.plan_path.open("w", encoding="utf-8", buffering=1)
-            self.pf.write(f"the route {self.model} planned for each map\n"
-                          f"as it stood when the run ended\n\n")
+            header = (self._plan_header
+                      or f"the route {self.model} planned for each map\n"
+                         f"as it stood when the run ended\n")
+            self.pf.write(header + "\n")
         head = f"run {self.n:>2}  seed {row.get('seed')}"
         if plan == self._last_plan:
             self.pf.write(f"{head}  unchanged\n")
@@ -246,10 +260,6 @@ class PassLog:
         In: decision dict (seed, step, screen, chose, options, why, etc.).
         Out: one JSON line appended to the .jsonl trace.
         """
-        # Deliberately not the prompt, not the tool calls and not the rendered
-        # screen: those are reconstructible from the harness plus the seed, they are
-        # most of the bytes, and none of them is what you come here to read. What is
-        # NOT reconstructible is which option it took and the sentence it gave for it.
         seed = e.get("seed")
         run_in, run_out = e.get("run_in") or 0, e.get("run_out") or 0
         was_in, was_out = self.spent.get(seed, (0, 0))
@@ -272,7 +282,6 @@ class PassLog:
             "team": e.get("team"),
             **({"tools": e["tools"]} if e.get("tools") else {}),
             **({"map_view": e["map_view"]} if e.get("map_view") else {}),
-            # Three levels of the same two numbers.
             "turn_in": max(run_in - was_in, 0),
             "turn_out": max(run_out - was_out, 0),
             "run_in": run_in,
@@ -293,8 +302,6 @@ class PassLog:
 
         In: what asked it to stop. Out: the line is written.
         """
-        # Read back by `model watch` as the state word, so a pass you ended with
-        # `model stop` reads as stopped rather than as an incident to investigate.
         self._say(f"STOPPED after {self.n} runs: {why}")
 
     def close(self) -> None:

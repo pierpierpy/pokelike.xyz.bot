@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, summarise
-from .passlog import LEARN_K
+from ...logging import LEARN_K
 from .versions import (BROWSER, GAME, RUNNER, _bench, cross_run_memory,
                        fingerprints, slug, versions)
 

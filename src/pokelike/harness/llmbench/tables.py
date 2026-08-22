@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, _tok
-from .passlog import LEARN_K
+from ...logging import LEARN_K
 from .pricing import cost
 from .versions import _bench, cross_run_memory, versions
 

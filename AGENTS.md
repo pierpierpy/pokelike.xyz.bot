@@ -141,6 +141,13 @@ src/pokelike/
 │   ├── mirror/            builds site/ in five phases: phases, fetch,
 │   │                      signatures (the magic-byte check), build
 │   └── server.py          serves site/ from disk
+├── logging/             WHAT A MEASURED RUN WRITES DOWN, and the one thing
+│                        `arena/` and `harness/` both need: passlog (the table,
+│                        the decision trace, the runs file, the notebook and the
+│                        plan), heartbeat (how liveness is known), trace (the
+│                        per-decision enrichment). Here rather than inside either
+│                        one, because putting it in either would make the bot
+│                        competition depend on the model benchmark or the reverse
 ├── stats/registry.py    SQLite in stats/runs.db
 ├── arena/               THE BOT COMPETITION: your code is the entry
 │   ├── bench/             the standard 50-seed benchmark: seeds, run, progress,

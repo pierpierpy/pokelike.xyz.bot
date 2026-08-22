@@ -546,7 +546,7 @@ def test_the_heartbeat_writes_who_is_playing(tmp_path):
     In: a heartbeat on a tmp path. Out: its file carries this process's pid.
     """
     import os
-    from pokelike.harness.llmbench.heartbeat import HeartbeatThread
+    from pokelike.logging import HeartbeatThread
 
     beat = HeartbeatThread(tmp_path / "x.alive")
     assert f"pid={os.getpid()}" in beat.owner and "host=" in beat.owner

@@ -23,6 +23,7 @@ def run_turn(
     max_rounds: int,
     call_model_fn: Any,
     answer_tool_fn: Any,
+    record_call_fn: Any = None,
     parse_index_fn: Any,
     as_index_fn: Any,
 ) -> tuple[int | None, str, int | None]:
@@ -60,6 +61,14 @@ def run_turn(
                 args = json.loads(c["function"].get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
+            # Recorded HERE, before the dispatch, because `play`, `set_lead` and a
+            # name the model invented all return or continue without reaching
+            # `answer_tool`, and those are three of the things worth knowing about a
+            # turn. Only the arguments that decide something are kept: a read-only
+            # tool takes none, and its answer is reconstructible from the state,
+            # which the trace already holds.
+            if record_call_fn is not None:
+                record_call_fn(name, args)
 
             if name == "play":
                 return as_index_fn(args.get("index")), str(args.get("why", "")), lead

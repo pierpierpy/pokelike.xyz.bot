@@ -6,6 +6,9 @@ In: parsed args. Out: process exit code.
 from __future__ import annotations
 
 import sys
+import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 from ....arena.bench import CATEGORIES, STANDARD_SEEDS, format_result, run_benchmark
@@ -62,10 +65,99 @@ def cmd_bench(args) -> int:
 
     server, game = _server_and_game(args)
     try:
-        result = run_benchmark(
-            game, bot, bot_name=args.name or display, site=SITE_ROOT, seeds=seeds,
-            author=args.author, category=args.category, description=args.description,
+        # --- logging: same files the model benchmark writes, into the bot's folder
+        from ....logging import PassLog
+        from ....logging.trace import enrich_decision
+
+        # The bot folder: either a path given directly or the standard bots/ location.
+        if from_path:
+            bot_dir = (Path(args.bot).resolve().parent if args.bot.endswith("bot.py")
+                       else Path(args.bot).resolve())
+        else:
+            from ....bot.catalogue import folder as bot_folder
+            bot_dir = bot_folder(args.bot)
+
+        # One directory per bench invocation, timestamped + unique suffix.
+        log_base = bot_dir / "log"
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        while True:
+            log_dir = log_base / f"{ts}-{uuid.uuid4().hex[:4]}"
+            try:
+                log_dir.mkdir(parents=True, exist_ok=False)
+                break
+            except FileExistsError:
+                continue
+
+        stem = "bench-pass1"
+        header_lines = [
+            f"{datetime.now():%Y-%m-%d %H:%M:%S}  bot {display}",
+            f"{len(seeds)} seeds, seeds {seeds[0]}..{seeds[-1]}",
+        ]
+
+        def _bot_done_summary(log, one_pass):
+            """Summary line for a bot bench pass (no model-specific vocabulary)."""
+            s = one_pass.get("summary") or {}
+            mins = (time.time() - log.started) / 60
+            log._say(
+                f"done  {s.get('runs', log.n)} runs  "
+                f"{s.get('badges_mean')} badges  "
+                f"in {mins:.1f} min"
+            )
+
+        log = PassLog(
+            version="bot", model=display, seeds=seeds, workers=1,
+            folder=log_dir, stem=stem, header_lines=header_lines,
+            done_summary=_bot_done_summary,
         )
+
+        # Keep the last observation so the decision enricher can read the map.
+        seen: dict = {}
+        drawn = [""]
+
+        def on_step(obs, steps):
+            seen["obs"] = obs
+
+        def on_run(row, done_count, total):
+            now = time.time()
+            row["secs"] = round(now - _last[0], 1)
+            _last[0] = now
+            row["order"] = done_count
+            # Token counts for LLM bots.
+            if hasattr(bot, "metadata"):
+                n = bot.metadata()
+                row.update(
+                    tokens_in=n.get("tokens_in", 0),
+                    tokens_out=n.get("tokens_out", 0),
+                    calls=n.get("calls", 0),
+                    turns=n.get("turns", 0),
+                    fallbacks=n.get("fallbacks", 0),
+                    retries=n.get("retries", 0),
+                )
+            log.run(row)
+
+        def on_decision(e):
+            enriched = enrich_decision(e, bot, seen.get("obs"), drawn)
+            log.decision(enriched)
+
+        _last = [time.time()]
+
+        try:
+            result = run_benchmark(
+                game, bot, bot_name=args.name or display, site=SITE_ROOT, seeds=seeds,
+                author=args.author, category=args.category,
+                description=args.description,
+                on_run=on_run, on_decision=on_decision, on_step=on_step,
+            )
+        except BaseException:
+            log.close()
+            raise
+
+        # Write the done summary using the result.
+        log.done(result)
+        log.close()
+
+        print(f"  log {log.path}")
+        print(f"  decisions {log.trace_path}")
     finally:
         game.close()
         server.stop()

@@ -77,13 +77,13 @@ from .command import (  # noqa: F401
 )
 
 # --- heartbeat.py: liveness thread
-from .heartbeat import (  # noqa: F401
+from ...logging import (  # noqa: F401
     HEARTBEAT_SECS,
     HEARTBEAT_STALE,
 )
 
 # --- passlog.py: progress logging
-from .passlog import (  # noqa: F401
+from ...logging import (  # noqa: F401
     LEARN_K,
     PassLog,
 )

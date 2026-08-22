@@ -112,6 +112,7 @@ class LLMBot(Bot):
         self.tokens_in = self.tokens_out = self.retry_count = self.fallbacks = 0
         self.journal: list[str] = []
         self._last_why = ""
+        self._tool_calls: list[dict[str, Any]] = []
         self._pending: tuple[int | None, int | None, str] | None = None
 
     def reset(self, seed: int) -> None:
@@ -125,6 +126,7 @@ class LLMBot(Bot):
         self.calls = self.turns = self.tokens_used = self.fallbacks = 0
         self.tokens_in = self.tokens_out = self.retry_count = 0
         self._last_why = ""
+        self._tool_calls: list[dict[str, Any]] = []
         # Plan is always per-run (it describes a route through THIS map).
         self.plan = ""
         # Notebook survives reset only when cross_run_memory is on.
@@ -277,7 +279,32 @@ class LLMBot(Bot):
             max_rounds=self.cfg.max_rounds,
             call_model_fn=self.call_model, answer_tool_fn=self.answer_tool,
             parse_index_fn=self._parse_index, as_index_fn=self._as_index,
+            record_call_fn=self._record_call,
         )
+
+    def _record_call(self, name: str, args: dict[str, Any]) -> None:
+        """Keeps one tool call, as made, for this turn's trace.
+
+        In: the tool name and its arguments. Out: nothing (appended to the log).
+        """
+        entry: dict[str, Any] = {"tool": name}
+        for k in ("index", "id", "slot", "note", "route", "why"):
+            v = args.get(k)
+            if v not in (None, ""):
+                entry[k] = v[:160] if isinstance(v, str) else v
+        self._tool_calls.append(entry)
+
+    def tool_calls_made(self) -> list[dict[str, Any]]:
+        """The tool calls of the turn just decided, and clears them.
+
+        In: nothing. Out: one dict per call, in the order the model made them.
+        """
+        # Read once per decision by whatever is logging, which is why it empties:
+        # the next turn's calls must not carry the last turn's with them. `play` and
+        # `set_lead` never reach `answer_tool`, so they are recorded in the loop
+        # rather than here.
+        calls, self._tool_calls = self._tool_calls, []
+        return calls
 
     def tools(self) -> list[dict[str, Any]]:
         """Returns the tool declarations offered to the model.
