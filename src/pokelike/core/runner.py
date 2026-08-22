@@ -229,19 +229,39 @@ def play_campaign(
         opening = bot.region_cleared(done)
         bot.reset_memory()
 
-    total = sum(r.get("badges", 0) for r in runs)
-    return {
+    def total_of(key: str) -> int:
+        return sum(r.get(key) or 0 for r in runs)
+
+    # BUILT FROM THE LAST REGION'S ROW, not typed out fresh. A campaign has to
+    # answer every column a run answers, or a table that reads a row shows a blank
+    # where a number belongs, and the first version of this did exactly that: it
+    # listed the keys it happened to be thinking about and quietly dropped `score`,
+    # `kos`, `faints`, `maps`, `final_state` and the rest. Starting from the run and
+    # overriding the totals means a key added to `play_run` is answered here too.
+    #
+    # INHERITED is about where the campaign ENDED (region, final_state, score_detail,
+    # team, ending): it stops at the region it did not win, so that row is its
+    # outcome. REPLACED is summed across the regions, the way badges are, because
+    # one bot earned all of it. The per-region rows stay under `regions`.
+    out = dict(runs[-1]) if runs else {}
+    out.update({
         "seed": seed,
+        "badges": total_of("badges"),
+        "steps": total_of("steps"),
+        "score": total_of("score"),
+        "score_raw": total_of("score_raw"),
+        "maps": total_of("maps"),
+        "kos": total_of("kos"),
+        "faints": total_of("faints"),
+        "stalled": any(r.get("stalled") for r in runs),
         "regions": runs,
         "regions_played": len(runs),
         "regions_cleared": sum(1 for r in runs if r.get("ending") == "win-screen"),
-        "badges": total,
-        "steps": sum(r.get("steps", 0) for r in runs),
-        "ending": runs[-1].get("ending") if runs else None,
         # The flattened trace runs four regions together, so each entry says which
         # one it came from, or the concatenation cannot be read. The per-region
         # traces under `regions` are left exactly as play_run wrote them, which is
         # what keeps a single-region decision log what it has always been.
         "trace": [{**e, "region": r["region"]} for r in runs
                   for e in (r.get("trace") or [])],
-    }
+    })
+    return out

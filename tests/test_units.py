@@ -1487,3 +1487,31 @@ def test_campaign_trace_says_which_region_each_decision_came_from():
     # The per-region traces stay exactly as play_run wrote them, which is what keeps a
     # single-region decision log what it has always been.
     assert all("region" not in e for r in out["regions"] for e in r["trace"])
+
+
+def test_a_campaign_answers_every_column_a_run_answers():
+    """A blank in a table is a key nobody carried over. This is why they cannot be typed by hand.
+
+    In: a campaign over two regions. Out: no key of a run's row is missing.
+    """
+    from pokelike.core import runner
+    from pokelike.bot import RandomBot
+
+    row = {"seed": 1, "region": "kanto", "steps": 20, "score": 15, "score_raw": 900,
+           "badges": 8, "maps": 0, "kos": 30, "faints": 2, "ending": "win-screen",
+           "stalled": False, "team": [], "final_state": {}, "score_detail": {},
+           "trace": [{"step": 0}]}
+    real = runner.play_run
+    try:
+        runner.play_run = lambda game, b, seed, region=1, **kw: dict(
+            row, region=("kanto" if region in (1, "kanto") else "johto"))
+        out = runner.play_campaign(None, RandomBot(seed=0), seed=1,
+                                   regions=["kanto", "johto"])
+    finally:
+        runner.play_run = real
+
+    assert not set(row) - set(out)
+    # The measured columns are summed, the way badges are.
+    assert (out["badges"], out["score"], out["kos"], out["faints"]) == (16, 30, 60, 4)
+    # What says where it ended is inherited from the last region played.
+    assert out["region"] == "johto"
