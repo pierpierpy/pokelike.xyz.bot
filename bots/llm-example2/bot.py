@@ -160,8 +160,14 @@ Think briefly, then call `play`. Always call `play`."""
         # inline, because asking for them costs a round trip.
         run = state.get("run") or {}
         team = state.get("team") or []
+        # The region goes here when it is not Kanto, exactly as the built-in view does
+        # it. Replacing the view means inheriting the job of saying WHERE you are: the
+        # built-in one carries the region in every mode it has, and a custom line that
+        # leaves it out is a model playing Johto believing it is in Kanto.
+        where = state.get("region") or "kanto"
         out = [f"TURN {state.get('steps', 0)}   map {run.get('map', 0)}   "
-               f"{run.get('badges', 0)} badges   {len(team)} alive"]
+               f"{run.get('badges', 0)} badges   {len(team)} alive"
+               + (f"   region: {where}" if where != "kanto" else "")]
 
         if team:
             out += ["", "TEAM (slot 0 leads the next battle)"]

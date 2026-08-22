@@ -238,6 +238,8 @@ against 200k with three turns kept: affordable, and worth knowing before you set
 | `drop_tools` | `()` | shared tools to leave out |
 | `keep_across_regions` | `("notes",)` | what survives when a campaign crosses into the next region |
 
+**Replacing `render_state` inherits the job of saying WHERE you are.** All four built-in views carry the region (`screen` in the header, `json` as a key, `both` in each, a key list only if you ask for it), and a custom view that leaves it out is a model playing Johto believing it is in Kanto. Both example bots name it when it is not Kanto, and say nothing when it is, which keeps a Kanto turn what it always was.
+
 The last six arrived with `HARNESS = 2` and are **off by default on purpose**: a bot's
 fingerprint covers `bot.py` and `artifacts/`, not this library, so a changed default
 would silently make every result already recorded a claim about code that no longer

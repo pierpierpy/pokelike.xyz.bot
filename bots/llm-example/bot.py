@@ -118,8 +118,12 @@ Think briefly, then call `play`. Always call `play`."""
         # the view cannot cost the bot its memory or leave the model without the range.
         run = state.get("run") or {}
         team = state.get("team") or []
+        # Named when it is not Kanto, as the built-in view does it: a custom view
+        # that drops the region is a model playing Johto believing it is in Kanto.
+        where = state.get("region") or "kanto"
         parts = [f"TURN {state.get('steps', 0)}, map {run.get('map', 0)}, "
-                 f"{run.get('badges', 0)} badges, {len(team)} Pokemon alive."]
+                 f"{run.get('badges', 0)} badges, {len(team)} Pokemon alive."
+                 + (f" Region: {where}." if where != "kanto" else "")]
 
         if team:
             parts += ["", "YOUR TEAM"]
