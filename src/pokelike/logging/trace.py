@@ -39,8 +39,9 @@ def enrich_decision(
 
     # The region, so a campaign's trace says WHERE each decision was taken: the map
     # number restarts at every boundary, and without this `map 1` means four things.
-    # Only when it is not Kanto, so a single-region trace is what it has always been.
-    if obs and obs.get("region") and obs["region"] != "kanto":
+    # ALWAYS, including Kanto: a campaign starts there, and a live view that stays blank
+    # until the first boundary is a view that says nothing for the whole first region.
+    if obs and obs.get("region"):
         extra["region"] = obs["region"]
 
     # Map picture: drawn from the observation when it carries nodes.
