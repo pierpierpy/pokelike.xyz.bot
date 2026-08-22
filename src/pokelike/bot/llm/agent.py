@@ -119,6 +119,11 @@ class LLMBot(Bot):
         # Scratchpad: the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
         self._turn_state: dict[str, Any] | None = None
+        # The last exchange with the model, kept so it can be looked at afterwards.
+        # A turn can call the model several times, and the messages list GROWS across
+        # those rounds, so the last one holds the whole conversation of the turn.
+        self.last_sent: list[dict[str, Any]] = []
+        self.last_reply: dict[str, Any] | None = None
 
     def reset(self, seed: int) -> None:
         """Resets all per-run state for a new game.
@@ -615,6 +620,10 @@ class LLMBot(Bot):
             seed=self.seed, retries=self.cfg.retries,
             token_budget=self.cfg.token_budget, tokens_used=self.tokens_used,
         )
+        # Copied, because the caller keeps appending to this same list: without the
+        # copy this would show the end of the turn rather than what was just sent.
+        self.last_sent = [dict(m) for m in messages]
+        self.last_reply = message
         self.calls += 1
         self.retry_count += usage.pop("retries", 0)
         self.tokens_in += usage.get("prompt_tokens", 0)
