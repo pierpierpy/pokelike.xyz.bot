@@ -123,14 +123,13 @@ Think briefly, then call `play`. Always call `play`."""
         token_budget=80_000,    # about 3x a normal run. Hitting it ENDS the run,
                                 # on purpose: a runaway loop should stop, not creep
 
-        # IGNORED HERE. Only the built-in render_state reads this, and section 4
-        # replaces that method. Delete the override and it starts counting again.
-        state_view="screen",    # "screen", "json" (6x the tokens), "both", or a key list
+        state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
+                                # the only thing that reads this. "json" is 6x the tokens
 
         memory=12,              # journal lines. -1 keeps every turn
         scratch_turns=3,        # whole turns kept. -1 keeps all, and costs about 5x
-        # IGNORED HERE, same reason: section 5 replaces render_scratch.
-        scratch_state="brief",  # line (a marker), brief (facts), full (the old screen)
+        scratch_state="brief",  # IGNORED HERE: section 5 replaces render_scratch.
+                                # line (a marker), brief (facts), full (the old screen)
         notes_cap=12,           # notes it may hold. 0 turns the notebook off
         note_chars=200,         # longer notes are cut, not refused
         cross_run_memory=True,  # the point of generation 2: notes outlive the run
