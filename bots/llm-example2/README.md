@@ -22,8 +22,14 @@ The sibling shows `HARNESS = 1`: a prompt, one user message, four tools. This on
 | every knob | the four memories, set explicitly, each with the reason |
 | `tools()` | dropping `what_lies_ahead`, because the view already prints the exits |
 | `render_state` | HP as a percentage, the exits inline, the consequence spelled out |
-| `render_scratch` | the new seam: what a KEPT turn shows instead of its old screen |
+| `add_metadata` | one knob of its own, recorded beside the score |
 | `metadata` | recording what it varied, so a row says what it was allowed to do |
+
+Every knob is set away from its default on purpose, so the file is a list of what there
+is to turn. The two seams it uses EXTEND rather than replace (`render_state` calls
+`super()` and appends), because replacing a method kills the knob that feeds it:
+override `render_state` outright and `state_view` stops meaning anything, override
+`render_scratch` and `scratch_state` does.
 
 Its four memories, and what each costs:
 
