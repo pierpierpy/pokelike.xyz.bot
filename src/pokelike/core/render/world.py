@@ -221,3 +221,30 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
         paint(".walked.", "done"), paint(" unseen ", "far"),
     ])
     return "\n".join([f"  {top}", *[framed(t, mk) for t, mk in rows], f"  {bot}", legend])
+
+
+def exits_of(state: dict[str, Any], unique: bool = False) -> dict[int, list[str]]:
+    """Where each legal option leads on the next layer.
+
+    In: a state, and whether to collapse repeats. Out: {option index: the kinds of
+    node it leads to}, with options that are not map moves left out.
+    """
+    # The map is a graph: `nodes` have kinds, `edges` are (from, to) pairs. Walking
+    # them is what tells you that picking one node opens a pokecenter and picking the
+    # other does not, which is the whole reason to look before choosing. Written once
+    # here because every LLM bot wants it and two copies had already drifted.
+    world = state.get("map") or {}
+    kind_of = {node["id"]: node["kind"] for node in world.get("nodes") or []}
+
+    leads_to: dict[str, list[str]] = {}
+    for source, target in world.get("edges") or []:
+        if target in kind_of:
+            leads_to.setdefault(source, []).append(kind_of[target])
+
+    exits: dict[int, list[str]] = {}
+    for index, option in enumerate(state.get("actions") or []):
+        if option.get("kind") != "node":
+            continue                      # a button, not a step on the map
+        kinds = leads_to.get(option.get("id"), [])
+        exits[index] = sorted(set(kinds)) if unique else sorted(kinds)
+    return exits

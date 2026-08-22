@@ -1311,3 +1311,29 @@ def test_play_may_be_neither_dropped_nor_redeclared():
     # `index` and `why` out of a schema that no longer promises them.
     with pytest.raises(LLMConfigError):
         Redeclares(seed=0, endpoint="x", token="t", model="m").tools()
+
+
+def test_exits_of_reads_the_map_edges():
+    """Where each option leads, which is why looking before choosing is possible.
+
+    In: a state with a map. Out: the node kinds each option reaches next.
+    """
+    from pokelike.core import render
+
+    state = {
+        "map": {"nodes": [{"id": "a", "kind": "trade"}, {"id": "b", "kind": "trainer"},
+                          {"id": "p", "kind": "pokecenter"}, {"id": "q", "kind": "question"},
+                          {"id": "r", "kind": "pokecenter"}],
+                "edges": [("a", "p"), ("b", "p"), ("b", "q"), ("b", "r")]},
+        "actions": [{"kind": "node", "id": "a", "node": "trade"},
+                    {"kind": "node", "id": "b", "node": "trainer"},
+                    {"kind": "button", "label": "BACK"}],
+    }
+    exits = render.exits_of(state)
+    assert exits[0] == ["pokecenter"]
+    # Faithful to the edges by default: two pokecenters are two pokecenters, which is
+    # what `what_lies_ahead` has always said and models have been reading.
+    assert exits[1] == ["pokecenter", "pokecenter", "question"]
+    assert render.exits_of(state, unique=True)[1] == ["pokecenter", "question"]
+    assert 2 not in exits, "a button is not a step on the map"
+    assert render.exits_of({"actions": []}) == {}, "no map, no exits"

@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig, tool
+from pokelike.core import render
 
 
 class Example2Bot(LLMBot):
@@ -160,33 +161,14 @@ Think briefly, then call `play`. Always call `play`."""
                     f"{(move.get('type') or '').lower()}{stab}")
 
         out += ["", "OPTIONS"]
-        exits = self._exits(state)
+        exits = render.exits_of(state, unique=True)
         for i, a in enumerate(state.get("actions") or []):
             tip = f"  ({a['tooltip']})" if a.get("tooltip") else ""
-            after = f"  -> then: {exits[i]}" if exits.get(i) else ""
+            after = f"  -> then: {', '.join(exits[i])}" if exits.get(i) else ""
             out.append(f"  [{i}] {a.get('node') or a.get('label', '')}{tip}{after}")
         if state.get("screen") == "map-screen" and len(state.get("actions") or []) > 1:
             out.append("  Picking one closes the others on this layer for good.")
         return "\n".join(out)
-
-    @staticmethod
-    def _exits(state: dict[str, Any]) -> dict[int, str]:
-        """In: the state. Out: for each option, the node kinds it leads to next."""
-        # The map has nodes and edges; this reads them so the view can print
-        # "-> then: pokecenter, trainer". Private, mine, no contract.
-        m = state.get("map")
-        if not m:
-            return {}
-        by_id = {n["id"]: n for n in m["nodes"]}
-        out: dict[int, str] = {}
-        for i, a in enumerate(state.get("actions") or []):
-            if a.get("kind") != "node":
-                continue
-            after = sorted({by_id[t]["kind"] for f, t in m["edges"]
-                            if f == a.get("id") and t in by_id})
-            if after:
-                out[i] = ", ".join(after)
-        return out
 
     # -------------------------------------------------------- 5. a kept turn's slot
     def render_scratch(self, state: dict[str, Any]) -> str:

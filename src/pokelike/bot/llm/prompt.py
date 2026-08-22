@@ -77,20 +77,14 @@ def exits_text(state: dict[str, Any]) -> str:
     In: the full state dict. Out: a multi-line string showing each action's index
     and where it leads on the next layer.
     """
-    m = state.get("map")
-    if not m:
+    if not state.get("map"):
         return "You are not on the map: this choice opens or closes no paths."
-    by_id = {n["id"]: n for n in m["nodes"]}
+    exits = render.exits_of(state)
     rows = []
     for i, a in enumerate(state["actions"]):
-        if a.get("kind") != "node":
+        if i not in exits:
             rows.append(f"  [{i}] {a.get('label', '')[:60]}")
             continue
-        after = [
-            by_id[t]["kind"]
-            for f, t in m["edges"]
-            if f == a["id"] and t in by_id
-        ]
-        follows = ", ".join(sorted(after)) if after else "nothing (end of map)"
+        follows = ", ".join(exits[i]) if exits[i] else "nothing (end of map)"
         rows.append(f"  [{i}] {a['node']:<12} -> leads to: {follows}")
     return "Exits on the next layer:\n" + "\n".join(rows)

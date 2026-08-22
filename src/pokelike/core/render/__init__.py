@@ -16,11 +16,13 @@ from .world import (
     EMOJI,
     ICONS,
     LEGEND,
+    exits_of,
     graph_view,
     map_view,
 )
 
 __all__ = [
+    "exits_of",
     "ANSI",
     "EMOJI",
     "ICONS",
