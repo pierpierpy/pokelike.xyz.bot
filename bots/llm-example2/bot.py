@@ -53,6 +53,12 @@ A note worth keeping carries a number or a name:
   bad   "be careful with trainers"        nothing changes because of it
   bad   "I am on map 1"                   false in a minute
 
+FOUR REGIONS
+Kanto, Johto, Hoenn and Sinnoh. Each is a whole game: a new starter, eight of its own
+gyms, its own Elite Four, badges from zero. Only your NOTES cross a boundary, so a note
+about Brock is worth nothing in Johto while "heal before every gym" is worth something
+everywhere. Write the second kind.
+
 The turn ENDS at `play`, so anything called after it is thrown away. Call `plan`,
 `remember` and the rest FIRST, `play` last.
 
@@ -133,6 +139,9 @@ Think briefly, then call `play`. Always call `play`."""
         notes_cap=12,           # notes it may hold. 0 turns the notebook off
         note_chars=200,         # longer notes are cut, not refused
         cross_run_memory=True,  # the point of generation 2: notes outlive the run
+        keep_across_regions=("notes",),   # what crosses into the NEXT region. The plan and
+                                          # the kept turns are about a map that will not
+                                          # exist there; a lesson might still hold
         plan_chars=600,         # room for a route that names its nodes
 
         bag_tool=True,          # a shared tool now, no code needed
@@ -191,7 +200,29 @@ Think briefly, then call `play`. Always call `play`."""
                 f"map {run.get('map', 0)}, {run.get('badges', 0)} badges, "
                 f"{len(team)} alive, weakest at {low:.0%}]")
 
-    # -------------------------------------------------------------- 6. what is filed
+    # ----------------------------------------------------------- 6. between regions
+    def region_cleared(self, done: dict[str, Any]) -> str | None:
+        """In: the region result. Out: what the next region opens with."""
+        # Called with the memory STILL INTACT, which is what makes this possible: the
+        # model reads its own journal and its last exchanges and writes the summary
+        # itself, instead of taking ours. The forgetting happens after this returns.
+        try:
+            reply = self.call_model([
+                {"role": "system", "content":
+                    f"You just cleared {done['region']} with {done['badges']} badges. "
+                    f"Next is {done['next']}, a new game: new starter, new gyms, badges "
+                    f"from zero, and only your notes come with you. In five lines, write "
+                    f"what you learned that will still be true there."},
+                *self.memory_messages(),
+                {"role": "user", "content": self.memory_text()},
+            ], tools=[])       # prose, not a tool call: with tools attached it plays
+            return (reply.get("content") or "").strip() or super().region_cleared(done)
+        except Exception:      # noqa: BLE001
+            # A summary is a nicety: a failed call must not end a campaign that is
+            # going well. Fall back to the standard sentence.
+            return super().region_cleared(done)
+
+    # -------------------------------------------------------------- 7. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """In: nothing. Out: my own facts, written beside the score."""
         # Only what nothing else could know. The model, the harness generation, the

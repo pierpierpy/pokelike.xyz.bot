@@ -11,9 +11,9 @@
     "render.py": "844d2cc05b8abe58",
     "bridge.js": "ed4607926573b2cc",
     "init.js": "6274624ff7590dd9",
-    "shared/browser.py": "9a71111f47eeb94b",
-    "shared/game.py": "495f7ef41807192d",
-    "shared/runner.py": "243053ac72930b66"
+    "shared/browser.py": "e4600def5df8fc88",
+    "shared/game.py": "454435d2fc44ae19",
+    "shared/runner.py": "2894ea96fb3db738"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1767,7 +1767,23 @@
     }
    ],
    "log": "/app/llm-bench/v4/logs/20260821-135833/google--gemini-3.7-flash-pass1.log",
-   "trace": "/app/llm-bench/v4/logs/20260821-135833/google--gemini-3.7-flash-pass1.jsonl"
+   "trace": "/app/llm-bench/v4/logs/20260821-135833/google--gemini-3.7-flash-pass1.jsonl",
+   "refingerprinted": [
+    {
+     "on": "2026-08-22T13:49:44+00:00",
+     "was": {
+      "shared/browser.py": "9a71111f47eeb94b",
+      "shared/game.py": "495f7ef41807192d",
+      "shared/runner.py": "243053ac72930b66"
+     },
+     "now": {
+      "shared/browser.py": "e4600def5df8fc88",
+      "shared/game.py": "454435d2fc44ae19",
+      "shared/runner.py": "2894ea96fb3db738"
+     },
+     "why": "regions: core/game.py, core/browser.py and core/runner.py changed so a run can play any of the four story regions. Every recorded row played Kanto under the code of its day; its numbers are untouched."
+    }
+   ]
   }
  ]
 }

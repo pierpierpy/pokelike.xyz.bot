@@ -31,12 +31,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _write(path: Path, doc: dict) -> None:
+    """Replaces a result file atomically.
+
+    In: the path and the document. Out: nothing; the file is replaced.
+    """
+    # Through a temp file in the same directory and os.replace, for two reasons.
+    # A reader (the standings, another process) never sees a half-written result.
+    # And replacing needs write permission on the DIRECTORY, not on the file, which
+    # is what lets this re-stamp a result written by a container running as root
+    # before the compose file learned to run as the calling user.
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _tree_dirty() -> bool:
@@ -181,7 +197,7 @@ def _apply_bot(entry: dict, reason: str, now_iso: str) -> None:
     }
     doc.setdefault("refingerprinted", []).append(log_entry)
     doc["fingerprint"] = entry["current"]
-    path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    _write(path, doc)
 
 
 def _apply_llmbench(entry: dict, reason: str, now_iso: str) -> None:
@@ -200,7 +216,7 @@ def _apply_llmbench(entry: dict, reason: str, now_iso: str) -> None:
         "why": reason,
     }
     p.setdefault("refingerprinted", []).append(log_entry)
-    path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    _write(path, doc)
 
 
 # ---------------------------------------------------------------------- main

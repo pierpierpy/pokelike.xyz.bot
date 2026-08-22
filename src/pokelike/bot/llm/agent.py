@@ -597,7 +597,8 @@ class LLMBot(Bot):
         """Describes where each legal action leads on the map."""
         return exits_text(state)
 
-    def call_model(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    def call_model(self, messages: list[dict[str, Any]],
+                   tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Calls the model endpoint and updates token counters.
 
         In: the messages list (OpenAI format). Out: the assistant message dict.
@@ -605,7 +606,11 @@ class LLMBot(Bot):
         """
         message, usage = call_model_http(
             messages=messages, model=self.model, endpoint=self.endpoint,
-            token=self.token, tools=self.tools(),
+            # `tools=[]` asks for prose: a model with tools attached will often
+            # answer a question with a tool call, which is right in a turn and wrong
+            # when what you wanted was a sentence (a region summary, say). None means
+            # the bot's usual set.
+            token=self.token, tools=self.tools() if tools is None else tools,
             temperature=self.cfg.temperature, max_tokens=self.cfg.max_tokens,
             seed=self.seed, retries=self.cfg.retries,
             token_budget=self.cfg.token_budget, tokens_used=self.tokens_used,
