@@ -16,6 +16,8 @@ The two that are easy to get wrong, and were:
 
 from __future__ import annotations
 
+from typing import Any
+
 # ---------------------------------------------------------------- what is true
 
 GAME_RULES = """You are playing Pokelike, a Pokemon roguelike.
@@ -117,3 +119,130 @@ TOOLS = [
 
 
 _STOCK_TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
+
+
+# ----------------------------------------------------------------- opt-in tools
+#
+# These are NOT in TOOLS (the default four). They are offered only when the config
+# enables them: notes_cap > 0 adds the three memory tools, plan_chars > 0 adds
+# `plan`, bag_tool adds `bag`. That way existing bots whose config has none of
+# those fields keep the exact tool set they had before.
+
+REMEMBER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "remember",
+        "description": (
+            "Write down something you have learned about this game, to be shown "
+            "back to you on every later turn AND in later runs. Use it for "
+            "lessons that will still be true next time, not for what is on "
+            "screen now. Keep each note short and concrete."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "note": {"type": "string", "description": "one lesson, one sentence"},
+            },
+            "required": ["note"],
+        },
+    },
+}
+
+REVISE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "revise",
+        "description": (
+            "Replace one of your notes with a better version of it. Use this "
+            "when a lesson turns out to be half right: your notes are capped, "
+            "so sharpening one is often worth more than adding another."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "which note, as numbered"},
+                "note": {"type": "string", "description": "what it should say instead"},
+            },
+            "required": ["id", "note"],
+        },
+    },
+}
+
+FORGET_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "forget",
+        "description": (
+            "Delete one of your notes. Worth doing when a lesson was wrong, or "
+            "when you need the room for a better one."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "which note, as numbered"},
+            },
+            "required": ["id"],
+        },
+    },
+}
+
+PLAN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "plan",
+        "description": (
+            "Write down the route you mean to take through this map, and why. "
+            "It is shown back to you every turn until you change it, so it is "
+            "how a decision made now reaches the turn that has to honour it. "
+            "Calling this again replaces it. Choosing a node closes every other "
+            "node on that layer forever, so the order you take them in is most "
+            "of the game."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "route": {
+                    "type": "string",
+                    "description": "the plan, in a sentence or two",
+                },
+            },
+            "required": ["route"],
+        },
+    },
+}
+
+BAG_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "bag",
+        "description": "What you are carrying: items in your bag.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+
+NOTEBOOK_TOOLS = [REMEMBER_TOOL, REVISE_TOOL, FORGET_TOOL]
+
+
+def build_tools(
+    *,
+    notes_cap: int = 0,
+    plan_chars: int = 0,
+    bag_tool: bool = False,
+    extra_tools: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Assembles the full tool list from the config flags.
+
+    In: the three feature flags and any extra tools. Out: the list of OpenAI
+    function-calling tool dicts, always ending with the caller's extras.
+    """
+    result = list(TOOLS)
+    if notes_cap > 0:
+        result.extend(NOTEBOOK_TOOLS)
+    if plan_chars > 0:
+        result.append(PLAN_TOOL)
+    if bag_tool:
+        result.append(BAG_TOOL)
+    if extra_tools:
+        result.extend(extra_tools)
+    return result

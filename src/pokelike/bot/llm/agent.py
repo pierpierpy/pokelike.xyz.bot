@@ -17,14 +17,19 @@ from .config import LLMBudgetError, LLMConfig, LLMConfigError, LLMError
 from .fallback import _as_index, _parse_index, fallback_move_default
 from .journal import build_user_message, journal_entry, trim_journal
 from .loop import run_turn
+from .notebook import Notebook
 from .prompt import exits_text, render_state_default, state_view_label
 from .record import build_artifacts, build_metadata
-from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES
+from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES, build_tools
 from .transport import call_model_http
 
 # Generation of the shared loop. Written into every result; a row measured under
 # a different number is marked as such rather than ranked as if it were the same.
-HARNESS = 1
+#   1  agentic loop with team_details / what_lies_ahead / set_lead / play,
+#      situation rendered by core.render.screen, prose index as last resort
+#   2  opt-in notebook (remember/revise/forget), plan, and bag tools,
+#      configurable per-note char limit, cross-run memory, plan_chars cap
+HARNESS = 2
 
 
 class LLMBot(Bot):
@@ -76,6 +81,12 @@ class LLMBot(Bot):
                 '  export MODEL_ID="gpt-4o-mini"      or      --model gpt-4o-mini'
             )
         self.verbose = verbose or bool(os.environ.get("POKELIKE_VERBOSE"))
+        # Notebook: only constructed when notes_cap > 0.
+        self._notebook: Notebook | None = None
+        if self.cfg.notes_cap > 0:
+            self._notebook = Notebook(self.cfg.notes_cap, self.cfg.note_chars)
+        # Plan: per-run route, only active when plan_chars > 0.
+        self.plan: str = ""
         self._validate_tools()
         self._init_counters()
 
@@ -114,6 +125,11 @@ class LLMBot(Bot):
         self.calls = self.turns = self.tokens_used = self.fallbacks = 0
         self.tokens_in = self.tokens_out = self.retry_count = 0
         self._last_why = ""
+        # Plan is always per-run (it describes a route through THIS map).
+        self.plan = ""
+        # Notebook survives reset only when cross_run_memory is on.
+        if self._notebook and not self.cfg.cross_run_memory:
+            self._notebook.clear()
 
     def metadata(self) -> dict[str, Any]:
         """Returns run metadata for the registry and benchmark results.
@@ -121,7 +137,7 @@ class LLMBot(Bot):
         In: nothing. Out: a dict with model, harness, token counts, fallback_rate,
         and view/tool configuration.
         """
-        return build_metadata(
+        meta = build_metadata(
             model=self.model, harness_version=self.harness_version,
             bot_class_name=type(self).__name__,
             calls=self.calls, turns=self.turns, tokens_used=self.tokens_used,
@@ -130,6 +146,19 @@ class LLMBot(Bot):
             temperature=self.cfg.temperature,
             tool_names=self.tool_names(), state_view_label=self._state_view_label(),
         )
+        # Report notebook/plan settings and current state so a result records
+        # what the bot was allowed to do and what it held at the end.
+        if self._notebook:
+            meta["notes_cap"] = self.cfg.notes_cap
+            meta["notes_kept"] = len(self._notebook.notes)
+            meta["notebook"] = list(self._notebook.notes)
+            meta["cross_run_memory"] = self.cfg.cross_run_memory
+        if self.cfg.plan_chars > 0:
+            meta["plan_chars"] = self.cfg.plan_chars
+            meta["plan"] = self.plan
+        if self.cfg.bag_tool:
+            meta["bag_tool"] = True
+        return meta
 
     def tool_names(self) -> list[str]:
         """Returns the names of all tools offered to the model."""
@@ -256,7 +285,12 @@ class LLMBot(Bot):
         In: nothing. Out: list of OpenAI function-calling tool dicts.
         """
         cfg = getattr(self, "cfg", None) or self.config
-        return [*TOOLS, *cfg.extra_tools]
+        return build_tools(
+            notes_cap=cfg.notes_cap,
+            plan_chars=cfg.plan_chars,
+            bag_tool=cfg.bag_tool,
+            extra_tools=cfg.extra_tools,
+        )
 
     def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
         """Answers one tool call and returns the result shown to the model.
@@ -268,6 +302,18 @@ class LLMBot(Bot):
             return render.team_view(state.get("team")) or "(empty team)"
         if name == "what_lies_ahead":
             return exits_text(state)
+        if name in ("remember", "revise", "forget"):
+            if self._notebook is None:
+                return f"unknown tool: {name}"
+            return self._notebook.handle(name, args)
+        if name == "plan":
+            if self.cfg.plan_chars <= 0:
+                return f"unknown tool: {name}"
+            return self._handle_plan(args)
+        if name == "bag":
+            if not self.cfg.bag_tool:
+                return f"unknown tool: {name}"
+            return self._handle_bag(state)
         return f"unknown tool: {name}"
 
     def render_state(self, state: dict[str, Any]) -> str:
@@ -288,11 +334,49 @@ class LLMBot(Bot):
 
         In: the state dict. Out: the complete user-role message string.
         """
+        notes_block = self._notebook.view_block() if self._notebook else None
+        plan_block = self._plan_block() if self.cfg.plan_chars > 0 else None
         return build_user_message(
             state_view=self.render_state(state),
             journal=self.journal,
             n_actions=len(state["actions"]),
+            notes_block=notes_block,
+            plan_block=plan_block,
         )
+
+    def _handle_plan(self, args: dict[str, Any]) -> str:
+        """Handles the plan tool call: stores or replaces the route plan.
+
+        In: the tool arguments. Out: confirmation shown to the model.
+        """
+        # Truncated rather than refused: a plan cut short is still a plan.
+        route = str(args.get("route") or "").strip().replace("\n", " ")
+        if not route:
+            return "nothing to plan: `route` was empty."
+        had = bool(self.plan)
+        self.plan = route[: self.cfg.plan_chars]
+        return (("plan replaced. " if had else "plan noted. ")
+                + "You will see it every turn until you change it.")
+
+    def _handle_bag(self, state: dict[str, Any]) -> str:
+        """Handles the bag tool call: returns items the player is carrying.
+
+        In: the state dict. Out: a comma-separated list of bag items.
+        """
+        bag = state.get("bag") or []
+        return ", ".join(str(item) for item in bag) or "(empty)"
+
+    def _plan_block(self) -> list[str]:
+        """The current plan as lines for the user message, or an invitation.
+
+        In: nothing. Out: lines to insert into the user message.
+        """
+        if not self.plan:
+            return ["", "YOUR PLAN FOR THIS MAP: none yet. Use `plan` to write the "
+                    "route you mean to take, before the first choice closes options "
+                    "you wanted."]
+        return ["", f"YOUR PLAN FOR THIS MAP (yours, change it with `plan`): "
+                    f"{self.plan}"]
 
     def _exits_text(self, state: dict[str, Any]) -> str:
         """Describes where each legal action leads on the map."""

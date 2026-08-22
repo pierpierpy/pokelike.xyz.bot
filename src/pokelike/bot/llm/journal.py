@@ -50,17 +50,27 @@ def build_user_message(
     state_view: str,
     journal: list[str],
     n_actions: int,
+    *,
+    notes_block: list[str] | None = None,
+    plan_block: list[str] | None = None,
 ) -> str:
-    """Assembles the full user message: view, journal, and instruction line.
+    """Assembles the full user message: view, notes, plan, journal, instruction.
 
-    In: the rendered state view string, the journal list, and the number of legal
-    actions. Out: the complete user-role message for the model.
+    In: the rendered state view string, the journal list, the number of legal
+    actions, and optional notes/plan blocks. Out: the complete user-role message
+    for the model.
     """
     # Deliberately not the hook for bots. The journal separates what was done from
     # what was said about it, and the heading says so. It used to read YOUR RECENT
     # MOVES over a list of the model's own sentences, which is the one arrangement
     # that turns a guess into a fact by doing nothing at all.
     parts = [state_view]
+    # Notes and plan come before the journal: what was learned across runs
+    # outranks what happened in the last six turns of this one.
+    if notes_block:
+        parts += notes_block
+    if plan_block:
+        parts += plan_block
     if journal:
         parts += [
             "",

@@ -52,7 +52,8 @@ from .config import (  # noqa: F401
     StateView,
 )
 from .fallback import _as_index, _parse_index, fallback_move_default  # noqa: F401
-from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES  # noqa: F401
+from .notebook import Notebook  # noqa: F401
+from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES, build_tools  # noqa: F401
 
 __all__ = [
     "CLOSING",
@@ -63,10 +64,12 @@ __all__ = [
     "LLMConfig",
     "LLMConfigError",
     "LLMError",
+    "Notebook",
     "StateView",
     "TOOLS",
     "_STOCK_TOOL_NAMES",
     "_as_index",
     "_parse_index",
+    "build_tools",
     "fallback_move_default",
 ]

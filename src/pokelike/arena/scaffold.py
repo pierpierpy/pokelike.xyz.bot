@@ -138,13 +138,28 @@ from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 class {cls}(LLMBot):
     name = "{name}"
 
-    config = LLMConfig(prompt=GAME_RULES + """
+    config = LLMConfig(
+        prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Say something here that a model would not have done on its own. That is the
   whole experiment: `bots/llm-baseline/` is the same harness with no strategy,
   so anything you add is measured against it.
 
-Think briefly, then call `play`. Always call `play`.""")
+Think briefly, then call `play`. Always call `play`.""",
+        # --- notebook: the model writes notes that survive across runs ---
+        # Set to 0 to disable the notebook and the three memory tools entirely.
+        notes_cap=12,
+        note_chars=160,
+        cross_run_memory=True,
+        # --- plan: the model writes a route it sees every turn ---
+        # Set to 0 to disable the plan tool.
+        plan_chars=1200,
+        # --- bag: let the model ask what items it carries ---
+        bag_tool=True,
+        # --- more rounds: the memory tools need room ---
+        max_rounds=6,
+        max_tokens=4000,
+    )
 
     # Every field is optional; these are the defaults. Set the ones you want in
     # the LLMConfig above:
@@ -153,12 +168,17 @@ Think briefly, then call `play`. Always call `play`.""")
     #       prompt=...,
     #       model=None,          # pin an id, or leave $MODEL_ID to name it
     #       temperature=0.6,
-    #       max_tokens=1500,
-    #       max_rounds=4,        # tool rounds before the turn is given up on
+    #       max_tokens=4000,
+    #       max_rounds=6,        # tool rounds before the turn is given up on
     #       memory=6,            # past turns shown back to the model
     #       token_budget=0,      # per-run ceiling; 0 = none. ~30k is one run
     #       state_view="screen", # "json" | "both" | ["team", "actions", ...]
-    #       extra_tools=[...],   # your tools on top of the shared four
+    #       notes_cap=12,        # max notes; 0 = disabled
+    #       note_chars=160,      # character limit per note
+    #       cross_run_memory=True,  # notes survive between runs
+    #       plan_chars=1200,     # max plan length; 0 = disabled
+    #       bag_tool=True,       # offer the bag tool
+    #       extra_tools=[...],   # your tools on top of the shared ones
     #   )
     #
     # `state_view` is what the model READS each turn. The default is the ASCII
@@ -169,13 +189,13 @@ Think briefly, then call `play`. Always call `play`.""")
     #     return f"HP {...}"             # journal and instructions are added for you
 
     # If the prompt is not where your idea lives, give the model a tool the
-    # shared four do not offer, via config.extra_tools. `play` must survive --
+    # shared ones do not offer, via config.extra_tools. `play` must survive --
     # it is how a turn ends. Your result records that your tools differ, so the
     # row is read as the different question it is.
     #
     # def answer_tool(self, name, args, state):
-    #     if name == "bag":
-    #         return ", ".join(state.get("bag") or []) or "(empty)"
+    #     if name == "my_tool":
+    #         return "something useful"
     #     return super().answer_tool(name, args, state)
 '''
 

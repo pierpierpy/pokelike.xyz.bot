@@ -67,3 +67,14 @@ class LLMConfig(BaseModel):
     retries: int = 4                             # attempts on a transient HTTP failure
     extra_tools: list[dict[str, Any]] = Field(default_factory=list)
     state_view: StateView = "screen"             # what the model reads each turn
+
+    # --- notebook (remember/revise/forget): opt-in by setting notes_cap > 0 ---
+    notes_cap: int = 0                           # max notes; 0 = notebook disabled
+    note_chars: int = 160                        # character limit per note
+    cross_run_memory: bool = False               # True = notes survive reset()
+
+    # --- plan tool: opt-in by setting plan_chars > 0 ---
+    plan_chars: int = 0                          # max chars for the route plan; 0 = disabled
+
+    # --- bag tool: opt-in by setting bag_tool = True ---
+    bag_tool: bool = False                       # True = offer the bag tool
