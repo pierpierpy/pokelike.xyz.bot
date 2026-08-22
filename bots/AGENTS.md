@@ -273,11 +273,10 @@ inherit from `LLMBot`.
 which is the fastest way to see what a bot actually sends. The shape of it:
 
 ```python
-from pokelike import open_game        # the same door example.ipynb uses
+from pokelike import create, open_game    # the same two doors example.ipynb uses
 
 game = open_game()
-bot = build(load_class("bots/llm-example2/bot.py"))
-bot.reset(42)
+bot = create("llm-example2", seed=42)    # by folder name, or by path for experiments/
 state = game.reset(seed=42)
 
 sent = []                   # wrap call_model to see the request and the reply
