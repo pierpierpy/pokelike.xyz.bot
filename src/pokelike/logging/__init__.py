@@ -11,11 +11,13 @@ being logged keeps notes) rather than knowing about harnesses or models. Domain-
 specific sentences (what the log says about itself) are passed in by the caller.
 """
 
+from .conversation import Conversations
 from .heartbeat import HEARTBEAT_SECS, HEARTBEAT_STALE, HeartbeatThread
 from .passlog import LEARN_K, PassLog
 from .trace import enrich_decision
 
 __all__ = [
+    "Conversations",
     "HEARTBEAT_SECS",
     "HEARTBEAT_STALE",
     "HeartbeatThread",

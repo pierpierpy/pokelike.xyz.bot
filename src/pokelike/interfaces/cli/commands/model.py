@@ -64,6 +64,11 @@ def model_bench_args(s) -> None:
                    help="a setting this harness understands, repeatable. v4 takes "
                         "`--set notes=4` to cap its notebook. A different setting "
                         "is a different question, so it is recorded with the pass")
+    s.add_argument("--no-conv", action="store_true",
+                   help="do not write the conversations file. Every model exchange "
+                        "is logged beside the trace by default, which is what you "
+                        "read when a decision surprises you; it is also the biggest "
+                        "file a pass writes")
     s.add_argument("--dry-run", action="store_true",
                    help="play the seeds and print, but record nothing")
     s.add_argument("--docker", action="store_true",

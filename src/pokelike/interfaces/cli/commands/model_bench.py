@@ -215,6 +215,7 @@ def cmd_llm_bench(args) -> int:
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
                                               seeds, folder=folder, attempt=attempt,
+                                              conversations=not args.no_conv,
                                               settings=settings, **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "

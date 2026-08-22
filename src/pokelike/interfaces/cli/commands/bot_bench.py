@@ -66,7 +66,7 @@ def cmd_bench(args) -> int:
     server, game = _server_and_game(args)
     try:
         # --- logging: same files the model benchmark writes, into the bot's folder
-        from ....logging import PassLog
+        from ....logging import Conversations, PassLog
         from ....logging.trace import enrich_decision
 
         # The bot folder: either a path given directly or the standard bots/ location.
@@ -114,8 +114,16 @@ def cmd_bench(args) -> int:
         seen: dict = {}
         drawn = [""]
 
+        # Everything the model was given, beside the trace. Wraps the bot's own
+        # call_model, so it costs the bot nothing and a bot that talks to no model
+        # (the random one, a policy, a search) simply writes no file.
+        chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
+        if not getattr(args, "no_conv", False):
+            chat.watch(bot)
+
         def on_step(obs, steps):
             seen["obs"] = obs
+            chat.turn(obs.get("seed", 0), obs.get("steps", 0))
 
         def on_run(row, done_count, total):
             now = time.time()
@@ -136,6 +144,7 @@ def cmd_bench(args) -> int:
             log.run(row)
 
         def on_decision(e):
+            chat.flush()
             enriched = enrich_decision(e, bot, seen.get("obs"), drawn)
             log.decision(enriched)
 
@@ -149,10 +158,12 @@ def cmd_bench(args) -> int:
                 on_run=on_run, on_decision=on_decision, on_step=on_step,
             )
         except BaseException:
+            chat.close()
             log.close()
             raise
 
         # Write the done summary using the result.
+        chat.close()
         log.done(result)
         log.close()
 
@@ -254,6 +265,11 @@ def bot_bench_args(s) -> None:
     s.add_argument("--runs", type=int, default=0,
                    help="use only the first N standard seeds. A partial run is a "
                         "practice run: it prints the result and writes no entry")
+    s.add_argument("--no-conv", action="store_true",
+                   help="do not write the conversations file. Every model exchange "
+                        "is logged beside the trace by default, which is what you "
+                        "read when a decision surprises you; it is also the biggest "
+                        "file a pass writes")
     s.add_argument("--dry-run", action="store_true",
                    help="play all 50 and print the result, but write no entry")
     add_llm_flags(s)

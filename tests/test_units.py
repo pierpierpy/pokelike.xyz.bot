@@ -927,3 +927,93 @@ def test_no_env_file_is_not_an_error(tmp_path, monkeypatch):
     fake.touch()
     monkeypatch.setattr(sh, "__file__", str(fake))
     assert sh.load_dotenv() == []
+
+
+# ------------------------------------------------------- the conversations file
+#
+# What the model was actually given, recorded by WRAPPING the bot's own
+# `call_model`. Wrapping and not a callback, because the frozen harnesses build
+# their own messages and cannot be edited: a recorded result hashes those files. So
+# the recorder has to work from outside, and must leave the bot exactly as it found
+# it.
+
+
+def test_the_conversation_is_recorded_without_the_bot_cooperating(tmp_path):
+    """A bot that knows nothing about logging still gets logged.
+
+    In: any object with call_model(messages). Out: one line per decision.
+    """
+    import json
+    from pokelike.logging import Conversations
+
+    class Frozen:                      # stands in for a frozen harness bot
+        def call_model(self, messages):
+            return {"content": "", "tool_calls": [{"function": {"name": "play"}}]}
+
+    bot = Frozen()
+    original = bot.call_model
+    chat = Conversations(tmp_path / "c.jsonl")
+    assert chat.watch(bot) is True
+    chat.turn(10000, 0)
+    bot.call_model([{"role": "system", "content": "rules"},
+                    {"role": "user", "content": "screen"}])
+    chat.flush()
+    chat.turn(10000, 1)
+    bot.call_model([{"role": "system", "content": "rules"},
+                    {"role": "user", "content": "next screen"}])
+    chat.close()
+
+    rows = [json.loads(x) for x in (tmp_path / "c.jsonl").read_text().splitlines()]
+    assert [r["step"] for r in rows] == [0, 1]
+    assert [m["role"] for m in rows[0]["rounds"][0]["sent"]] == ["system", "user"]
+    assert rows[1]["rounds"][0]["sent"][1]["content"] == "next screen"
+    assert rows[0]["rounds"][0]["reply"]["tool_calls"], "the answer is kept too"
+    # And the bot is as it was: the wrapper is gone.
+    assert bot.call_model == original or bot.call_model.__func__ is original.__func__
+
+
+def test_several_rounds_of_one_turn_are_one_line(tmp_path):
+    """A turn that calls tools before playing is one conversation, not three.
+
+    In: three model calls between two decisions. Out: one line, three rounds.
+    """
+    import json
+    from pokelike.logging import Conversations
+
+    class Bot:
+        def call_model(self, messages):
+            return {"content": "ok"}
+
+    bot = Bot()
+    chat = Conversations(tmp_path / "c.jsonl")
+    chat.watch(bot)
+    chat.turn(10000, 5)
+    convo = [{"role": "system", "content": "rules"}]
+    for extra in ("first", "second", "third"):
+        convo.append({"role": "user", "content": extra})
+        bot.call_model(convo)          # the SAME list, appended to, as a loop does
+    chat.close()
+
+    rows = [json.loads(x) for x in (tmp_path / "c.jsonl").read_text().splitlines()]
+    assert len(rows) == 1
+    assert len(rows[0]["rounds"]) == 3
+    # Each round must hold what was sent AT THE TIME, not the final state of the list.
+    assert [len(r["sent"]) for r in rows[0]["rounds"]] == [2, 3, 4]
+
+
+def test_a_bot_that_talks_to_no_model_writes_nothing(tmp_path):
+    """The random bot, a policy, a search: nothing to record and no empty file.
+
+    In: an object with no call_model. Out: watch() says no, and no file appears.
+    """
+    from pokelike.logging import Conversations
+
+    class Policy:
+        def act(self, state):
+            return 0
+
+    chat = Conversations(tmp_path / "c.jsonl")
+    assert chat.watch(Policy()) is False
+    chat.turn(10000, 0)
+    chat.close()
+    assert not (tmp_path / "c.jsonl").exists()

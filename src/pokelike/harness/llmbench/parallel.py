@@ -25,7 +25,7 @@ from typing import Any
 
 from ...arena.bench import _tok, live_fields, progress_bar
 from .command import parse_settings
-from ...logging import PassLog
+from ...logging import Conversations, PassLog
 from .results import _as_pass
 from .versions import (ROOT, cross_run_memory, fingerprints,
                        harness_path, script_paths, slug)

@@ -13,7 +13,7 @@ from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, run_benchmark
 from ...logging.trace import enrich_decision
-from ...logging import PassLog
+from ...logging import Conversations, PassLog
 from .results import _as_pass, learning
 from .versions import (ROOT, cross_run_memory, fingerprints,
                        harness_path, script_paths, slug)
@@ -27,7 +27,7 @@ from .parallel import fan_out, _worker  # noqa: F401
 def play_model(game, version: str, model: str, site: Path,
                seeds: list[int] | None = None, endpoint: str | None = None,
                token: str | None = None, folder: Path | None = None,
-               attempt: int = 1,
+               attempt: int = 1, conversations: bool = True,
                settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness.
 
@@ -48,6 +48,11 @@ def play_model(game, version: str, model: str, site: Path,
     stamp = fingerprints(version)
     log = PassLog(version, model, seeds, workers=1, folder=folder,
                   attempt=attempt, memory=cross_run_memory(version))
+    # Everything the model was actually given, beside the trace. Wraps the bot's own
+    # call_model, so a FROZEN harness is covered without being touched.
+    chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
+    if conversations:
+        chat.watch(bot)
     last = [time.time()]
 
     # One bot for the whole pass, which is what resets a memory harness: notes
@@ -93,6 +98,7 @@ def play_model(game, version: str, model: str, site: Path,
 
     def looked(obs: dict[str, Any], _steps: int) -> None:
         seen["obs"] = obs
+        chat.turn(obs.get("seed", 0), obs.get("steps", 0))
 
     drawn = [""]
 
@@ -110,6 +116,7 @@ def play_model(game, version: str, model: str, site: Path,
         fixed by the harness and reproducible from it.
         """
         enriched = enrich_decision(e, bot, seen.get("obs"), drawn)
+        chat.flush()
         log.decision(enriched)
 
     try:
@@ -129,6 +136,7 @@ def play_model(game, version: str, model: str, site: Path,
             log.stopped(f"{type(e).__name__}: {e.code if isinstance(e, SystemExit) else 'Ctrl-C'}")
         else:
             log.fail(f"{type(e).__name__}: {e}")
+        chat.close()
         log.close()
         raise
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
@@ -139,6 +147,7 @@ def play_model(game, version: str, model: str, site: Path,
     one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
+    chat.close()
     log.done(one)
     log.close()
     return one
