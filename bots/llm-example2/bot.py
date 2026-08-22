@@ -123,15 +123,15 @@ Think briefly, then call `play`. Always call `play`."""
         token_budget=80_000,    # about 3x a normal run. Hitting it ENDS the run,
                                 # on purpose: a runaway loop should stop, not creep
 
-        state_view="screen",    # deliberately the default: "json" is 6x the tokens.
-                                # render_state below ADDS to this rather than replacing
-                                # it, so the setting still counts
+        state_view="screen",    # "json" is 6x the tokens, "both" sends both.
+                                # Set, but render_state below replaces the method that
+                                # reads it, so here it has no effect
 
         memory=12,              # journal lines. -1 keeps every turn
         scratch_turns=3,        # whole turns kept. -1 keeps all, and costs about 5x
         scratch_state="brief",  # what a kept turn shows instead of its old screen:
                                 # line (a marker), brief (facts), full (the screen).
-                                # No code needed, so render_scratch is NOT overridden
+                                # Same story: render_scratch below replaces it
         notes_cap=12,           # notes it may hold. 0 turns the notebook off
         note_chars=200,         # longer notes are cut, not refused
         cross_run_memory=True,  # the point of generation 2: notes outlive the run
@@ -145,27 +145,52 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
-        """In: the state. Out: the normal view plus where each option leads."""
-        # EXTENDING, not replacing: super() honours state_view above, so that knob
-        # keeps working. Replace it outright and state_view stops meaning anything.
+        """In: the state. Out: the text of this turn's user message."""
+        # REPLACES the built-in view, so `state_view` above is set but has no effect:
+        # it is the setting the built-in one reads, and this does not call it.
+        # HP as a percentage, because the model should not have to divide. Exits
+        # inline, because asking for them costs a round trip.
+        run = state.get("run") or {}
+        team = state.get("team") or []
+        out = [f"TURN {state.get('steps', 0)}   map {run.get('map', 0)}   "
+               f"{run.get('badges', 0)} badges   {len(team)} alive"]
+
+        if team:
+            out += ["", "TEAM (slot 0 leads the next battle)"]
+            for i, p in enumerate(team):
+                pct = f"{p['hp'] / p['max_hp']:.0%}" if p.get("max_hp") else "?"
+                move = p.get("move") or {}
+                stab = " STAB" if (move.get("type") or "") in (p.get("types") or []) else ""
+                out.append(
+                    f"  [{i}] {p['name']:<12} Lv{p.get('level', '?'):<3} {pct:>4} HP  "
+                    f"{'/'.join(p.get('types') or []) or '?':<14}"
+                    f"{move.get('name', '-')} {move.get('power', '')} "
+                    f"{(move.get('type') or '').lower()}{stab}")
+
+        out += ["", "OPTIONS"]
+        # One call instead of walking the map's edges by hand.
         exits = render.exits_of(state, unique=True)
-        extra = [f"  [{i}] -> then: {', '.join(kinds)}"
-                 for i, kinds in exits.items() if kinds]
-        if not extra:
-            return super().render_state(state)
-        return (super().render_state(state)
-                + "\n\nWHERE EACH OPTION LEADS (picking one closes the rest)\n"
-                + "\n".join(extra))
+        for i, a in enumerate(state.get("actions") or []):
+            tip = f"  ({a['tooltip']})" if a.get("tooltip") else ""
+            after = f"  -> then: {', '.join(exits[i])}" if exits.get(i) else ""
+            out.append(f"  [{i}] {a.get('node') or a.get('label', '')}{tip}{after}")
+        if state.get("screen") == "map-screen" and len(state.get("actions") or []) > 1:
+            out.append("  Picking one closes the others on this layer for good.")
+        return "\n".join(out)
 
     # ------------------------------------------------------- 5. a kept turn's slot
     def render_scratch(self, state: dict[str, Any]) -> str:
         """In: the state of a turn being kept. Out: the one line it shows."""
-        # EXTENDING again: super() gives what scratch_state asked for, so that knob
-        # keeps working, and this adds the one thing it does not say. Replace it
-        # outright and scratch_state stops meaning anything.
+        # REPLACES the built-in one, so `scratch_state` above is set but has no
+        # effect, for the same reason as `state_view`. The old screen is not sent
+        # again: it is stale, and the current one is in the fresh message. Only what
+        # changed is worth a line.
+        run = state.get("run") or {}
         team = state.get("team") or []
         low = min((p["hp"] / p["max_hp"] for p in team if p.get("max_hp")), default=1.0)
-        return f"{super().render_scratch(state)} weakest at {low:.0%}"
+        return (f"[turn {state.get('steps')}: {state.get('screen')}, "
+                f"map {run.get('map', 0)}, {run.get('badges', 0)} badges, "
+                f"{len(team)} alive, weakest at {low:.0%}]")
 
     # -------------------------------------------------------------- 6. what is filed
     def add_metadata(self) -> dict[str, Any]:
