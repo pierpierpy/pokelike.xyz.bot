@@ -250,8 +250,12 @@ uv run pokelike model watch --all
   the standings, and how to read the table.
 - **[example.ipynb](src/pokelike/interfaces/python/example.ipynb)**, drive the game
   from a notebook, cell by cell.
-- **[step.ipynb](bots/llm-example2/step.ipynb)**, step a bot one decision at a time:
-  see the state it is given, what goes to the model, and what comes back.
+- **[bots/llm-example2/](bots/llm-example2/)**, how a bot works and everything you are
+  allowed to change: the prompt, what the model sees, its memory, its tools. Every
+  setting is turned on there with a line saying what it does. It also ships
+  [step.ipynb](bots/llm-example2/step.ipynb), which walks one decision at a time: the
+  state goes to the bot, you see what went to the model and what came back, and nothing
+  moves until you run the next cell.
 
 ## Getting help
 
