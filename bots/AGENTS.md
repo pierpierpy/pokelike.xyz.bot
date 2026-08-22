@@ -267,6 +267,40 @@ leave the model without the range. That is why `_build_user_message()` is **not*
 **Do not override `act`**, it runs the loop, so replacing it discards the reason to
 inherit from `LLMBot`.
 
+### Stepping a bot by hand
+
+`bots/llm-example2/step.ipynb` drives one turn at a time from a notebook or the REPL,
+which is the fastest way to see what a bot actually sends. The shape of it:
+
+```python
+live = session()            # KEEP the name: drop it and the asset server is collected
+game = live.__enter__()     # with-less on purpose, so the cells can be re-run
+bot = build(load_class("bots/llm-example2/bot.py"))
+bot.reset(42)
+state = game.reset(seed=42)
+
+sent = []                   # wrap call_model to see the request and the reply
+_call = bot.call_model
+def spy(messages):
+    reply = _call(messages)
+    sent.append((messages, reply))
+    return reply
+bot.call_model = spy
+
+index = bot.act(state)      # one decision, and nothing moves until you step
+state = game.step(index)
+```
+
+Two things it is worth knowing before writing something like it. `session()` is a
+generator-backed context manager, so `session().__enter__()` without keeping the object
+alive gets collected mid-run and the browser then navigates to a dead port
+(`ERR_CONNECTION_REFUSED`), which reads like a broken game. And the notes and plan are
+private on the bot: read them through `metadata()`, which is the public route, rather
+than reaching for `_notebook`.
+
+Wrapping `call_model` is the same trick `pokelike/logging/conversation.py` uses to write
+the chat file, and it works for any bot that talks to a model, frozen harnesses included.
+
 ### Four things you can do to the tool set, one line each
 
 | you want to | you write | note |

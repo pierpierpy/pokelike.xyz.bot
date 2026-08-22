@@ -1,22 +1,13 @@
-"""Do not die.
+"""llm-survivor: do not die.
 
-Faints are what ends runs, and a run that ends early scores nothing
-whatever it did first. This prompt spends the whole run buying itself
-more run.
+Faints are what ends runs, and a run that ends early scores nothing whatever it did
+first. This prompt spends the whole run buying itself more run.
 
-    export FW_ENDPOINT="https://..."   # base URL, no /v1
-    export FW_TOKEN="..."
-    export MODEL_ID="..."              # whichever model you want to measure
-    uv run pokelike bot run --bot llm-survivor --runs 3
+Credentials come from `.env` at the repository root.
 
-The prompt below is the whole submission. Everything else — the tools, the loop,
-how the state is rendered, what happens on a timeout — is in
-`pokelike.bot.llm`, shared by every LLM bot so that a difference in results is a
-difference between models and prompts rather than between harnesses.
-
-`MODEL` is left unset, so this plays whatever `$MODEL_ID` names and the result
-records which model that was. Pin it in your own bot if you want a leaderboard
-row that means one specific model for good.
+The prompt is the whole submission. The tools, the loop, the rendering and the
+timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
+difference between models and prompts, not between harnesses.
 """
 
 from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig

@@ -1,22 +1,14 @@
-"""Push down the map.
+"""llm-explorer: push down the map.
 
-The opposite bet to `llm-survivor`: badges only come from going
-further, and a team kept perfectly healthy on safe nodes scores
-exactly zero. Worth having both measured rather than argued about.
+The opposite bet to llm-survivor: badges only come from going further, and a team
+kept perfectly healthy on safe nodes scores exactly zero. Worth having both
+measured rather than argued about.
 
-    export FW_ENDPOINT="https://..."   # base URL, no /v1
-    export FW_TOKEN="..."
-    export MODEL_ID="..."              # whichever model you want to measure
-    uv run pokelike bot run --bot llm-explorer --runs 3
+Credentials come from `.env` at the repository root.
 
-The prompt below is the whole submission. Everything else — the tools, the loop,
-how the state is rendered, what happens on a timeout — is in
-`pokelike.bot.llm`, shared by every LLM bot so that a difference in results is a
-difference between models and prompts rather than between harnesses.
-
-`MODEL` is left unset, so this plays whatever `$MODEL_ID` names and the result
-records which model that was. Pin it in your own bot if you want a leaderboard
-row that means one specific model for good.
+The prompt is the whole submission. The tools, the loop, the rendering and the
+timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
+difference between models and prompts, not between harnesses.
 """
 
 from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig

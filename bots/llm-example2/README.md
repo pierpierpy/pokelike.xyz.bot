@@ -25,6 +25,12 @@ The sibling shows `HARNESS = 1`: a prompt, one user message, four tools. This on
 | `add_metadata` | one knob of its own, recorded beside the score |
 | `metadata` | recording what it varied, so a row says what it was allowed to do |
 
+## Stepping through a turn
+
+[`step.ipynb`](step.ipynb) walks one decision at a time: it starts a game, hands the
+state to the bot, and shows what went to the model and what came back. You call `play`
+yourself, so nothing moves until you run the next cell.
+
 Every knob is set away from its default on purpose, so the file is a list of what there
 is to turn. The two seams it uses EXTEND rather than replace (`render_state` calls
 `super()` and appends), because replacing a method kills the knob that feeds it:

@@ -1,23 +1,14 @@
-"""Look before you leap.
+"""llm-analyst: look before you leap.
 
-Says nothing about how to play, only about what to read first. It is
-the cheapest test of whether these models lose runs by choosing badly
-or by choosing without looking — and it costs the most tokens, since
-every turn spends tool rounds before committing.
+Says nothing about how to play, only about what to read first. The cheapest test
+of whether these models lose runs by choosing badly or by choosing without looking.
+Costs the most tokens per turn: every turn spends tool rounds before committing.
 
-    export FW_ENDPOINT="https://..."   # base URL, no /v1
-    export FW_TOKEN="..."
-    export MODEL_ID="..."              # whichever model you want to measure
-    uv run pokelike bot run --bot llm-analyst --runs 3
+Credentials come from `.env` at the repository root.
 
-The prompt below is the whole submission. Everything else — the tools, the loop,
-how the state is rendered, what happens on a timeout — is in
-`pokelike.bot.llm`, shared by every LLM bot so that a difference in results is a
-difference between models and prompts rather than between harnesses.
-
-`MODEL` is left unset, so this plays whatever `$MODEL_ID` names and the result
-records which model that was. Pin it in your own bot if you want a leaderboard
-row that means one specific model for good.
+The prompt is the whole submission. The tools, the loop, the rendering and the
+timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
+difference between models and prompts, not between harnesses.
 """
 
 from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig

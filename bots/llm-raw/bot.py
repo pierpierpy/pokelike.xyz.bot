@@ -1,32 +1,19 @@
-"""llm-raw: the same prompt as llm-survivor, and the whole state instead of a view.
+"""llm-raw: the same prompt as llm-survivor, the whole state instead of a view.
 
-    export FW_ENDPOINT="https://..."   # base URL, no /v1
-    export FW_TOKEN="..."
-    export MODEL_ID="..."
-    uv run pokelike bot run --bot llm-raw --runs 3 -d
+Every other bot here reads `render.screen` (~831 characters, written for a person).
+This one gets the state dict (~5900 characters of compact JSON) and works out what
+matters by itself. Same prompt as llm-survivor, so the difference between the two
+rows is the difference between reading a summary and reading the data.
 
-THE EXPERIMENT
-Every other bot here reads `render.screen`, which is written for a person: HP as
-a bar, the map as a picture. It is 631 characters and it leaves real things out
--- the engine's type/item table, which node connects to which, raw base stats --
-because it shows what someone would look at rather than everything that is true.
+Costs about 8x the tokens per turn (~1.8M per fifty-seed benchmark against ~275k).
+Whether the extra data is worth the room it takes from reasoning is exactly what
+running both answers.
 
-This one gets the state dict, 5144 characters of compact JSON, and works out what
-matters by itself. Same prompt as `llm-survivor`, so the difference between the
-two rows is the difference between reading a summary and reading the data.
+The prompt is deliberately unchanged from llm-survivor. Tuning it for JSON would be
+a fair thing to try and a different experiment: two variables moving at once tells
+you nothing about either.
 
-Both figures are the first map turn of seed 10000, the state every number in
-`bots/llm-example/README.md` is taken at, so the two pages can be compared.
-
-WHAT IT COSTS
-About 8x the tokens per turn, which is roughly 1.8M per fifty-seed benchmark
-against 275k. And the cost is not only money: a map the turn does not need takes
-room from the reasoning the model was about to do. Whether that trade is worth it
-is exactly what running both answers.
-
-The prompt is deliberately UNCHANGED from llm-survivor. Tuning it for JSON would
-be a fair thing to try and a different experiment -- two variables moving at once
-tells you nothing about either.
+Credentials come from `.env` at the repository root.
 """
 
 from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
@@ -35,7 +22,8 @@ from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
 class RawBot(LLMBot):
     name = "llm-raw"
 
-    # The whole state dict, compact JSON, every turn.
+    # state_view="json" sends the whole state dict every turn instead of the
+    # rendered view. That is the one thing this bot changes from llm-survivor.
     config = LLMConfig(state_view="json", prompt=GAME_RULES + """
 PLAY LIKE THIS
 - Early on you have one Pokemon. If it faints you have lost. Widening the team is
