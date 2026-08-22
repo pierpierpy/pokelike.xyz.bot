@@ -157,7 +157,17 @@ Think briefly, then call `play`. Always call `play`."""
                 + "\n\nWHERE EACH OPTION LEADS (picking one closes the rest)\n"
                 + "\n".join(extra))
 
-    # -------------------------------------------------------------- 5. what is filed
+    # ------------------------------------------------------- 5. a kept turn's slot
+    def render_scratch(self, state: dict[str, Any]) -> str:
+        """In: the state of a turn being kept. Out: the one line it shows."""
+        # EXTENDING again: super() gives what scratch_state asked for, so that knob
+        # keeps working, and this adds the one thing it does not say. Replace it
+        # outright and scratch_state stops meaning anything.
+        team = state.get("team") or []
+        low = min((p["hp"] / p["max_hp"] for p in team if p.get("max_hp")), default=1.0)
+        return f"{super().render_scratch(state)} weakest at {low:.0%}"
+
+    # -------------------------------------------------------------- 6. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """In: nothing. Out: my own facts, written beside the score."""
         # Only what nothing else could know. The model, the harness generation, the
