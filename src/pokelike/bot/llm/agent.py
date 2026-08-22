@@ -20,6 +20,7 @@ from .loop import _LoopExhausted, run_turn
 from .notebook import Notebook
 from .prompt import exits_text, render_state_default, state_view_label
 from .record import build_artifacts, build_metadata
+from .decorator import collect_decorated_tools, dispatch_decorated_tool
 from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES, build_tools
 from .transport import call_model_http
 
@@ -170,6 +171,10 @@ class LLMBot(Bot):
             meta["scratch_turns"] = self.cfg.scratch_turns
             meta["scratch_state"] = self.cfg.scratch_state
             meta["scratch_held"] = len(self._scratch)
+        # Report decorated tools so a result says what the bot was allowed to do.
+        dec = collect_decorated_tools(type(self))
+        if dec:
+            meta["decorated_tools"] = [t["function"]["name"] for t in dec]
         return meta
 
     def tool_names(self) -> list[str]:
@@ -396,6 +401,7 @@ class LLMBot(Bot):
         """Returns the tool declarations offered to the model.
 
         In: nothing. Out: list of OpenAI function-calling tool dicts.
+        Precedence when names collide: @tool methods > extra_tools > shared.
         """
         cfg = getattr(self, "cfg", None) or self.config
         return build_tools(
@@ -403,14 +409,19 @@ class LLMBot(Bot):
             plan_chars=cfg.plan_chars,
             bag_tool=cfg.bag_tool,
             extra_tools=cfg.extra_tools,
+            decorated_tools=collect_decorated_tools(type(self)),
         )
 
     def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
         """Answers one tool call and returns the result shown to the model.
 
         In: tool name, arguments dict, and the current state. Out: the tool
-        response string.
+        response string. Decorated @tool methods are tried first, then shared.
         """
+        # Decorated tools get first shot: they are the most specific declaration.
+        result = dispatch_decorated_tool(self, name, args, state)
+        if result is not None:
+            return result
         if name == "team_details":
             return render.team_view(state.get("team")) or "(empty team)"
         if name == "what_lies_ahead":

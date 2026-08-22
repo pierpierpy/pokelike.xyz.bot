@@ -71,7 +71,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig, tool
 from pokelike.core import render
 
 
@@ -117,50 +117,16 @@ then `play` last.
 Think briefly, then call `play`. Always call `play`."""
 
     # =====================================================================
-    # 2. TWO TOOLS OF ITS OWN
+    # 2. TWO TOOLS OF ITS OWN, declared with @tool
     # =====================================================================
     #
     # A tool is two prompt surfaces: its SCHEMA, re-sent every turn whether called
-    # or not, and its ANSWER. So the descriptions are written like prompt, and both
-    # of these answer in one line. Say when NOT to call a tool, which is the half
-    # people leave out and then wonder why the model calls everything.
+    # or not, and its ANSWER. The @tool decorator derives name, schema and dispatch
+    # from one definition: no hand-written JSON, no config line wiring it in, no
+    # branch in answer_tool. Say when NOT to call a tool, which is the half people
+    # leave out and then wonder why the model calls everything.
 
-    EXTRA_TOOLS = [
-        {
-            "type": "function",
-            "function": {
-                "name": "risk_check",
-                "description": (
-                    "Whether your team is healthy enough for a fight, and whether "
-                    "a pokecenter is reachable from here. One line. Call it before "
-                    "a battle node, not on every screen."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "beats",
-                "description": (
-                    "Which of YOUR team's move types are super effective against a "
-                    "type you name, so you can pick a lead. Give the defending type, "
-                    "for example 'rock'. Only useful when a tooltip told you what "
-                    "you are about to fight."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "against": {"type": "string",
-                                    "description": "the defending type, one word"},
-                    },
-                    "required": ["against"],
-                },
-            },
-        },
-    ]
-
-    # Enough of the chart to answer the tool above. A bot may carry its own
+    # Enough of the chart to answer the beats tool. A bot may carry its own
     # knowledge: this is data the state does not contain, and the model knowing it
     # anyway is fine, being able to check it against ITS OWN team is the point.
     STRONG_AGAINST = {
@@ -175,6 +141,51 @@ Think briefly, then call `play`. Always call `play`."""
         "dark": {"psychic", "ghost"}, "steel": {"ice", "rock", "fairy"},
         "fairy": {"dragon", "dark", "fighting"},
     }
+
+    @tool("Whether your team is healthy enough for a fight, and whether "
+          "a pokecenter is reachable from here. One line. Call it before "
+          "a battle node, not on every screen.")
+    def risk_check(self, state) -> str:
+        """Team health and whether healing is reachable, in one line.
+
+        In: the state. Out: a sentence the model can act on.
+        """
+        team = state.get("team") or []
+        if not team:
+            return "no team yet."
+        hurt = [f"{p['name']} {p['hp']}/{p['max_hp']}"
+                for p in team if p.get("max_hp") and p["hp"] / p["max_hp"] < 0.5]
+        heal = any((a.get("node") or "") == "pokecenter"
+                   for a in (state.get("actions") or []))
+        return (f"{len(team)} alive. "
+                + (f"below half: {', '.join(hurt)}. " if hurt else "all above half. ")
+                + ("a pokecenter is one of your options now."
+                   if heal else "no pokecenter among your options."))
+
+    @tool("Which of YOUR team's move types are super effective against a "
+          "type you name, so you can pick a lead. Give the defending type, "
+          "for example 'rock'. Only useful when a tooltip told you what "
+          "you are about to fight.",
+          against="the defending type, one word")
+    def beats(self, state, against: str) -> str:
+        """Which of the team's move types are super effective against a type.
+
+        In: the state and the defending type. Out: the slots that answer it.
+        """
+        want = against.strip().lower()
+        if want not in self.STRONG_AGAINST:
+            return (f"'{against}' is not a type I know. Try one of: "
+                    f"{', '.join(sorted(self.STRONG_AGAINST))}.")
+        good = []
+        for i, p in enumerate(state.get("team") or []):
+            mtype = ((p.get("move") or {}).get("type") or "").lower()
+            if mtype and want in self.STRONG_AGAINST.get(mtype, ()):
+                good.append(f"[{i}] {p['name']} ({mtype})")
+        if not good:
+            return (f"nothing on your team is super effective against {want}. "
+                    f"Lead with your healthiest instead.")
+        return (f"super effective against {want}: {', '.join(good)}. "
+                f"`set_lead` is free, so put one of them in slot 0 before the fight.")
 
     # =====================================================================
     # 3. EVERY KNOB, EXPLICITLY, WITH THE REASON
@@ -209,64 +220,9 @@ Think briefly, then call `play`. Always call `play`."""
 
         # --- tools
         bag_tool=True,          # a shared tool now, no code needed
-        extra_tools=EXTRA_TOOLS,   # the two declared above. Without this line the
-                                   # schemas never travel and the model cannot call
-                                   # them, however well `answer_tool` handles them
+        # No extra_tools needed: @tool-decorated methods above provide the schemas
+        # and dispatch automatically.
     )
-
-    def answer_tool(self, name: str, args: dict[str, Any],
-                    state: dict[str, Any]) -> str:
-        """Answers one tool call. What this returns is prompt too.
-
-        In: the tool name, its arguments, the state. Out: the text the model reads.
-        """
-        # Two rules worth keeping. NEVER raise: an exception throws the turn away
-        # and hands it to `fallback_move`, so a model that mistypes an argument
-        # costs you the decision it was about to make. And ALWAYS end with
-        # `super()`, or the shared tools stop answering while `tools()` still
-        # advertises them.
-        if name == "risk_check":
-            return self._risk_check(state)
-        if name == "beats":
-            return self._beats(state, str((args or {}).get("against") or ""))
-        return super().answer_tool(name, args, state)
-
-    def _risk_check(self, state: dict[str, Any]) -> str:
-        """Team health and whether healing is reachable, in one line.
-
-        In: the state. Out: a sentence the model can act on.
-        """
-        team = state.get("team") or []
-        if not team:
-            return "no team yet."
-        hurt = [f"{p['name']} {p['hp']}/{p['max_hp']}"
-                for p in team if p.get("max_hp") and p["hp"] / p["max_hp"] < 0.5]
-        heal = any((a.get("node") or "") == "pokecenter"
-                   for a in (state.get("actions") or []))
-        return (f"{len(team)} alive. "
-                + (f"below half: {', '.join(hurt)}. " if hurt else "all above half. ")
-                + ("a pokecenter is one of your options now."
-                   if heal else "no pokecenter among your options."))
-
-    def _beats(self, state: dict[str, Any], against: str) -> str:
-        """Which of the team's move types are super effective against a type.
-
-        In: the state and the defending type. Out: the slots that answer it.
-        """
-        want = against.strip().lower()
-        if want not in self.STRONG_AGAINST:
-            return (f"'{against}' is not a type I know. Try one of: "
-                    f"{', '.join(sorted(self.STRONG_AGAINST))}.")
-        good = []
-        for i, p in enumerate(state.get("team") or []):
-            mtype = ((p.get("move") or {}).get("type") or "").lower()
-            if mtype and want in self.STRONG_AGAINST.get(mtype, ()):
-                good.append(f"[{i}] {p['name']} ({mtype})")
-        if not good:
-            return (f"nothing on your team is super effective against {want}. "
-                    f"Lead with your healthiest instead.")
-        return (f"super effective against {want}: {', '.join(good)}. "
-                f"`set_lead` is free, so put one of them in slot 0 before the fight.")
 
     # =====================================================================
     # 4. DROPPING A SHARED TOOL, which is also a saving
@@ -378,5 +334,4 @@ Think briefly, then call `play`. Always call `play`."""
         # is only what nothing else would know. NEVER the token or the endpoint: a
         # result file is exactly the kind of thing that gets pasted into an issue.
         return {**super().metadata(),
-                "extra_tools": [t["function"]["name"] for t in self.cfg.extra_tools],
                 "dropped_tools": ["what_lies_ahead"]}

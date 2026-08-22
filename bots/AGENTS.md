@@ -390,6 +390,50 @@ class MyBot(LLMBot):
 
 Do not define `act` here: on the `LLMBot` road it already runs the agentic loop.
 
+### The `@tool` decorator (the one-place way)
+
+The old way (a hand-written schema in `extra_tools`, a config line wiring it in, and a
+branch in `answer_tool`) still works and is supported. The new way collapses all three
+into one definition:
+
+```python
+from pokelike.bot.llm import LLMBot, LLMConfig, GAME_RULES, tool
+
+class MyBot(LLMBot):
+    config = LLMConfig(prompt=GAME_RULES + "...", bag_tool=True)
+
+    @tool("What you are carrying, by name. Call it before an item node.")
+    def bag(self, state) -> str:
+        return ", ".join(state.get("bag") or []) or "(nothing)"
+
+    @tool("Which of your move types beat a type you name.",
+          against="the defending type, one word")
+    def beats(self, state, against: str) -> str:
+        ...
+```
+
+From one decorated method the harness derives:
+
+- the tool **name** from the method name;
+- the **description** from the first argument to `@tool(...)`;
+- the **parameters** from the signature (skipping `self` and `state`): keyword args
+  to the decorator are parameter descriptions, the annotation gives the JSON type
+  (`str`->`string`, `int`->`integer`, `float`->`number`, `bool`->`boolean`), and a
+  parameter without a default is required;
+- the **dispatch**: `answer_tool` finds it automatically, no branch to write.
+
+**Precedence** when names collide (the deduplication rule): a `@tool` method wins over
+`extra_tools`, which wins over the shared tools. Only one schema per name is sent.
+
+**Errors** in a decorated tool are caught and returned to the model as a message (never
+raised), so a typo in a bot's own tool does not cost a decision.
+
+**Inheritance** works: a subclass gets the parent's decorated tools and may override one
+by defining a method of the same name with its own `@tool`.
+
+**`metadata()`** reports decorated tools under the `decorated_tools` key, so a recorded
+row says what the bot was allowed to do.
+
 ### Using `render` in `render_state()`
 
 `core/render/` is the shared state-to-text package, and a bot does **not** edit it

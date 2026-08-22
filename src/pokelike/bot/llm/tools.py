@@ -230,11 +230,13 @@ def build_tools(
     plan_chars: int = 0,
     bag_tool: bool = False,
     extra_tools: list[dict[str, Any]] | None = None,
+    decorated_tools: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Assembles the full tool list from the config flags.
+    """Assembles the full tool list from the config flags, deduplicating by name.
 
-    In: the three feature flags and any extra tools. Out: the list of OpenAI
-    function-calling tool dicts, always ending with the caller's extras.
+    In: the three feature flags, any extra tools, and any @tool-decorated schemas.
+    Out: the list of OpenAI function-calling tool dicts. Precedence when two
+    share a name: decorated > extra_tools > shared (the most specific wins).
     """
     result = list(TOOLS)
     if notes_cap > 0:
@@ -245,4 +247,12 @@ def build_tools(
         result.append(BAG_TOOL)
     if extra_tools:
         result.extend(extra_tools)
-    return result
+    # Decorated tools (from @tool methods) go last in the raw list, so when we
+    # deduplicate keeping the LAST occurrence they win over everything else.
+    if decorated_tools:
+        result.extend(decorated_tools)
+    # Deduplicate: keep the LAST occurrence of each name (highest precedence).
+    seen: dict[str, int] = {}
+    for i, t in enumerate(result):
+        seen[t["function"]["name"]] = i
+    return [result[i] for i in sorted(seen.values())]

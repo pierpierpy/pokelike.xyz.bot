@@ -18,7 +18,7 @@ The sibling shows `HARNESS = 1`: a prompt, one user message, four tools. This on
 | in the file | what it demonstrates |
 |---|---|
 | the prompt | telling the model to RUN its memory, which it will not do unasked |
-| two tools of its own | `risk_check` and `beats`, one line each, with the schema written as prompt |
+| two `@tool`-decorated methods | `risk_check` and `beats`, declared in one place (name, schema and dispatch derived from the decorator) |
 | every knob | the four memories, set explicitly, each with the reason |
 | `tools()` | dropping `what_lies_ahead`, because the view already prints the exits |
 | `render_state` | HP as a percentage, the exits inline, the consequence spelled out |

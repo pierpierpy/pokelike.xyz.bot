@@ -431,6 +431,126 @@ def test_a_bot_may_add_its_own_tools_but_not_remove_play(monkeypatch):
     assert "play" in str(e.value)
 
 
+def test_decorated_tool_deduplicates_with_bag_tool(monkeypatch):
+    """A bot with bag_tool=True and its own @tool-decorated `bag` sends ONE bag.
+
+    Precedence: decorated > extra_tools > shared. The most specific wins and
+    providers reject a duplicated function name.
+    """
+    from pokelike.bot.llm import LLMBot, LLMConfig, tool
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class DedupBot(LLMBot):
+        config = LLMConfig(prompt="x", bag_tool=True)
+
+        @tool("My own bag tool, more detailed.")
+        def bag(self, state) -> str:
+            return "decorated bag wins"
+
+    bot = DedupBot()
+    names = bot.tool_names()
+    assert names.count("bag") == 1, f"expected one bag, got {names.count('bag')}"
+    assert "play" in names, "play must still be present"
+    # The decorated version wins over the shared one in dispatch.
+    assert bot.answer_tool("bag", {}, {"bag": ["Potion"]}) == "decorated bag wins"
+
+    # Also test extra_tools collision: decorated still wins.
+    class DedupExtra(LLMBot):
+        config = LLMConfig(prompt="x", extra_tools=[
+            {"type": "function", "function": {
+                "name": "bag", "description": "extra bag",
+                "parameters": {"type": "object", "properties": {}}}}])
+
+        @tool("Decorated bag, should win over extra_tools.")
+        def bag(self, state) -> str:
+            return "decorated wins over extra"
+
+    bot2 = DedupExtra()
+    assert bot2.tool_names().count("bag") == 1
+    assert bot2.answer_tool("bag", {}, {}) == "decorated wins over extra"
+
+
+def test_decorated_tool_errors_are_returned_not_raised(monkeypatch):
+    """A @tool method that throws returns the error as a message to the model.
+
+    In: a decorated tool that raises. Out: an error string, not an exception.
+    """
+    from pokelike.bot.llm import LLMBot, LLMConfig, tool
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class BuggyBot(LLMBot):
+        config = LLMConfig(prompt="x")
+
+        @tool("Always fails.")
+        def buggy(self, state) -> str:
+            raise RuntimeError("kaboom")
+
+    bot = BuggyBot()
+    result = bot.answer_tool("buggy", {}, {})
+    assert "error in buggy" in result
+    assert "RuntimeError" in result
+    assert "kaboom" in result
+
+
+def test_decorated_tool_inheritance(monkeypatch):
+    """A subclass of a bot with @tool methods inherits them and may override.
+
+    In: a parent with a decorated tool, a child that overrides it. Out: the
+    child's version wins.
+    """
+    from pokelike.bot.llm import LLMBot, LLMConfig, tool
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class Parent(LLMBot):
+        config = LLMConfig(prompt="x")
+
+        @tool("Parent's info tool.")
+        def info(self, state) -> str:
+            return "parent info"
+
+    class Child(Parent):
+        @tool("Child's info tool, overridden.")
+        def info(self, state) -> str:
+            return "child info"
+
+    parent = Parent()
+    child = Child()
+    assert parent.answer_tool("info", {}, {}) == "parent info"
+    assert child.answer_tool("info", {}, {}) == "child info"
+    assert parent.tool_names().count("info") == 1
+    assert child.tool_names().count("info") == 1
+
+
+def test_decorated_tool_metadata_reports_them(monkeypatch):
+    """metadata() should report which decorated tools a bot declared."""
+    from pokelike.bot.llm import LLMBot, LLMConfig, tool
+
+    for var, val in (("FW_ENDPOINT", "https://x.invalid"),
+                     ("FW_TOKEN", "t"), ("MODEL_ID", "m")):
+        monkeypatch.setenv(var, val)
+
+    class WithTools(LLMBot):
+        config = LLMConfig(prompt="x")
+
+        @tool("A custom tool.")
+        def my_tool(self, state) -> str:
+            return "hi"
+
+    bot = WithTools()
+    meta = bot.metadata()
+    assert "decorated_tools" in meta
+    assert "my_tool" in meta["decorated_tools"]
+
+
 def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monkeypatch):
     """What the model reads each turn is a knob, and replacing it is safe.
 
