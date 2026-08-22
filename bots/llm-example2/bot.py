@@ -68,8 +68,7 @@ Think briefly, then call `play`. Always call `play`."""
     # @tool is the whole declaration: the name comes from the method, the parameters
     # from the signature. The description is prompt, so say when NOT to call it too.
 
-    @tool("Whether your team is healthy enough for a fight, and whether a pokecenter "
-          "is reachable. One line. Call it before a battle, not on every screen.")
+    @tool("Whether your team is healthy enough for a fight, and whether a pokecenter is reachable. One line. Call it before a battle, not on every screen.")
     def risk_check(self, state: dict[str, Any]) -> str:
         """In: the state. Out: one line about the team's health."""
         team = state.get("team") or []
@@ -84,9 +83,7 @@ Think briefly, then call `play`. Always call `play`."""
                 + ("a pokecenter is one of your options now."
                    if heal else "no pokecenter among your options."))
 
-    @tool("Which of YOUR move types are super effective against a type you name, so "
-          "you can pick a lead. Only useful once a tooltip told you what you face.",
-          against="the defending type, one word")
+    @tool("Which of YOUR move types are super effective against a type you name, so you can pick a lead. Only useful once a tooltip told you what you face.", against="the defending type, one word")
     def beats(self, state: dict[str, Any], against: str) -> str:
         """In: the state and a type name. Out: which slots answer it."""
         want = against.strip().lower()
@@ -126,23 +123,23 @@ Think briefly, then call `play`. Always call `play`."""
         max_tokens=1200,        # a paragraph, a plan, and a play call
         max_rounds=6,           # this prompt asks for two or three tools before play
         retries=5,              # a 429 is not the model's fault, so try again
-        token_budget=80_000,    # about 3x a normal run. Hitting it ENDS the run,
+        token_budget=1_000_000_000,    # about 3x a normal run. Hitting it ENDS the run,
                                 # on purpose: a runaway loop should stop, not creep
 
-        state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
-                                # the only thing that reads this. "json" is 6x the tokens
+        # state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
+        #                         # the only thing that reads this. "json" is 6x the tokens
 
         memory=12,              # journal lines. -1 keeps every turn
         scratch_turns=3,        # whole turns kept. -1 keeps all, and costs about 5x
-        scratch_state="brief",  # IGNORED HERE: section 5 replaces render_scratch.
-                                # line (a marker), brief (facts), full (the old screen)
-        notes_cap=12,           # notes it may hold. 0 turns the notebook off
-        note_chars=200,         # longer notes are cut, not refused
+        # scratch_state="brief",  # IGNORED HERE: section 5 replaces render_scratch.
+        #                         # line (a marker), brief (facts), full (the old screen)
+        notes_cap=10000,           # notes it may hold. 0 turns the notebook off
+        note_chars=100000,         # longer notes are cut, not refused
         cross_run_memory=True,  # the point of generation 2: notes outlive the run
         keep_across_regions=("notes",),   # what crosses into the NEXT region. The plan and
                                           # the kept turns are about a map that will not
                                           # exist there; a lesson might still hold
-        plan_chars=600,         # room for a route that names its nodes
+        plan_chars=1000000,         # room for a route that names its nodes
 
         bag_tool=True,          # a shared tool now, no code needed
         # `what_lies_ahead` is the tool that says where each option leads. Section 4
