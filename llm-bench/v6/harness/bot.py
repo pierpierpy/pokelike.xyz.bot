@@ -731,6 +731,27 @@ class HarnessV4(Bot):
         self.tokens_in = self.tokens_out = self.retries = 0
         self._last_why = ""
 
+    def reset_memory(self, keep: tuple[str, ...] = ("notes",)) -> None:
+        """Forgets the region just finished, keeping the notebook.
+
+        Called by the runner at a boundary, after `region_cleared` has had its look
+        at the memory. The notebook is what v1 was for and is the one thing worth
+        carrying: a lesson can hold in another region, while the journal, the plan
+        and the last exchanges are all about a map that will not exist there.
+
+        `reset` clears the same three when the next region starts, so this is
+        belt and braces on purpose: doing it HERE means the forgetting happens at
+        the seam that names it, rather than depending on what the runner calls next.
+        """
+        if "journal" not in keep:
+            self.journal = []
+        if "plan" not in keep:
+            self.plan = ""
+        if "scratchpad" not in keep:
+            self.scratch = []
+        if "notes" not in keep:
+            self.notebook = []
+
     def region_cleared(self, done: dict[str, Any]) -> str | None:
         """What the next region opens with, when a campaign crosses a boundary.
 

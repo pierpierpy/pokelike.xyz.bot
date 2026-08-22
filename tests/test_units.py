@@ -1462,3 +1462,28 @@ def test_the_next_region_opens_with_what_the_last_one_left():
     # It is context for the first decisions, not for all of them.
     b.journal = ["step 1: [0] catch"]
     assert "LAST REGION" not in b._build_user_message(obs)
+
+
+def test_campaign_trace_says_which_region_each_decision_came_from():
+    """The flattened trace is four regions long, so an entry with no region cannot be read.
+
+    In: a campaign over two regions. Out: every flattened entry names its region.
+    """
+    from pokelike.core import runner
+    from pokelike.bot import RandomBot
+
+    real = runner.play_run
+    try:
+        runner.play_run = lambda game, b, seed, region=1, **kw: {
+            "seed": seed, "region": ("kanto" if region in (1, "kanto") else "johto"),
+            "steps": 2, "badges": 8, "ending": "win-screen", "team": [],
+            "trace": [{"step": 0, "choice": 0}, {"step": 1, "choice": 1}]}
+        out = runner.play_campaign(None, RandomBot(seed=0), seed=1,
+                                   regions=["kanto", "johto"])
+    finally:
+        runner.play_run = real
+
+    assert [e["region"] for e in out["trace"]] == ["kanto", "kanto", "johto", "johto"]
+    # The per-region traces stay exactly as play_run wrote them, which is what keeps a
+    # single-region decision log what it has always been.
+    assert all("region" not in e for r in out["regions"] for e in r["trace"])

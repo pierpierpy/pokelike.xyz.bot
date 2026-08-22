@@ -207,14 +207,20 @@ Think briefly, then call `play`. Always call `play`."""
         # model reads its own journal and its last exchanges and writes the summary
         # itself, instead of taking ours. The forgetting happens after this returns.
         try:
+            # The ASK GOES LAST. With it in the system message the model answered by
+            # repeating it back, summary and instruction in one paragraph, which is
+            # what then reached the next region. A model looks for the task in the
+            # last user turn, so that is where it belongs, with the memory as context.
             reply = self.call_model([
                 {"role": "system", "content":
-                    f"You just cleared {done['region']} with {done['badges']} badges. "
-                    f"Next is {done['next']}, a new game: new starter, new gyms, badges "
-                    f"from zero, and only your notes come with you. In five lines, write "
-                    f"what you learned that will still be true there."},
+                    "You are playing a Pokemon roguelike, one region at a time."},
                 *self.memory_messages(),
-                {"role": "user", "content": self.memory_text()},
+                {"role": "user", "content":
+                    f"{self.memory_text()}\n\n"
+                    f"You cleared {done['region']} with {done['badges']} badges. Next is "
+                    f"{done['next']}: a new starter, new gyms, badges from zero, and only "
+                    f"your notes come with you. Write at most five short lines of what you "
+                    f"learned that will STILL BE TRUE there. No preamble, just the lines."},
             ], tools=[])       # prose, not a tool call: with tools attached it plays
             return (reply.get("content") or "").strip() or super().region_cleared(done)
         except Exception:      # noqa: BLE001

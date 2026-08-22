@@ -238,5 +238,10 @@ def play_campaign(
         "badges": total,
         "steps": sum(r.get("steps", 0) for r in runs),
         "ending": runs[-1].get("ending") if runs else None,
-        "trace": [e for r in runs for e in (r.get("trace") or [])],
+        # The flattened trace runs four regions together, so each entry says which
+        # one it came from, or the concatenation cannot be read. The per-region
+        # traces under `regions` are left exactly as play_run wrote them, which is
+        # what keeps a single-region decision log what it has always been.
+        "trace": [{**e, "region": r["region"]} for r in runs
+                  for e in (r.get("trace") or [])],
     }
