@@ -141,9 +141,10 @@ uv run pokelike bot run --bot random  --runs 1 -d         # the baseline, one li
 uv run pokelike history                                   # how it went
 ```
 
-![The map, and where the bot is on it](img/llm_battle.gif)
-
-*a bot playing headless mode*
+<p align="center">
+  <img src="img/llm_battle.gif" alt="A bot playing a run"><br>
+  <sub><i>a bot playing, no window: the map is redrawn from the game's own memory</i></sub>
+</p>
 
 Writing one is a folder and a single method, `act(state) -> int`.
 **[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide**, a six-step walk-through from a
