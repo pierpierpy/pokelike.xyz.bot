@@ -125,8 +125,9 @@ Think briefly, then call `play`. Always call `play`."""
 
         memory=12,              # journal lines. -1 keeps every turn
         scratch_turns=3,        # whole turns kept. -1 keeps all, and costs about 5x
-        scratch_state="brief",  # what a kept turn shows: line, brief, or full.
-                                # brief lets it watch HP fall across those turns
+        scratch_state="brief",  # ignored: render_scratch is overridden below too.
+                                # Without that override it picks the kept turn's slot:
+                                # line (a marker), brief (facts), full (the screen)
         notes_cap=12,           # notes it may hold. 0 turns the notebook off
         note_chars=160,         # longer notes are cut, not refused
         cross_run_memory=True,  # the point of generation 2: notes outlive the run
@@ -161,6 +162,8 @@ Think briefly, then call `play`. Always call `play`."""
                     f"{(move.get('type') or '').lower()}{stab}")
 
         out += ["", "OPTIONS"]
+        # One call instead of walking the map's edges by hand. Do that yourself only
+        # if you want something this does not give.
         exits = render.exits_of(state, unique=True)
         for i, a in enumerate(state.get("actions") or []):
             tip = f"  ({a['tooltip']})" if a.get("tooltip") else ""
