@@ -26,13 +26,14 @@ window, no account, no internet, from the command line, from Python, or over an 
 
 This repo is 3 things in one, use it as you please. It is:
 
--  &nbsp;an **[Environment](#1-environment)**, a headless, reproducible copy of the game you can
+-  &nbsp;an **[Environment](#1-environment)**, this is the core. An headless, reproducible copy of the game you can
   simulate runs against, drive from a script or a notebook, and hand to a coding agent.
--  &nbsp;a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, an agentic harness that runs on
+-  &nbsp;a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, this is the agentic harness that runs on
   the same fifty seeds for every LLM, the output score tells the agentic/planning capabilities of a model
--  &nbsp;a **[Bot framework/competition](#3-bot-competition)**, you write a bot and your goal is
+-  &nbsp;a **[Bot framework/competition](#3-bot-competition)**, here you write a bot and your goal is
   to beat the game. The bot can be anything, a trained policy, a prompt, a
-  rulebook, tree search, anything that turns a state into a move.
+  rulebook, tree search, anything that turns a state into a move. To see one think,
+  [step a bot through a run one decision at a time](bots/llm-example2/step.ipynb).
 
 
 ---
