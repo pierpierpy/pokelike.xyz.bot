@@ -1337,3 +1337,128 @@ def test_exits_of_reads_the_map_edges():
     assert render.exits_of(state, unique=True)[1] == ["pokecenter", "question"]
     assert 2 not in exits, "a button is not a step on the map"
     assert render.exits_of({"actions": []}) == {}, "no map, no exits"
+
+
+# ----------------------------------------------------------------- regions
+#
+# A region is a whole GAME: the engine keeps nothing across one, a new starter is
+# picked and the badge count restarts. So a campaign is a sequence of runs, and the
+# only thing that crosses is the BOT.
+
+
+def test_a_region_is_named_or_numbered_and_nothing_else():
+    """In: what a caller might pass. Out: 1-4, or a refusal."""
+    import pytest
+
+    from pokelike.core.browser import REGIONS, normalise_region, region_name
+
+    assert REGIONS == ("kanto", "johto", "hoenn", "sinnoh")
+    assert normalise_region("JOHTO") == 2 and normalise_region(4) == 4
+    assert region_name(3) == "hoenn"
+    # Refused, not defaulted to Kanto: a typo would otherwise file a row for a
+    # region that never played.
+    for bad in (0, 5, "kalos", True):
+        with pytest.raises(ValueError):
+            normalise_region(bad)
+
+
+def test_what_survives_a_region_boundary_is_a_setting():
+    """In: a bot with memory in every drawer. Out: only what was asked for."""
+    from pokelike.bot.llm import LLMBot
+
+    def loaded(**cfg):
+        b = LLMBot(seed=0, endpoint="x", token="t", model="m",
+                   notes_cap=4, plan_chars=100, scratch_turns=2, **cfg)
+        b.reset(1)
+        b.answer_tool("remember", {"note": "Brock is Rock"}, {})
+        b.answer_tool("plan", {"route": "n1_0 then the trainer"}, {})
+        b.journal = ["step 1: [0] catch"]
+        b._scratch = [[{"role": "user", "content": "x"}]]
+        return b
+
+    b = loaded()                        # the default keeps the notes and nothing else
+    b.reset_memory()
+    assert b._notebook.notes == ["Brock is Rock"]
+    assert b.plan == "" and b.journal == [] and b._scratch == []
+
+    b = loaded(keep_across_regions=("notes", "journal", "scratchpad", "plan"))
+    b.reset_memory()
+    assert b._notebook.notes and b.plan and b.journal and b._scratch, "all of it kept"
+
+    b = loaded(keep_across_regions=())
+    b.reset_memory()
+    assert not b._notebook.notes, "and the notes can go too"
+
+
+def test_the_boundary_is_crossed_with_the_memory_still_intact():
+    """The reason `region_cleared` exists: a bot can summarise what it still has.
+
+    In: a campaign whose regions are all won. Out: the hook saw the memory, and the
+    forgetting happened after it.
+    """
+    from pokelike.core import runner
+    from pokelike.bot.llm import LLMBot
+
+    seen = []
+
+    class Bot(LLMBot):
+        def region_cleared(self, done):
+            # If the runner forgot first, this would be empty, which is the bug this
+            # test exists to prevent.
+            seen.append(self.memory_text())
+            return f"{done['region']} -> {done['next']}"
+
+    bot = Bot(seed=0, endpoint="x", token="t", model="m", notes_cap=4)
+    bot.reset(1)
+    bot.answer_tool("remember", {"note": "a Water lead walks Brock"}, {})
+    bot.journal = ["step 1: [0] catch"]
+
+    real = runner.play_run
+    try:
+        runner.play_run = lambda game, b, seed, region=1, **kw: {
+            "seed": seed, "region": region if isinstance(region, str) else "kanto",
+            "steps": 80, "badges": 8, "ending": "win-screen", "team": [], "trace": []}
+        out = runner.play_campaign(None, bot, seed=1)
+    finally:
+        runner.play_run = real
+
+    assert out["regions_played"] == 4 and out["regions_cleared"] == 4
+    assert out["badges"] == 32, "eight per region, and they add up"
+    assert len(seen) == 3, "three boundaries between four regions"
+    assert "WHAT YOU DID" in seen[0], "the journal was still there when it was asked"
+    assert bot._notebook.notes, "and the notes crossed every one of them"
+
+
+def test_a_campaign_stops_at_the_first_region_not_won():
+    """Carrying on after a loss would measure four regions and call it progress.
+
+    In: a campaign whose first region ends in a loss. Out: one region played.
+    """
+    from pokelike.core import runner
+    from pokelike.bot import RandomBot
+
+    real = runner.play_run
+    try:
+        runner.play_run = lambda game, b, seed, region=1, **kw: {
+            "seed": seed, "region": "kanto", "steps": 20, "badges": 1,
+            "ending": "gameover-screen", "team": [], "trace": []}
+        out = runner.play_campaign(None, RandomBot(seed=0), seed=1)
+    finally:
+        runner.play_run = real
+    assert out["regions_played"] == 1 and out["regions_cleared"] == 0
+
+
+def test_the_next_region_opens_with_what_the_last_one_left():
+    """In: a bot handed an opening. Out: it is in the first prompt, then makes way."""
+    from pokelike.bot.llm import LLMBot
+
+    obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}], "team": [],
+           "bag": [], "map": {"nodes": [], "edges": []}, "run": {"badges": 0},
+           "screen": "map-screen", "seed": 1, "steps": 0, "region": "johto"}
+    b = LLMBot(seed=0, endpoint="x", token="t", model="m")
+    b.reset(1)
+    b.region_opening("Water leads carried the first three gyms.")
+    assert "LAST REGION: Water leads" in b._build_user_message(obs)
+    # It is context for the first decisions, not for all of them.
+    b.journal = ["step 1: [0] catch"]
+    assert "LAST REGION" not in b._build_user_message(obs)

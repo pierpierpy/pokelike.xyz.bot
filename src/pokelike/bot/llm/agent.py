@@ -114,6 +114,7 @@ class LLMBot(Bot):
         self.journal: list[str] = []
         self._last_why = ""
         self._tool_calls: list[dict[str, Any]] = []
+        self._opening: str = getattr(self, '_opening', '')
         self._pending: tuple[int | None, int | None, str] | None = None
         # Scratchpad: the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
@@ -131,6 +132,7 @@ class LLMBot(Bot):
         self.tokens_in = self.tokens_out = self.retry_count = 0
         self._last_why = ""
         self._tool_calls: list[dict[str, Any]] = []
+        self._opening: str = getattr(self, '_opening', '')
         # Plan and scratchpad are per-run: the plan describes a route through
         # THIS map, and the scratchpad is this episode's reasoning.
         self.plan = ""
@@ -139,6 +141,89 @@ class LLMBot(Bot):
         # Notebook survives reset only when cross_run_memory is on.
         if self._notebook and not self.cfg.cross_run_memory:
             self._notebook.clear()
+
+    def region_cleared(self, done: dict[str, Any]) -> str | None:
+        """What the next region opens with, when a campaign crosses one.
+
+        In: the region result (region, next, badges, won, steps, team). Out: the
+        text the next region starts with.
+        """
+        # Called with the memory still intact, so a bot that would rather have its
+        # own model write this can: ask `call_model` here, with `memory_text()` and
+        # `memory_messages()` as the material. This default costs nothing and says
+        # the three things the next region cannot work out for itself: that the last
+        # one was cleared, what it finished with, and what came across.
+        kept = self.cfg.keep_across_regions
+        carried = "your notes came with you" if "notes" in kept else "nothing came with you"
+        team = ", ".join(done.get("team") or []) or "an empty team"
+        return (f"YOU CLEARED {str(done.get('region', '')).upper()} with "
+                f"{done.get('badges', 0)} badges, in {done.get('steps', 0)} steps, "
+                f"finishing with {team}. Next: {str(done.get('next') or '').upper()}, "
+                f"a new team from a new starter and eight different gyms. "
+                f"The plan and your last turns did not come with you, "
+                f"{carried}.")
+
+    def region_opening(self, text: str) -> None:
+        """Carries what the last region left into this one's first prompt.
+
+        In: the text from `region_cleared`. Out: nothing.
+        """
+        # Into the journal, which is what the user message already prints, so it
+        # needs no new section in the prompt and it ages out of the way naturally as
+        # the new region fills the journal up.
+        if text:
+            self._opening = text.strip()
+
+    def reset_memory(self, keep: tuple[str, ...] | None = None) -> None:
+        """Forgets the region just finished, keeping what was asked for.
+
+        In: which of notes, journal, scratchpad, plan to keep. Out: nothing.
+        """
+        # `keep` defaults to the config rather than to nothing, so the runner can
+        # call this with no argument and get the policy the bot was built with.
+        keep = self.cfg.keep_across_regions if keep is None else keep
+        if "journal" not in keep:
+            self.journal = []
+        if "scratchpad" not in keep:
+            self._scratch = []
+        if "plan" not in keep:
+            self.plan = ""
+        if "notes" not in keep and self._notebook is not None:
+            self._notebook.notes.clear()
+
+    def memory_text(self, include_scratch: bool = False) -> str:
+        """The memory as text, for handing to a model.
+
+        In: whether to flatten the kept turns in too. Out: the text.
+        """
+        parts = []
+        if self._notebook is not None and self._notebook.notes:
+            parts.append("NOTES\n" + "\n".join(
+                f"  [{i}] {n}" for i, n in enumerate(self._notebook.notes, 1)))
+        if self.plan:
+            parts.append(f"PLAN\n  {self.plan}")
+        if self.journal:
+            parts.append("WHAT YOU DID\n" + "\n".join(self.journal))
+        if include_scratch:
+            # Flattened, which loses the roles: only for when one string is what
+            # the caller needs. `memory_messages()` keeps the shape.
+            for turn in self._scratch:
+                for m in turn:
+                    parts.append(f"{m.get('role')}: {(m.get('content') or '')[:400]}")
+        return "\n\n".join(parts)
+
+    def memory_messages(self, n: int | None = None) -> list[dict[str, Any]]:
+        """The kept turns as real messages, newest last.
+
+        In: how many turns at most. Out: the messages, flattened in order.
+        """
+        # Only what was KEPT can be returned: `scratch_turns` is a retention
+        # policy, not a read filter, so turns beyond it were dropped as the run
+        # went and asking for more than that yields what exists. A summary that
+        # wants the whole region wants `memory=-1` on the journal instead, which is
+        # a line per turn rather than a whole exchange.
+        turns = self._scratch if n is None else self._scratch[-n:]
+        return [m for turn in turns for m in turn]
 
     def metadata(self) -> dict[str, Any]:
         """Returns run metadata for the registry and benchmark results.
@@ -461,9 +546,14 @@ class LLMBot(Bot):
         """
         notes_block = self._notebook.view_block() if self._notebook else None
         plan_block = self._plan_block() if self.cfg.plan_chars > 0 else None
+        # What the last region left, shown until this one's journal has turns of its
+        # own to talk about: it is context for the first decisions, not for all of them.
+        journal = self.journal
+        if self._opening and not journal:
+            journal = [f"LAST REGION: {self._opening}"]
         return build_user_message(
             state_view=self.render_state(state),
-            journal=self.journal,
+            journal=journal,
             n_actions=len(state["actions"]),
             notes_block=notes_block,
             plan_block=plan_block,

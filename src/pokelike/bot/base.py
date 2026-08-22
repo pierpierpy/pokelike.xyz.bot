@@ -114,6 +114,55 @@ class Bot(ABC):
         # rate. Return your dict here and the merging is not your problem.
         return {}
 
+    def region_cleared(self, done: dict[str, Any]) -> str | None:
+        """What the next region should open with, when a campaign crosses one.
+
+        In: a dict describing the region just finished (region, next, badges, won,
+        steps, team, notes_kept). Out: the text the next region starts with, or
+        None to say nothing.
+        """
+        # CALLED WITH THE MEMORY STILL INTACT, on purpose: this is where a bot can
+        # ask its own model to summarise what it learned, which it cannot do once
+        # the forgetting has happened. The forgetting is the runner's job, right
+        # after this returns, so nothing here has to remember to do it.
+        return None
+
+    def region_opening(self, text: str) -> None:
+        """Hands the bot what the last region left it, before the next one starts.
+
+        In: the text `region_cleared` returned. Out: nothing.
+        """
+        # Separate from `region_cleared` because they happen on opposite sides of
+        # the forgetting: one is asked while the old region is still in memory, the
+        # other arrives once it is gone.
+
+    def reset_memory(self, keep: tuple[str, ...] = ()) -> None:
+        """Forgets the region just finished.
+
+        In: which parts to keep. Out: nothing.
+        """
+        # Nothing to forget on a bot with no memory (the random one, a policy, a
+        # search), so the base does nothing and the hook still exists for the
+        # runner to call blindly.
+
+    def memory_text(self, include_scratch: bool = False) -> str:
+        """The bot's memory as text, for handing to a model.
+
+        In: whether to flatten the kept turns in too. Out: the text, or "".
+        """
+        return ""
+
+    def memory_messages(self, n: int | None = None) -> list[dict[str, Any]]:
+        """The kept turns as real messages, for handing to a model.
+
+        In: how many turns at most, newest last. Out: the messages, or [].
+        """
+        # Text and messages are separate because the memory has two natures: the
+        # notes, the plan and the journal are prose, while the kept turns are
+        # actual user/assistant/tool exchanges that would lose their shape as one
+        # string.
+        return []
+
     def artifacts(self) -> list:
         """What to archive alongside a leaderboard result.
 

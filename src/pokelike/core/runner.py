@@ -11,8 +11,10 @@ it too: the benchmark and the `bot` command are built on it.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+from .browser import REGIONS, normalise_region, region_name
 from .game import Game
 
 
@@ -79,6 +81,7 @@ def play_run(
     max_steps: int = 400,
     on_step=None,
     on_decision=None,
+    region: int | str = 1,
 ) -> dict[str, Any]:
     """Plays one run start to finish and returns what happened.
 
@@ -91,7 +94,7 @@ def play_run(
     purpose: at game over the engine wipes `state`, so the team and the badge
     count are gone by the time the run ends.
     """
-    obs = game.reset(seed=seed)
+    obs = game.reset(seed=seed, region=region)
     bot.reset(seed)
     trace: list[dict[str, Any]] = []
     # `_settle` gives up after 90 seconds and flags the state rather than raising,
@@ -157,6 +160,7 @@ def play_run(
     alive = game.last_alive or {}
     return {
         "seed": seed,
+        "region": obs.get("region") or region_name(normalise_region(region)),
         "steps": game.steps,
         "score": score.get("points_no_time"),
         "score_raw": score.get("points"),
@@ -170,4 +174,69 @@ def play_run(
         "final_state": obs,
         "score_detail": score,
         "trace": trace,
+    }
+
+
+def play_campaign(
+    game: Game,
+    bot: Any,
+    seed: int,
+    regions: Sequence[int | str] | None = None,
+    max_steps: int = 400,
+    on_step=None,
+    on_decision=None,
+    on_region=None,
+) -> dict[str, Any]:
+    """Plays one region after another with the same bot, stopping when one is lost.
+
+    In: the game, the bot, the seed, and which regions in what order (all four by
+    default). Out: one result covering the whole campaign, with the per-region
+    results under `regions`.
+    """
+    # A region is a whole GAME: the game keeps nothing between them, a new starter
+    # is picked and the badge count restarts, which is why this is a sequence of
+    # runs rather than a longer one. What crosses is the BOT: its notes, and
+    # whatever `region_cleared` chooses to tell the next region.
+    #
+    # Stopping at the first region not won is the point of a campaign. Carrying on
+    # after a loss would measure four independent regions and call it progress.
+    order = list(regions or REGIONS)
+    runs: list[dict[str, Any]] = []
+    opening: str | None = None
+
+    for i, region in enumerate(order):
+        if opening is not None and hasattr(bot, "region_opening"):
+            bot.region_opening(opening)
+        run = play_run(game, bot, seed=seed, max_steps=max_steps,
+                       on_step=on_step, on_decision=on_decision, region=region)
+        runs.append(run)
+        won = run.get("ending") == "win-screen"
+        done = {
+            "region": run["region"],
+            "next": (region_name(normalise_region(order[i + 1]))
+                     if won and i + 1 < len(order) else None),
+            "badges": run.get("badges", 0),
+            "won": won,
+            "steps": run.get("steps", 0),
+            "team": [f"{p.get('name')} L{p.get('level')}" for p in (run.get("team") or [])],
+        }
+        if on_region is not None:
+            on_region(done)
+        if not won or done["next"] is None:
+            break
+        # ASKED BEFORE THE FORGETTING, so a bot that wants its own model to write
+        # the summary still has the region in front of it when it does.
+        opening = bot.region_cleared(done)
+        bot.reset_memory()
+
+    total = sum(r.get("badges", 0) for r in runs)
+    return {
+        "seed": seed,
+        "regions": runs,
+        "regions_played": len(runs),
+        "regions_cleared": sum(1 for r in runs if r.get("ending") == "win-screen"),
+        "badges": total,
+        "steps": sum(r.get("steps", 0) for r in runs),
+        "ending": runs[-1].get("ending") if runs else None,
+        "trace": [e for r in runs for e in (r.get("trace") or [])],
     }

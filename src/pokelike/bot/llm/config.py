@@ -92,6 +92,10 @@ class LLMConfig(BaseModel):
     #   "full"  the screen as it was. Measured at six and a half times the input
     #           tokens, and it invites reasoning about a map that has since changed
     scratch_state: str = "line"
+    # What survives when a campaign crosses from one region into the next. The
+    # notes by default, because they are the learning and the next region is where
+    # it would pay off; the rest is about a map that no longer exists.
+    keep_across_regions: tuple[str, ...] = ("notes",)
 
     @field_validator("drop_tools")
     @classmethod
@@ -101,6 +105,16 @@ class LLMConfig(BaseModel):
         # under the bot's name. Refused here rather than discovered fifty runs in.
         if "play" in v:
             raise ValueError("play cannot be dropped: it is how a turn ends")
+        return v
+
+    @field_validator("keep_across_regions")
+    @classmethod
+    def _known_memories(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        known = ("notes", "journal", "scratchpad", "plan")
+        unknown = [x for x in v if x not in known]
+        if unknown:
+            raise ValueError(f"keep_across_regions: no memory called {unknown}. "
+                             f"There is: {', '.join(known)}")
         return v
 
     @field_validator("scratch_state")
