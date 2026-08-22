@@ -141,16 +141,9 @@ uv run pokelike bot run --bot random  --runs 1 -d         # the baseline, one li
 uv run pokelike history                                   # how it went
 ```
 
-![An LLM playing a run](img/llm_playthrough.gif)
-
-*An LLM playing a run. Each turn it reads the state, may call a read-only tool, and
-commits to one move with a reason, the same reasoning the `-d` flags stream in the
-terminal.*
-
 ![The map, and where the bot is on it](img/llm_battle.gif)
 
-*`-g` draws the map beside each decision: where you are, where you may still go, and
-where you have already been.*
+*a bot playing headless mode*
 
 Writing one is a folder and a single method, `act(state) -> int`.
 **[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide**, a six-step walk-through from a
