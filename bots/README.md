@@ -78,6 +78,30 @@ changing a line. The full walk-through, how it is judged, what makes results
 comparable, and how to open the pull request, is in
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
+**If your bot is a prompt around a model**, one request goes out per turn: the system
+prompt, then the state as text, with the tool schemas beside them. What the model
+remembers is yours to set:
+
+| setting | what it gives the model | default |
+|---|---|---|
+| `memory` | past turns summarised, one line each (`-1` for all of them) | `6` |
+| `scratch_turns` | the last N turns in full, its own words included | `0` |
+| `notes_cap`, `note_chars` | a notebook it writes and edits itself | `0`, `160` |
+| `cross_run_memory` | those notes surviving into the next run | `False` |
+| `plan_chars` | a route it plans for the map, shown back every turn | `0` |
+| `bag_tool` | a tool for what it is carrying | `False` |
+
+A zero means off. `bot new --llm` turns them on for you; the six shipped bots keep the
+plain setup, which is why they are comparable with each other. Set them on your class:
+
+```python
+class MyBot(LLMBot):
+    config = LLMConfig(prompt=MY_PROMPT, notes_cap=12, cross_run_memory=True)
+```
+
+And if none of that fits, inherit `Bot` instead and write `act(state) -> int`: no loop,
+no prompt, no constraints beyond returning a legal index.
+
 ## Measuring a MODEL instead of a bot
 
 An `llm` entry here ranks a **scaffold**: the prompt and tools are the idea, the model

@@ -166,7 +166,41 @@ block.
 ## The LLM harness: knobs and seams
 
 `LLMBot` (`bot/llm/`) is what the six `llm-*` bots inherit. Inherit, set a `config`
-with your prompt, done: everything else has a default that works. `HARNESS = 1` today.
+with your prompt, done: everything else has a default that works. `HARNESS = 2` today.
+
+### What the model actually receives
+
+One request per turn, and it is NOT a chat that grows. Every turn is assembled fresh:
+
+```
+system     the prompt, identical every turn
+[history]  the last `scratch_turns` finished turns, as real assistant/tool messages
+user       the state now, plus the journal, the notes and the plan, as text
+tools      the schemas, sent beside the messages (NOT inside them)
+```
+
+The tool schemas travel as their own field of the request body, which is why they do
+not appear in a conversation log: `call_model(messages)` takes the messages, and
+`tools=` is added next to them. They cost tokens every turn whether called or not.
+
+Memory is three things with three lifetimes, and telling them apart is most of using
+this well:
+
+| level | form | how long it lasts |
+|---|---|---|
+| scratchpad | the last N turns as real `user`/`assistant`/`tool` messages | `scratch_turns`, per run |
+| journal | text inside the last user message: `WHAT YOU DID, AND WHAT YOU SAID` | `memory` turns, per run |
+| notes and plan | text inside the last user message, the model edits them with tools | notes cross runs when `cross_run_memory`, the plan dies with the map |
+
+In a kept scratchpad turn the SCREEN is replaced by one line,
+`[the screen you were shown that turn, since changed]`. The slot has to stay (an
+assistant message must follow a user one, or the request is malformed) but its content
+must not: measured in v5, keeping the whole screen cost 269k input tokens for ONE run
+against 41k, six and a half times, because every kept turn dragged another render of
+team, map and actions along. It is also wrong on its own terms, a stale screen invites
+reasoning about a map that has already changed, while the current one is right there in
+the fresh message. What stays is what the model SAID and what the tools ANSWERED, which
+is the part nothing else can reconstruct.
 
 ### Value-only knobs (LLMConfig fields)
 
@@ -182,6 +216,17 @@ with your prompt, done: everything else has a default that works. `HARNESS = 1` 
 | `extra_tools` | `[]` | tools of yours, on top of the shared four |
 | `state_view` | `"screen"` | what the model reads each turn |
 | `retries` | `4` | attempts on a transient HTTP failure |
+| `scratch_turns` | `0` | whole turns kept verbatim, 0 for none |
+| `notes_cap` | `0` | notes the model may hold, 0 turns the notebook off |
+| `note_chars` | `160` | characters per note, longer ones are truncated |
+| `cross_run_memory` | `False` | whether the notes survive into the next run |
+| `plan_chars` | `0` | characters of the route it plans, 0 turns `plan` off |
+| `bag_tool` | `False` | offer a `bag` tool |
+
+The last six arrived with `HARNESS = 2` and are **off by default on purpose**: a bot's
+fingerprint covers `bot.py` and `artifacts/`, not this library, so a changed default
+would silently make every result already recorded a claim about code that no longer
+exists. A bot made by `bot new --llm` has them on.
 
 All are fields of a pydantic model set as `config = LLMConfig(...)` on the class.
 
