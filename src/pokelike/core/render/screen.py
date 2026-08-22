@@ -21,6 +21,9 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "
         f"map {run.get('map', '-')}   badges {run.get('badges', '-')}"
+        # Only when it is not the default, so every run recorded before regions
+        # existed still renders byte-identically and the header stays short.
+        + (f"   region: {obs['region']}" if obs.get("region") not in (None, "kanto") else "")
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):

@@ -93,6 +93,42 @@ def normalise_seed(seed: int) -> int:
     return seed or 1
 
 
+# The four story regions, in the order the game lists their cards, which is also
+# the order their generation numbers run in. The name is what a person types and
+# what gets recorded; the number is what the engine's card index wants.
+REGIONS = ("kanto", "johto", "hoenn", "sinnoh")
+
+
+def normalise_region(region: int | str) -> int:
+    """Turns a region name or number into the engine's 1-based index.
+
+    In: 1-4, or one of kanto, johto, hoenn, sinnoh (any case). Out: 1-4.
+    """
+    # Refused rather than defaulted to Kanto: a typo that quietly plays the first
+    # region would file a Johto row that never was, and nothing downstream could
+    # tell. The seed is checked before a run for the same reason.
+    if isinstance(region, bool):
+        raise ValueError("the region must be a number 1-4 or a name, not a bool")
+    if isinstance(region, int):
+        if not 1 <= region <= len(REGIONS):
+            raise ValueError(f"region {region} does not exist: there are "
+                             f"{len(REGIONS)} ({', '.join(REGIONS)})")
+        return region
+    name = str(region).strip().lower()
+    if name not in REGIONS:
+        raise ValueError(f"no region called {region!r}. There is: "
+                         f"{', '.join(REGIONS)}, or 1-{len(REGIONS)}")
+    return REGIONS.index(name) + 1
+
+
+def region_name(gen: int) -> str:
+    """The name of a region, from its number.
+
+    In: 1-4. Out: the lowercase name.
+    """
+    return REGIONS[normalise_region(gen) - 1]
+
+
 # Screens that represent a real choice by the player.
 DECISION_SCREENS = [
     "map-screen", "catch-screen", "item-screen", "passive-screen", "swap-screen",

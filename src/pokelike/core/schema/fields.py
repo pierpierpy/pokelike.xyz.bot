@@ -15,6 +15,9 @@ FIELDS = {
     "layer": "'screen' or 'modal'. Modals are choices too, not decoration",
     "steps": "how many decisions this run has taken",
     "seed": "the run's seed; the same seed replays the same run",
+    "region": ("which of the four story regions this run is in: kanto, johto, hoenn "
+               "or sinnoh. Each has its own eight gyms, its own starters and its own "
+               "Elite Four, and a run plays exactly one of them"),
     "done": "True when the run is over",
     "run": "run-wide facts: map index, badges, whether anyone has fainted",
     "team": "your Pokemon, in order. Everything about them",

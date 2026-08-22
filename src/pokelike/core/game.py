@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .browser import Session, normalise_seed
+from .browser import Session, normalise_region, normalise_seed, region_name
 
 
 class IllegalAction(RuntimeError):
@@ -42,6 +42,9 @@ class Game:
 
     session: Session | None = field(default=None, repr=False)
     seed: int | None = None
+    # 1-4. Set by `reset`, and declared here so `state()` before one does not
+    # raise: a fresh Game is Kanto until told otherwise, like the game itself.
+    region: int = 1
     steps: int = 0
     score_hook: dict[str, Any] | None = field(default=None, repr=False)
     last_alive: dict[str, Any] | None = field(default=None, repr=False)
@@ -69,8 +72,11 @@ class Game:
 
     # -------------------------------------------------------------------- run
 
-    def reset(self, seed: int = 0) -> dict[str, Any]:
-        """Starts a run in Story mode, Kanto, classic rules.
+    def reset(self, seed: int = 0, region: int | str = 1) -> dict[str, Any]:
+        """Starts a run in Story mode, classic rules, in the region asked for.
+
+        In: the seed, and the region as a number (1-4) or a name (kanto, johto,
+        hoenn, sinnoh). Out: the first observation.
 
         Picking the trainer and the starter is NOT done here: those stay player
         decisions and show up as the first two turns.
@@ -80,6 +86,7 @@ class Game:
         registry, so the whole run was lost to a mistake known at step zero.
         """
         seed = normalise_seed(seed)
+        gen = normalise_region(region)
         if self.session is None:
             self.open()
         assert self.session is not None
@@ -87,6 +94,7 @@ class Game:
         # The normalised value, not the one passed in: what gets recorded has to
         # be the seed that will actually reproduce this run.
         self.seed = seed
+        self.region = gen
         self.steps = 0
         self.last_alive = None
         page = self.session.load(seed)
@@ -101,15 +109,44 @@ class Game:
         # a poller calls its predicate an unpredictable number of times, so clicks
         # inside one would land at different moments and the engine would draw its
         # seeded randomness in a different order.
+        if gen != 1:
+            # THE GAME LOCKS EVERY REGION BUT KANTO until you have won one, and it
+            # decides that from the Hall of Fame in localStorage:
+            #
+            #   locked(gen 2)    = !hasStoryWin(1)
+            #   locked(gen 3, 4) = !hasAnyStoryWin()
+            #   hasStoryWin(g)   = getHallOfFame().some(r => !r.endless
+            #                                            && hofEntryGen(r) === g)
+            #
+            # `init.js` clears localStorage on every load so that no saved state
+            # leaks between runs, which also means we have never won anything and
+            # Johto is shut. Written back HERE, after the load, rather than by
+            # editing that file: every frozen harness carries its own copy of
+            # `init.js` and a recorded result hashes it, so this is the only way to
+            # let v0-v5 play a second region without touching them.
+            #
+            # It is a claim about a past run, not about this one: the entry says a
+            # Kanto game was won, which is what the lock asks, and nothing else in
+            # the engine reads it during play.
+            page.evaluate(
+                "() => { try { localStorage.setItem('poke_hall_of_fame',"
+                " JSON.stringify([{endless: false, gen2Mode: false, gen3Mode: false,"
+                " gen4Mode: false, badges: 8}])); } catch (e) {} }"
+            )
         page.evaluate("() => { const b = document.getElementById('btn-history-run'); if (b) b.click(); }")
         page.wait_for_function(
             "() => { const b = document.querySelector('.history-region-btn');"
             " return b && b.getBoundingClientRect().width > 0; }",
             timeout=10_000,
         )
+        # The cards are in region order, so the index IS the generation. A locked
+        # card is a click that does nothing, which is why the Hall of Fame goes in
+        # first: better to refuse loudly below than to start Kanto while the caller
+        # believes it asked for Johto.
         page.evaluate(
-            "() => { const b = document.querySelector('.history-region-btn');"
-            " if (b) b.dispatchEvent(new MouseEvent('click', {bubbles: true})); }"
+            "(i) => { const b = document.querySelectorAll('.history-region-btn')[i];"
+            " if (b) b.dispatchEvent(new MouseEvent('click', {bubbles: true})); }",
+            gen - 1,
         )
         try:
             # The run has started when there is something to decide. Waiting for a
@@ -169,6 +206,10 @@ class Game:
         obs = self.session.page.evaluate("() => window.__pk_obs()")
         obs["steps"] = self.steps
         obs["seed"] = self.seed
+        # Which region this run is in. In the observation and not only in the
+        # log, because a model that can be sent to Johto has to be able to know
+        # it is there: the gyms and the species are different.
+        obs["region"] = region_name(self.region)
         obs["done"] = self._is_terminal()
         self._last = obs
         # On the game-over screen the engine wipes `state`: empty team, no
