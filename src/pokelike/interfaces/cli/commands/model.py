@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import argparse
 
-from ..shared import add_llm_flags
+from ..shared import add_llm_flags, add_region_flags
 from .model_bench import cmd_llm_bench
 from .model_stop import cmd_stop, model_stop_args
 from .model_watch import cmd_watch, model_watch_args
@@ -80,6 +80,7 @@ def model_bench_args(s) -> None:
                         "pk_<harness>_<model>_<hash>, carries a short random suffix "
                         "so two passes of the same model can run at once")
     s.add_argument("--table", action="store_true", help=argparse.SUPPRESS)
+    add_region_flags(s)
     add_llm_flags(s, with_model=False)
     s.add_argument("--no-preflight", action="store_true",
                    help="skip the one-call check that the model can emit tool calls")

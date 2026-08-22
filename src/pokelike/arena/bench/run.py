@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ...core.runner import play_run
+from ...core.runner import play_campaign, play_run
 from .progress import _tok, live_fields, progress_bar
 from .seeds import STANDARD_SEEDS, bundle_fingerprint, summarise
 
@@ -27,6 +27,8 @@ def run_benchmark(
     on_run=None,
     on_step=None,
     on_decision=None,
+    region: int | str = 1,
+    campaign: bool = False,
 ) -> dict[str, Any]:
     """Plays the seed list and returns the result document.
 
@@ -34,38 +36,23 @@ def run_benchmark(
     callbacks. Out: the full result dict ready for record_result().
     """
     from ... import __version__
+    from ...core.browser import region_name as _rname, normalise_region
 
     seeds = seeds or STANDARD_SEEDS
     runs: list[dict[str, Any]] = []
+    region_int = normalise_region(region)
+    rname = _rname(region_int)
 
     bar = progress_bar(iterable=seeds, desc=f"bench {bot_name}", unit="run",
                        leave=True)
     for seed in bar:
-        # Live, while the run is still going. Without this the bar sits at the
-        # same number for one to three minutes with nothing to say whether the bot
-        # is making progress or stuck on a wedged screen, and on a fifty-seed
-        # LLM pass that is most of an hour of no information at all. Written into
-        # the bar rather than printed: it is the state of one run, which is
-        # replaced by the next reading rather than worth a line of its own.
         def live(obs, steps, _seed=seed):
-            # What the finished runs already spent, so the bar can show this run
-            # against the pass. Summed here rather than kept in a counter: the rows
-            # are the only place tokens are recorded, and a second tally would be a
-            # second thing to keep in step with them.
             spent = (sum(r.get("tokens_in") or 0 for r in runs),
                      sum(r.get("tokens_out") or 0 for r in runs))
             bar.set_postfix({"step": steps, **live_fields(obs, bot, spent)})
             if on_step:
                 on_step(obs, steps)
 
-        # The seed is injected here rather than added to the trace entry itself:
-        # `play_run` plays ONE run and has no reason to repeat which one on every
-        # line, but a file collecting fifty runs does.
-        #
-        # The token counters come along for the same reason. They are the bot's, and
-        # `on_start` resets them, so they are THIS run's cumulative: everything
-        # else (what one turn cost, what the pass has cost) is arithmetic on top,
-        # and is done by whoever writes the file.
         def decided(entry, _seed=seed):
             on_decision({
                 "seed": _seed,
@@ -74,16 +61,36 @@ def run_benchmark(
                 **entry,
             })
 
-        full = play_run(game, bot, seed, max_steps=max_steps, on_step=live,
-                        on_decision=decided if on_decision else None)
-        # The heavy fields (final state, full team) are for callers who want
-        # them; a result file keeps one compact row per run.
-        row = {k: full[k] for k in
-               ("seed", "steps", "score", "badges", "maps", "kos", "faints", "ending",
-                "stalled")}
+        if campaign:
+            full = play_campaign(game, bot, seed, max_steps=max_steps,
+                                 on_step=live,
+                                 on_decision=decided if on_decision else None)
+            row = {
+                "seed": seed,
+                "steps": full.get("steps", 0),
+                "score": None,
+                "badges": full.get("badges", 0),
+                "maps": 0,
+                "kos": 0,
+                "faints": 0,
+                "ending": full.get("ending"),
+                "stalled": False,
+                "regions_played": full.get("regions_played", 0),
+                "regions_cleared": full.get("regions_cleared", 0),
+                "region": "all",
+            }
+        else:
+            full = play_run(game, bot, seed, max_steps=max_steps, on_step=live,
+                            on_decision=decided if on_decision else None,
+                            region=region_int)
+            row = {k: full[k] for k in
+                   ("seed", "steps", "score", "badges", "maps", "kos", "faints", "ending",
+                    "stalled")}
+            row["region"] = full.get("region") or rname
+
         runs.append(row)
         done = [r["score"] for r in runs if r["score"] is not None]
-        bar.set_postfix(score=row["score"],
+        bar.set_postfix(score=row.get("score"),
                         mean=round(sum(done) / len(done), 1) if done else None)
         if on_run:
             on_run(row, len(runs), len(seeds))
@@ -95,6 +102,7 @@ def run_benchmark(
         "description": description,
         "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "pokelike_version": __version__,
+        "region": "all" if campaign else rname,
         "game": bundle_fingerprint(site),
         "seeds": seeds,
         "summary": summarise(runs),

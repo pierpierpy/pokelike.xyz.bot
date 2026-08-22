@@ -43,6 +43,8 @@ class PassLog:
 
     COLUMNS = ("  seed  badges   score  steps        in       out  fell  retry     secs")
     COLUMNS_MEMORY = COLUMNS + "  notes"
+    COLUMNS_REGION = ("  seed  region   badges   score  steps        in       out  fell  retry     secs")
+    COLUMNS_REGION_MEMORY = COLUMNS_REGION + "  notes"
 
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
                  memory: bool = False, folder: Path | None = None,
@@ -54,7 +56,8 @@ class PassLog:
                  header_lines: list[str] | None = None,
                  done_summary: Any = None,
                  notebook_header: str | None = None,
-                 plan_header: str | None = None) -> None:
+                 plan_header: str | None = None,
+                 region: str | None = None) -> None:
         # Legacy: if folder is not provided, use session_dir(version) from the
         # model benchmark. Deferred import so the package stays neutral.
         if folder is None:
@@ -74,6 +77,9 @@ class PassLog:
         self.total = len(seeds)
         self.badges: list[int] = []
         self.memory = memory
+        # Region column: shown only when the pass is not plain kanto, so a kanto
+        # pass's log stays byte-identical to what it was before regions existed.
+        self.region = region
         self.model = model
         self.book: list[str] = []
         self.spent: dict[int, tuple[int, int]] = {}
@@ -109,7 +115,7 @@ class PassLog:
             if memory:
                 self._say("this harness keeps the model's notes between runs: they are "
                           "logged as they change.")
-        self._say(self.COLUMNS_MEMORY if memory else self.COLUMNS)
+        self._say(self._columns_header())
 
         # Liveness heartbeat.
         self.alive_path = self.trace_path.with_suffix(".alive")
@@ -127,6 +133,12 @@ class PassLog:
     def _say(self, line: str) -> None:
         self.fh.write(line + "\n")
 
+    def _columns_header(self) -> str:
+        """The column header, with region only when the pass is not plain kanto."""
+        if self.region and self.region != "kanto":
+            return self.COLUMNS_REGION_MEMORY if self.memory else self.COLUMNS_REGION
+        return self.COLUMNS_MEMORY if self.memory else self.COLUMNS
+
     def run(self, row: dict[str, Any]) -> None:
         """Records one finished run to the log.
 
@@ -136,8 +148,12 @@ class PassLog:
         self.badges.append(row.get("badges") or 0)
         self.spent[row.get("seed")] = (row.get("tokens_in") or 0,
                                        row.get("tokens_out") or 0)
+        # Region column: shown only when the pass is not plain kanto.
+        region_cell = ""
+        if self.region and self.region != "kanto":
+            region_cell = f"{(row.get('region') or self.region)[:7]:>9}"
         self._say(
-            f"{row.get('seed', 0):>6}{row.get('badges') or 0:>8}"
+            f"{row.get('seed', 0):>6}{region_cell}{row.get('badges') or 0:>8}"
             f"{(row.get('score') if row.get('score') is not None else 0):>8}"
             f"{row.get('steps') or 0:>7}"
             f"{row.get('tokens_in') or 0:>10}{row.get('tokens_out') or 0:>10}"

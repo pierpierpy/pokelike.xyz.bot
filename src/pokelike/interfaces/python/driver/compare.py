@@ -21,10 +21,11 @@ from .session import SITE, session
 
 
 def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
-            site: Path | str = SITE) -> dict[str, Any]:
+            site: Path | str = SITE,
+            region: int | str = 1) -> dict[str, Any]:
     """Several bots over the SAME seeds, compared pairwise.
 
-    In: {name: bot} dict, an iterable of seeds, optional baseline name, site.
+    In: {name: bot} dict, an iterable of seeds, optional baseline name, site, region.
     Out: {"runs": {name: [row, ...]}, "table": str}.
 
     `baseline` names what everything is measured against; without one a random
@@ -43,7 +44,7 @@ def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
     runs: dict[str, list[dict]] = {}
     with session(site=site) as game:
         for name, bot in tqdm(entrants.items()):
-            runs[name] = [play_run(game, bot, s) for s in seeds]
+            runs[name] = [play_run(game, bot, s, region=region) for s in seeds]
     return {"runs": runs, "table": format_comparison(runs, baseline)}
 
 

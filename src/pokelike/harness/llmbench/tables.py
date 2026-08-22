@@ -42,12 +42,13 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     # Only for a harness that keeps notes. On a memoryless version the first ten
     # seeds against the last ten is noise with a suggestive name.
     learns = cross_run_memory(version)
-    head = (f"{'model':<34}{'passes':>7}{'runs':>6}{'badges~':>9}{'±sem':>7}"
+    # Region column: shown only when at least one row is not kanto.
+    show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
+    head = (f"{'model':<34}{'passes':>7}{'runs':>6}"
+            + (f"{'region':>9}" if show_region else "")
+            + f"{'badges~':>9}{'±sem':>7}"
             f"{'med':>5}{'best':>6}{'won':>5}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
-            # `$` rather than `usd`, and the per-run figure beside the total: the
-            # total answers "what did this row cost", the per-run answers "what
-            # will another pass cost me", which is the question you actually ask.
             + (f"{'$':>8}{'$/run':>9}" if money else ""))
     # One line, because it is read every time and says the same thing every time.
     # It has to name what it ranks: `pokelike bot board` prints a `badges~` column
@@ -61,7 +62,8 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
         lc = r.get("learning") or {}
         out.append(
             f"{str(r['model'])[:33]:<34}{r['passes']:>7}{r['runs']:>6}"
-            f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
+            + (f"{(r.get('region') or 'kanto'):>9}" if show_region else "")
+            + f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
             f"{r['badges_best']:>6}{r.get('won', 0):>5}"
             + ((f"{lc['delta']:>+8.2f}" if lc.get("delta") is not None else f"{'-':>8}")
                + f"{r.get('notes_kept') if r.get('notes_kept') is not None else '-':>7}"

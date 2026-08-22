@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 
 from ....arena.bench import STANDARD_SEEDS
+from ....core.browser import region_name
 from ..shared import SITE_ROOT, _server_and_game, llm_settings, parse_seeds
 from .docker import _in_docker
 
@@ -21,6 +22,11 @@ def cmd_llm_bench(args) -> int:
     In: the parsed args. Out: the process exit code.
     """
     from ....harness import llmbench
+    from ..shared import validate_region_flags, effective_region
+
+    validate_region_flags(args)
+    campaign = getattr(args, "regions", None) is not None
+    region = effective_region(args)
 
     # Asked of both verbs. A version IS the question a row answers, so neither
     # running nor reading can be done without naming one.
@@ -185,6 +191,10 @@ def cmd_llm_bench(args) -> int:
         # with a different setting is answering a different question, and the flags
         # were the one thing nothing wrote down before.
         **({"settings": settings} if settings else {}),
+        # The region, recorded only when it is not the default. A Kanto pass is
+        # what every existing row is, so leaving it out keeps old files valid.
+        **({"region": region_name(region)} if region != 1 else {}),
+        **({"regions": "all"} if campaign else {}),
         # The endpoint, never the key: which provider served a row changes what the
         # row means, and is worth having later. A token is worth nothing later.
         "endpoint": creds.get("endpoint") or os.environ.get("FW_ENDPOINT") or None,
@@ -211,12 +221,14 @@ def cmd_llm_bench(args) -> int:
                     one = llmbench.fan_out(args.harness, model, seeds, args.workers,
                                            SITE_ROOT, port0=args.port + 10,
                                            folder=folder, attempt=attempt,
-                                           settings=settings, **creds)
+                                           settings=settings, region=region,
+                                           campaign=campaign, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
                                               seeds, folder=folder, attempt=attempt,
                                               conversations=not args.no_conv,
-                                              settings=settings, **creds)
+                                              settings=settings, region=region,
+                                              campaign=campaign, **creds)
                 s = one["summary"]
                 print(f"  {model} @ {args.harness}: badges {s.get('badges_mean')} "
                       f"(best {s.get('badges_best')}), "

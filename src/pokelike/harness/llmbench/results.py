@@ -139,6 +139,9 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
         "model": doc.get("model"),
         "passes": len(passes),
         "runs": len(runs),
+        # Region: at the doc level, or inferred from the first pass that carries one.
+        "region": (doc.get("region")
+                   or next((p.get("region") for p in passes if p.get("region")), None)),
         "badges_mean": round(statistics.mean(badges), 3),
         # The number that decides whether any gap in this table is real.
         "badges_sem": round(sd / len(badges) ** 0.5, 3) if sd else 0.0,
@@ -186,11 +189,12 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
 
 def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, Any]],
              game: dict[str, str], notes: dict[str, Any],
-             fingerprint: dict[str, str] | None = None) -> dict[str, Any]:
+             fingerprint: dict[str, str] | None = None,
+             region: str | None = None) -> dict[str, Any]:
     """Assembles a pass dict ready for recording.
 
     In: version, model, seeds, run rows, game fingerprint, notes, optional
-    harness fingerprint. Out: the complete pass dict.
+    harness fingerprint, optional region. Out: the complete pass dict.
     """
     # `fingerprint` is taken by the CALLER, before the first seed is played, and
     # passed in. Hashing the harness here instead would hash it half an hour later:
@@ -200,7 +204,7 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
     # no caller supplied one, so the function stays usable on its own.
     turns = sum(r.get("turns") or 0 for r in runs)
     falls = sum(r.get("fallbacks") or 0 for r in runs)
-    return {
+    out = {
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": model,
         "harness": version,
@@ -215,3 +219,7 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
         "notes": notes,
         "runs": sorted(runs, key=lambda r: r["seed"]),
     }
+    # Region: only recorded when it is not kanto, so existing files stay valid.
+    if region and region != "kanto":
+        out["region"] = region
+    return out

@@ -50,6 +50,8 @@ and talk to its global functions.
 uv sync                          # environment
 uv run pokelike setup            # browser + offline copy (once)
 uv run pokelike play --seed 42   # interactive run
+uv run pokelike play --region johto      # any of kanto, johto, hoenn, sinnoh
+uv run pokelike bot run --bot mine --regions all   # all four, stopping at a loss
 uv run pokelike schema           # what a bot receives, printed from a live game
 uv run pokelike history -d       # what you played here, columns explained
 uv run pytest                    # full suite, ~1 minute, needs the game on disk
@@ -327,6 +329,46 @@ game. The browser stays alive between calls.
 An illegal move returns 409 (`IllegalAction`); a malformed body, 400; an unknown route,
 404. The asset server that feeds the headless browser is a separate process on port
 **8422** (`--port`); the two are kept distinct.
+
+## The four regions
+
+The game has four story regions (Kanto, Johto, Hoenn, Sinnoh), each a WHOLE GAME: its own
+eight gyms, its own starters, its own Elite Four, and a badge count that restarts. Nothing
+carries between them, so a campaign is a SEQUENCE of runs and the only thing that crosses
+is the bot.
+
+**Every region but Kanto is locked until you have won one**, and the game decides that
+from the Hall of Fame in `localStorage`:
+
+    locked(gen 2)    = !hasStoryWin(1)
+    locked(gen 3, 4) = !hasAnyStoryWin()
+    hasStoryWin(g)   = getHallOfFame().some(r => !r.endless && hofEntryGen(r) === g)
+
+`init.js` clears `localStorage` on every load so no saved state leaks between runs, which
+also means we have never won anything. `Game.reset` therefore writes the entry back FROM
+PYTHON after the load, and only when a region other than Kanto is asked for. That is not
+squeamishness about editing a file: every frozen harness carries its own `init.js` and a
+recorded result hashes it, so this is the only way to let v0-v5 play a second region
+without touching them.
+
+`normalise_region` refuses what does not exist rather than falling back to Kanto, for the
+same reason the seed is checked before a run starts: a typo would otherwise file a Johto
+row that never was.
+
+`runner.play_campaign()` plays the regions in order and stops at the first not won. What a
+bot keeps across a boundary is `LLMConfig.keep_across_regions`, default `("notes",)`, and
+the four seams around it are on `Bot` so a policy answers them too:
+
+| seam | when |
+|---|---|
+| `region_cleared(done) -> str \| None` | the region ended, memory STILL INTACT, so a bot can have its own model summarise |
+| `region_opening(text)` | the other side, after the forgetting |
+| `reset_memory(keep=...)` | the forgetting itself, done by the runner |
+| `memory_text()`, `memory_messages()` | the material, so nothing has to reach for privates |
+
+`memory_messages()` can only return what was KEPT: `scratch_turns` is a retention policy,
+not a read filter, so a summary that wants the whole region wants `memory=-1` instead, one
+line per turn.
 
 ## Scoring
 

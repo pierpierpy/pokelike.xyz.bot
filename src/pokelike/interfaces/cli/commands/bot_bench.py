@@ -13,7 +13,8 @@ from pathlib import Path
 
 from ....arena.bench import CATEGORIES, STANDARD_SEEDS, format_result, run_benchmark
 from ....arena.leaderboard import build_index, format_table, record_result
-from ..shared import _server_and_game, add_llm_flags, llm_settings, SITE_ROOT
+from ..shared import _server_and_game, add_llm_flags, llm_settings, SITE_ROOT, \
+    add_region_flags, validate_region_flags, effective_region
 from .bot_run import BOTS
 
 
@@ -23,6 +24,11 @@ def cmd_bench(args) -> int:
     In: the parsed args. Out: the process exit code.
     """
     from ....bot import LLMBot, create
+    from ....core.browser import region_name as _rname
+
+    validate_region_flags(args)
+    campaign = getattr(args, "regions", None) is not None
+    region = effective_region(args)
 
     try:
         bot = create(args.bot, seed=0, **llm_settings(args))
@@ -108,6 +114,7 @@ def cmd_bench(args) -> int:
             version="bot", model=display, seeds=seeds, workers=1,
             folder=log_dir, stem=stem, header_lines=header_lines,
             done_summary=_bot_done_summary,
+            region=_rname(region),
         )
 
         # Keep the last observation so the decision enricher can read the map.
@@ -156,6 +163,7 @@ def cmd_bench(args) -> int:
                 author=args.author, category=args.category,
                 description=args.description,
                 on_run=on_run, on_decision=on_decision, on_step=on_step,
+                region=region, campaign=campaign,
             )
         except BaseException:
             chat.close()
@@ -272,5 +280,6 @@ def bot_bench_args(s) -> None:
                         "file a pass writes")
     s.add_argument("--dry-run", action="store_true",
                    help="play all 50 and print the result, but write no entry")
+    add_region_flags(s)
     add_llm_flags(s)
     s.set_defaults(func=cmd_bench)

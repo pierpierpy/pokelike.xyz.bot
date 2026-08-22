@@ -121,6 +121,26 @@ edit in `harness/llmbench/`. It controls three things:
   something between runs.
 - The pass log opens the notebook and plan files.
 
+## Regions, and what v6 asks
+
+A row is a claim about one region. v0 to v5 play Kanto and always did; **v6 is the version
+that asks the four-region question**, and its prompt says what that means: each region is a
+whole game, the notes are the only thing that crosses, and a note about Brock is worth
+nothing in Johto while one about healing before a gym is worth something everywhere.
+
+Any version can be pointed at any region (`--region johto`), because the region is chosen
+by `Game.reset` and not by the harness. That does not make the rows comparable: a version
+is the question, and the region is part of the question, so the region is recorded beside
+the row and printed in the table when it is not Kanto.
+
+**The shared keys moved when regions arrived.** `core/game.py`, `core/browser.py` and
+`core/runner.py` are three of the seven fingerprint keys, and adding regions changed all
+three, so every v4 pass recorded before it reports drift on them. That is the mechanism
+working, not a fault: those rows measured what they measured under the code of their day.
+`utils/refingerprint.py` re-stamps them and keeps the old hash beside the new one, which is
+what makes the re-stamp honest rather than a quiet rewrite. It does NOT make an old row
+comparable with a new one.
+
 ## The badge ceiling
 
 Eight. `GYM_LEADERS` in the bundle has exactly eight entries, and the Elite Four that

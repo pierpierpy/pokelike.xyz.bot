@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, run_benchmark
+from ...core.browser import normalise_region, region_name
 from ...logging.trace import enrich_decision
 from ...logging import Conversations, PassLog
 from .results import _as_pass, learning
@@ -28,7 +29,8 @@ def play_model(game, version: str, model: str, site: Path,
                seeds: list[int] | None = None, endpoint: str | None = None,
                token: str | None = None, folder: Path | None = None,
                attempt: int = 1, conversations: bool = True,
-               settings: dict[str, Any] | None = None) -> dict[str, Any]:
+               settings: dict[str, Any] | None = None,
+               region: int | str = 1, campaign: bool = False) -> dict[str, Any]:
     """One pass: this model over the seed list, under this harness.
 
     In: a Game instance, version, model, site path, optional seeds/credentials/
@@ -47,7 +49,8 @@ def play_model(game, version: str, model: str, site: Path,
     # is on disk by then.
     stamp = fingerprints(version)
     log = PassLog(version, model, seeds, workers=1, folder=folder,
-                  attempt=attempt, memory=cross_run_memory(version))
+                  attempt=attempt, memory=cross_run_memory(version),
+                  region=region_name(normalise_region(region)) if region != 1 else None)
     # Everything the model was actually given, beside the trace. Wraps the bot's own
     # call_model, so a FROZEN harness is covered without being touched.
     chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
@@ -124,6 +127,7 @@ def play_model(game, version: str, model: str, site: Path,
             game, bot, bot_name=f"{model} @ {version}", site=site, seeds=seeds,
             category="llm", description=f"model benchmark, harness {version}",
             on_run=on_run, on_decision=decided, on_step=looked,
+            region=region, campaign=campaign,
         )
     except BaseException as e:
         # A pass asked to stop is not a pass that broke. SIGTERM (`model stop`,
@@ -140,7 +144,8 @@ def play_model(game, version: str, model: str, site: Path,
         log.close()
         raise
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
-                   result.get("notes") or {}, fingerprint=stamp)
+                   result.get("notes") or {}, fingerprint=stamp,
+                   region=region_name(normalise_region(region)) if region != 1 else None)
     # Named explicitly, not only implied by the paths below: those are absolute
     # and were written inside the container, so `/app/...` is a directory that does
     # not exist on the host reading the result. The stamp is the portable half.

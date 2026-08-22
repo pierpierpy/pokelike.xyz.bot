@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from ...assets.server import AssetServer
-from ...core.browser import SEED_MAX, normalise_seed
+from ...core.browser import REGIONS, SEED_MAX, normalise_region, normalise_seed, region_name
 from ...core.game import Game
 
 SITE_ROOT = Path(__file__).resolve().parents[4] / "site"
@@ -290,3 +290,69 @@ def parse_seeds(text: str) -> list[int]:
         raise ValueError("--seeds lists the same seed twice; every run has to be a "
                          "different game")
     return out
+
+
+# ---------------------------------------------------------------- region flags
+#
+# Two flags, mutually exclusive:
+#   --region NAME   one of kanto, johto, hoenn, sinnoh (or 1-4). Default kanto.
+#   --regions all   play them in sequence, stopping at the first not won.
+#
+# Refusing both at once is simpler and more helpful than trying to define what
+# "play johto, then all four" would mean. The validation raises argparse-style
+# messages, not tracebacks, so the user never sees a stack trace for a typo.
+
+
+def region_arg(value: str) -> int:
+    """`--region` as argparse sees it: refused here rather than after the run.
+
+    In: the raw flag value. Out: a 1-4 integer.
+    """
+    try:
+        return normalise_region(value if not value.isdigit() else int(value))
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
+def add_region_flags(parser) -> None:
+    """Adds --region and --regions to a subcommand parser.
+
+    In: an argparse (sub)parser. Out: None (mutates the parser).
+    """
+    g = parser.add_argument_group(
+        "region",
+        f"which region to play: one of {', '.join(REGIONS)} (or 1-4)",
+    )
+    g.add_argument("--region", type=region_arg, default=None, metavar="NAME",
+                   help=f"one of {', '.join(REGIONS)}, or 1-4. Default kanto")
+    g.add_argument("--regions", default=None, metavar="all",
+                   help="play all regions in sequence, stopping at the first not won")
+
+
+def validate_region_flags(args) -> None:
+    """Refuses --region and --regions together, validates --regions value.
+
+    In: the parsed args namespace. Out: raises SystemExit(2) on conflict.
+    """
+    has_region = getattr(args, "region", None) is not None
+    has_regions = getattr(args, "regions", None) is not None
+    if has_region and has_regions:
+        print("--region and --regions cannot be used together: one picks a single\n"
+              "region, the other plays all four in sequence.", file=sys.stderr)
+        raise SystemExit(2)
+    if has_regions:
+        val = args.regions.strip().lower()
+        if val != "all":
+            print(f"--regions only accepts 'all', got {args.regions!r}.",
+                  file=sys.stderr)
+            raise SystemExit(2)
+
+
+def effective_region(args) -> int:
+    """The region to play, from the flags. Default kanto (1).
+
+    In: the parsed args namespace. Out: 1-4.
+    """
+    if getattr(args, "region", None) is not None:
+        return args.region
+    return 1

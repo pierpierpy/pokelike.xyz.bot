@@ -104,6 +104,11 @@ Tools are one line each: `@tool("...")` on a method adds one, the same named aft
 shared tool replaces it, and `drop_tools=("what_lies_ahead",)` removes one. `play` is the
 exception: it is how the model says what it chose, so it cannot be removed or replaced.
 
+A run plays one region, Kanto by default. `--region johto` plays another, `--regions all`
+plays the four in sequence and stops at the first one lost. Each is a whole game, so only
+your notes cross a boundary (`keep_across_regions`), and `region_cleared(done)` is where
+you decide what the next region is told, with your memory still in front of you.
+
 And if none of that fits, inherit `Bot` instead and write `act(state) -> int`: no loop,
 no prompt, no constraints beyond returning a legal index.
 

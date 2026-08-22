@@ -35,7 +35,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             site: Path, port0: int = 8500, endpoint: str | None = None,
             token: str | None = None, folder: Path | None = None,
             attempt: int = 1,
-            settings: dict[str, Any] | None = None) -> dict[str, Any]:
+            settings: dict[str, Any] | None = None,
+            region: int | str = 1, campaign: bool = False) -> dict[str, Any]:
     """Plays the same pass using several subprocesses at once.
 
     In: version, model, seeds, worker count, site path, base port, credentials,
@@ -89,6 +90,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
              "--harness", version, "--model", model, "--port", str(port0 + k),
              *[a for k, v in (settings or {}).items()
                for a in ("--set", f"{k}={v}")],
+             *(["--region", str(region)] if region != 1 else []),
              "--seeds", ",".join(str(s) for s in chunk)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))

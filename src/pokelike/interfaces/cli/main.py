@@ -14,7 +14,7 @@ import sys
 
 from ...assets.mirror import PHASES
 from .help import _FAMILY, _FORMATTER, _boxes, groups_epilog
-from .shared import load_dotenv, seed_arg
+from .shared import load_dotenv, seed_arg, add_region_flags
 from .commands.general import (cmd_api, cmd_mirror, cmd_play, cmd_schema,
                                cmd_setup, cmd_stats)
 from .commands.bot import (bot_bench_args, bot_new_args, bot_run_args, cmd_bench,
@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--seed", type=seed_arg, default=1, help="seed of the run")
     s.add_argument("--watch", action="store_true", help="open a real window and watch")
     s.add_argument("--shots", metavar="FOLDER", help="save an image of every screen")
+    add_region_flags(s)
     s.set_defaults(func=cmd_play)
 
     s = sub.add_parser("api")

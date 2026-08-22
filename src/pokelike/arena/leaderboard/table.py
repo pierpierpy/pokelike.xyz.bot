@@ -24,7 +24,7 @@ def build_index(root: Path | None = None) -> dict[str, Any]:
     for e in load_results(base):
         s = e.get("summary") or {}
         notes = e.get("notes") or {}
-        rows.append({
+        entry = {
             "bot": e.get("bot"), "author": e.get("author"),
             "category": e.get("category"), "description": e.get("description"),
             "score_mean": s.get("score_mean"), "score_stdev": s.get("score_stdev"),
@@ -45,7 +45,12 @@ def build_index(root: Path | None = None) -> dict[str, Any]:
             "stale": e.get("stale", False),
             "unverified": e.get("unverified", False),
             "artifacts": len(e.get("artifacts") or []),
-        })
+        }
+        # Region: only stored when it is not the default, so existing index
+        # files stay byte-identical when nothing is non-kanto.
+        if e.get("region") and e["region"] != "kanto":
+            entry["region"] = e["region"]
+        rows.append(entry)
     # Ranked by badges, not score. The engine's score formula was written for the
     # Battle Tower and two of its six terms never fire in Story mode, so it
     # rewards fighting rather than getting further. See experiments/env/rewards.py.
@@ -154,22 +159,22 @@ def format_table(index: dict[str, Any]) -> str:
     rows = index.get("entries") or []
     if not rows:
         return "no bots measured yet"
-    head = (f"{'bot':<20}{'category':>10}{'runs':>6}{'badge~':>8}{'badge+':>8}"
+    # Region column shown only when at least one entry is not kanto, so today's
+    # tables stay byte-identical until someone benchmarks a different region.
+    show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
+    head = (f"{'bot':<20}{'category':>10}"
+            + (f"{'region':>9}" if show_region else "")
+            + f"{'runs':>6}{'badge~':>8}{'badge+':>8}"
             f"{'score~':>9}{'stdev':>8}{'best':>7}{'done':>6}")
-    # One line above the table, because it is read every time. It has to name what
-    # it ranks and over what: `pokelike history` prints columns with these names for
-    # whatever you happened to play on this machine, and `pokelike model board` has
-    # a `badges~` column for a different question. Someone handed one of the three
-    # cannot otherwise tell them apart, and the confusion is not hypothetical: the
-    # same weights scored 1.60 on 25 seeds picked during development and 1.10 on the
-    # official 50.
     out = ["bots on the standard 50 seeds. Each scaffold is its author's, so this "
            "ranks ideas.",
            "", head, "-" * len(head)]
     for r in rows:
         v = lambda k: r[k] if r.get(k) is not None else "-"  # noqa: E731
         out.append(
-            f"{(r['bot'] or '')[:19]:<20}{(r['category'] or ''):>10}{r['runs'] or 0:>6}"
+            f"{(r['bot'] or '')[:19]:<20}{(r['category'] or ''):>10}"
+            + (f"{(r.get('region') or 'kanto'):>9}" if show_region else "")
+            + f"{r['runs'] or 0:>6}"
             f"{v('badges_mean'):>8}{v('badges_best'):>8}{v('score_mean'):>9}"
             f"{v('score_stdev'):>8}{v('score_best'):>7}{v('completed'):>6}"
             + ("  <- code changed since this was measured" if r.get("stale")

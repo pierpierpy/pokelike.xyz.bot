@@ -12,7 +12,8 @@ from ....core import render
 from ....core.browser import SEED_MAX
 from ....core.runner import play_run
 from ....stats import record
-from ..shared import SITE_ROOT, _server_and_game, add_llm_flags, llm_settings, seed_arg
+from ..shared import SITE_ROOT, _server_and_game, add_llm_flags, llm_settings, seed_arg, \
+    add_region_flags, validate_region_flags, effective_region
 
 BOTS = Path(__file__).resolve().parents[5] / "bots"
 
@@ -23,6 +24,10 @@ def cmd_bot(args) -> int:
     In: the parsed args. Out: the process exit code.
     """
     from ....bot import create
+    from ....core.runner import play_campaign
+    from ....core.browser import region_name as _rname
+
+    validate_region_flags(args)
 
     try:
         bot = create(args.bot, seed=args.seed, **llm_settings(args))
@@ -32,6 +37,9 @@ def cmd_bot(args) -> int:
     except TypeError as e:
         print(e.args[0], file=sys.stderr)
         raise SystemExit(2) from e
+
+    campaign = getattr(args, "regions", None) is not None
+    region = effective_region(args)
 
     # Runs walk the seed forward, so a start that is fine on its own can still
     # run off the end part way through. Better to say so now than to stop after
@@ -43,6 +51,27 @@ def cmd_bot(args) -> int:
 
     server, game = _server_and_game(args)
     try:
+        if campaign:
+            # Campaign mode: play all four regions in sequence per seed.
+            for i in range(args.runs):
+                seed = args.seed + i
+                if args.detailed:
+                    print(f"\n--- campaign {i + 1}/{args.runs}, seed {seed} ---", flush=True)
+
+                def on_region(done, _i=i):
+                    print(f"  {done['region']}: badges {done['badges']}, "
+                          f"steps {done['steps']}, {'won' if done['won'] else 'lost'}",
+                          flush=True)
+
+                result = play_campaign(game, bot, seed, on_region=on_region)
+                print(
+                    f"campaign {i + 1}/{args.runs}  seed {seed}  "
+                    f"regions {result['regions_cleared']}/{result['regions_played']}  "
+                    f"badges {result['badges']}  steps {result['steps']}  "
+                    f"end {result['ending']}"
+                )
+            return 0
+
         for i in range(args.runs):
             seed = args.seed + i
 
@@ -67,7 +96,8 @@ def cmd_bot(args) -> int:
                 print(f"\n--- run {i + 1}/{args.runs}, seed {seed} ---", flush=True)
 
             r = play_run(game, bot, seed, max_steps=args.max_steps, on_step=each_step,
-                         on_decision=each_decision if args.detailed else None)
+                         on_decision=each_decision if args.detailed else None,
+                         region=region)
 
             if args.detailed:
                 print(render.ending_view(r["final_state"], game.last_alive,
@@ -152,6 +182,7 @@ def bot_run_args(s) -> None:
     s.add_argument("-d", "--detailed", action="count", default=0,
                    help="one line per decision; -dd adds the bot's reasoning, "
                         "-ddd adds the team")
+    add_region_flags(s)
     add_llm_flags(s)
     s.set_defaults(func=cmd_bot)
 

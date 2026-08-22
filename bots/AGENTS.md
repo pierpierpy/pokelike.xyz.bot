@@ -236,6 +236,7 @@ against 200k with three turns kept: affordable, and worth knowing before you set
 | `plan_chars` | `0` | characters of the route it plans, 0 turns `plan` off |
 | `bag_tool` | `False` | offer a `bag` tool |
 | `drop_tools` | `()` | shared tools to leave out |
+| `keep_across_regions` | `("notes",)` | what survives when a campaign crosses into the next region |
 
 The last six arrived with `HARNESS = 2` and are **off by default on purpose**: a bot's
 fingerprint covers `bot.py` and `artifacts/`, not this library, so a changed default
