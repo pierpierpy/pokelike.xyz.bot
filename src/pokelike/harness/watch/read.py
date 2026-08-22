@@ -53,6 +53,7 @@ class Run:
     first_at: str = ""
     last_at: str = ""
     screen: str = ""
+    region: str = ""
     why: str = ""
     tools: list[dict[str, Any]] = field(default_factory=list)
     ops: list[dict[str, Any]] = field(default_factory=list)
@@ -170,6 +171,9 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         r.tokens_out = int(e.get("run_out") or 0)
         r.last_at = e.get("at", "") or r.last_at
         r.screen = e.get("screen") or ""
+        # Carried forward: the enrichment only writes it on a non-Kanto turn, and a
+        # turn without it is not a turn that went back to Kanto.
+        r.region = e.get("region") or r.region
         r.why = e.get("why") or ""
         r.tools = e.get("tools") or []
         # Kept for the whole run, not just the last turn: the notes as they stand now

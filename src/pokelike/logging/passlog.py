@@ -296,6 +296,9 @@ class PassLog:
             "swapped": e.get("swapped"),
             "why": e.get("why"),
             "team": e.get("team"),
+            # Only when there IS one, which the enrichment does only outside Kanto:
+            # a Kanto trace line stays exactly the line it has always been.
+            **({"region": e["region"]} if e.get("region") else {}),
             **({"tools": e["tools"]} if e.get("tools") else {}),
             **({"map_view": e["map_view"]} if e.get("map_view") else {}),
             "turn_in": max(run_in - was_in, 0),

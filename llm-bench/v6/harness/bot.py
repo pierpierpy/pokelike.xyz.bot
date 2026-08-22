@@ -216,6 +216,23 @@ view shows each Pokemon's move type, physical or special, and STAB; a node's too
 shows the types a trainer or gym uses. Put the right lead in front with `set_lead`
 (it is free, it does not cost the turn) before a fight.
 
+TYPES ARE THE WHOLE FIGHT, SO TREAT THEM AS WORK. Before you take a battle node, read
+its tooltip, name the type you are about to face, and say which of your Pokemon has a
+move that beats it. If none does, that fight is a choice to lose HP for levels, and it
+should be a deliberate one.
+
+BUILD A TYPE MAP OF EVERY REGION IN YOUR NOTES. Each map has its own trainers and its
+own gym, and they do not change from run to run: what you write down about map 3 is
+true the next time you reach map 3. So note them as you meet them, by map:
+
+  "kanto map 1: Bug trainers, Fire or Flying lead walks it"
+  "kanto map 3 gym: Water, and my Grass starter beat it alone"
+  "johto map 2: Flying trainers, my Rock move is the answer"
+
+That is the single most valuable thing your notebook can hold, because it turns a
+guess into knowledge, and it is what makes the second run through a region faster and
+cheaper in HP than the first. A region you have mapped is a region you can plan.
+
 FINDING YOUR OWN STRATEGY
 Nobody is going to hand you a strategy. How to play this well is FOR YOU TO WORK
 OUT, run by run, and to WRITE DOWN: use your notes to record what actually worked
@@ -252,7 +269,7 @@ most of playing this well.
      is gone when your team is wiped out or when a new region begins.
 
 YOUR MEMORY IS PART OF PLAYING, NOT AN EXTRA. USE IT.
-You get %NOTES% notes of 160 characters. They are shown to you every single turn,
+You get %NOTES% notes of %NOTE_CHARS% characters. They are shown to you every single turn,
 numbered, so you never need to ask for them. You can write, sharpen or drop one on ANY
 turn, this one included, and the change is in front of you from the next turn on.
 
@@ -266,6 +283,18 @@ being wiped out. Everything else -- your reasoning, your plan, what you saw -- i
   `revise`   -- when a note turns out to be nearly right, sharpen THAT note. Two vague
       notes about one thing are worth less than one exact note.
   `forget`   -- when a note was wrong, or when you have something better and no room.
+
+A NOTE THAT CROSSES A REGION IS WORTH MORE THAN ONE THAT DOES NOT. When your notebook is
+the only thing coming with you, what you write decides what you are in the next region.
+Say WHEN a rule applies, not only what happened:
+
+  weak    "Brock leads Geodude and Onix."         -- true in Kanto, useless in Johto
+  strong  "A gym leader's type is on his tooltip: read it and lead the counter."
+  weak    "I died at the third gym."              -- says nothing you can act on
+  strong  "Under 60% HP with a gym next, heal FIRST: I lost three runs skipping it."
+
+Before you write, ask whether the note would still help someone starting a brand new
+region with a brand new team. If not, `revise` it until it would.
 
 Full notebook is not a reason to stop writing. Once you hold %NOTES%, `forget` your
 weakest note and `remember` the better one. The cap is there to make you choose, so
@@ -597,8 +626,10 @@ class HarnessV4(Bot):
     # curating notes before it gets to play(), and a turn that runs out of rounds
     # falls back -- which would be counted against the model for doing exactly
     # what this version asks of it.
-    MAX_ROUNDS = 6
-    MEMORY = 6
+    MAX_ROUNDS = 10
+    # Every turn of the run, one line each. A campaign is four regions and what
+    # happened at the first gym still explains what to do at the fifth.
+    MEMORY = -1
     TOKEN_BUDGET = 0
     # Attempts after the first, for failures that are worth trying again: rate
     # limits and the 5xx family. Not a nicety once runs go in parallel -- a 429
@@ -609,13 +640,15 @@ class HarnessV4(Bot):
     # run into the next; they are reset only by building a new bot, which happens
     # once per pass. A pass is therefore one lifetime of fifty runs.
     CROSS_RUN_MEMORY = True
-    NOTES_MAX = 12
-    NOTE_CHARS = 160
+    # Four regions, and the notebook is the ONLY thing that crosses a boundary.
+    NOTES_MAX = 40
+    # A note worth carrying into Johto has to say WHEN it applies, not just what.
+    NOTE_CHARS = 400
     # How many finished exchanges travel to the next turn, verbatim. Three because
     # the loop already costs several times a plain chat and this multiplies the
     # request: at three the model sees the shape of what it just tried, and the
     # turns before that are still in the journal as one line each.
-    SCRATCH_TURNS = 3
+    SCRATCH_TURNS = 8
     # The route it means to take through THIS map. Per run, not per turn: the map
     # is visible ahead and a choice closes every other node on its layer forever,
     # which is the condition where deciding in advance beats reacting -- and it is
@@ -653,8 +686,9 @@ class HarnessV4(Bot):
         self.notes_max = int(overrides.pop("notes", None) or self.NOTES_MAX)
         if self.notes_max < 1:
             raise LLMConfigError("notes must be at least 1")
-        self.system = (overrides.pop("prompt", None)
-                       or self.PROMPT).replace("%NOTES%", str(self.notes_max))
+        self.system = ((overrides.pop("prompt", None) or self.PROMPT)
+                       .replace("%NOTES%", str(self.notes_max))
+                       .replace("%NOTE_CHARS%", str(self.NOTE_CHARS)))
         self.temperature = overrides.pop("temperature", self.TEMPERATURE)
         self.max_tokens = overrides.pop("max_tokens", self.MAX_TOKENS)
         self.max_rounds = overrides.pop("max_rounds", self.MAX_ROUNDS)
@@ -938,7 +972,11 @@ class HarnessV4(Bot):
     def _commit(self, state: dict[str, Any], index: int, why: str) -> int:
         self._last_why = why
         self.journal.append(self._journal_entry(state, index, why))
-        self.journal = self.journal[-self.memory:]
+        # -1 keeps every turn. Without this the slice becomes journal[1:], which
+        # drops the OLDEST line on every turn and leaves the journal permanently
+        # empty: an unbounded memory that remembers nothing.
+        if self.memory >= 0:
+            self.journal = self.journal[-self.memory:]
         if self.verbose:
             print(f"   [llm] -> [{index}] {why[:100]}")
         return index

@@ -68,9 +68,16 @@ def test_every_harness_survives_a_committed_move(version):
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
     state = {"actions": [{"kind": "menu", "label": "FIGHT"}], "team": None, "steps": 0}
-    for k in range(bot.MEMORY + 3):
+    turns = abs(bot.MEMORY) + 3
+    for k in range(turns):
         bot._commit(dict(state, steps=k), 0, f"reason {k}")
-    assert len(bot.journal) == bot.MEMORY
+    # A negative MEMORY means an unbounded journal, and the slice that caps a positive
+    # one silently EMPTIES an unbounded one (journal[1:] every turn), so both are held
+    # here: a version that gets this wrong remembers nothing and says nothing about it.
+    if bot.MEMORY >= 0:
+        assert len(bot.journal) == bot.MEMORY
+    else:
+        assert len(bot.journal) == turns
 
 
 # --------------------------------------------------- what may be recorded

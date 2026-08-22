@@ -82,7 +82,9 @@ def _turn(p: "Pass"):
     grid.add_column(style="bold")
     grid.add_column()
     grid.add_row("seed", f"{r.seed}   step {r.steps}   {r.screen}")
-    grid.add_row("badges", f"{r.badges}   map {r.map}")
+    # The region beside the map, because the map number restarts at every boundary.
+    where = f"   region {r.region}" if r.region else ""
+    grid.add_row("badges", f"{r.badges}   map {r.map}{where}")
     grid.add_row("said", (r.why or "[dim](nothing)[/dim]")[:160])
     if r.tools:
         lines = []
