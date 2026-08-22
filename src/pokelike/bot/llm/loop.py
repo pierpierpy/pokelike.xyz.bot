@@ -26,18 +26,24 @@ def run_turn(
     record_call_fn: Any = None,
     parse_index_fn: Any,
     as_index_fn: Any,
-) -> tuple[int | None, str, int | None]:
+    history: list[dict[str, Any]] | None = None,
+) -> tuple[int | None, str, int | None, list[dict[str, Any]]]:
     """Executes one turn of the agentic loop until play() is called.
 
-    In: the state, config flags, and callback functions for model calls, tool
-    answers, and index parsing. Out: (action index or None, reason, lead or None).
+    In: the state, config flags, callback functions for model calls, tool
+    answers, and index parsing, and an optional history of previous exchanges.
+    Out: (action index or None, reason, lead or None, this_turn exchange).
     Raises LLMError if the model never calls play() within max_rounds.
     """
     lead: int | None = None
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
+        *(history or []),
         {"role": "user", "content": user_message},
     ]
+    # What this turn adds to the scratchpad, kept apart from `messages` so the
+    # system prompt and the older turns are not copied into it again.
+    this_turn: list[dict[str, Any]] = [messages[-1]]
 
     for _ in range(max_rounds):
         msg = call_model_fn(messages)
@@ -46,14 +52,16 @@ def run_turn(
             # No tool: maybe it wrote the index out in prose.
             index = parse_index_fn(msg.get("content") or "", len(state["actions"]))
             if index is not None:
-                return index, "(read from prose)", lead
+                return index, "(read from prose)", lead, this_turn
             raise LLMError("the model called no tool")
 
-        messages.append({
+        spoke = {
             "role": "assistant",
             "content": msg.get("content") or "",
             "tool_calls": calls,
-        })
+        }
+        messages.append(spoke)
+        this_turn.append(spoke)
 
         for c in calls:
             name = c["function"]["name"]
@@ -71,7 +79,30 @@ def run_turn(
                 record_call_fn(name, args)
 
             if name == "play":
-                return as_index_fn(args.get("index")), str(args.get("why", "")), lead
+                # The turn ends. Every call in the assistant message must have a
+                # tool answer, this one included: an assistant message with
+                # `tool_calls` followed by nothing is a malformed request under
+                # every provider, and would break the scratchpad on the next turn.
+                answered = {m.get("tool_call_id") for m in this_turn
+                            if m.get("role") == "tool"}
+                for other in calls:
+                    if other["id"] in answered:
+                        continue
+                    this_turn.append({
+                        "role": "tool",
+                        "tool_call_id": other["id"],
+                        "content": (
+                            f"played index {args.get('index')}."
+                            if other is c else
+                            "not run: the turn ended at play()."
+                        ),
+                    })
+                return (
+                    as_index_fn(args.get("index")),
+                    str(args.get("why", "")),
+                    lead,
+                    this_turn,
+                )
 
             if name == "set_lead":
                 # Recorded, not applied here: the bot has no handle on the
@@ -86,15 +117,25 @@ def run_turn(
                     reply = ("not available on this screen: the options here are "
                              "your team, so reordering would change what an index "
                              "means. Call play().")
-                messages.append({
-                    "role": "tool", "tool_call_id": c["id"], "content": reply,
-                })
+                answer = {"role": "tool", "tool_call_id": c["id"], "content": reply}
+                messages.append(answer)
+                this_turn.append(answer)
                 continue
 
-            messages.append({
+            answer = {
                 "role": "tool",
                 "tool_call_id": c["id"],
                 "content": answer_tool_fn(name, args, state),
-            })
+            }
+            messages.append(answer)
+            this_turn.append(answer)
 
-    raise LLMError(f"no call to play() within {max_rounds} rounds")
+    raise _LoopExhausted(f"no call to play() within {max_rounds} rounds", this_turn)
+
+
+class _LoopExhausted(LLMError):
+    """Rounds exhausted without a play() call. Carries the exchange for the scratchpad."""
+
+    def __init__(self, msg: str, this_turn: list[dict[str, Any]]) -> None:
+        super().__init__(msg)
+        self.this_turn = this_turn

@@ -156,6 +156,9 @@ Think briefly, then call `play`. Always call `play`.""",
         plan_chars=1200,
         # --- bag: let the model ask what items it carries ---
         bag_tool=True,
+        # --- scratchpad: carry the last N turns as real messages ---
+        # The model sees its own words, not only the one-line journal summary.
+        scratch_turns=3,
         # --- more rounds: the memory tools need room ---
         max_rounds=6,
         max_tokens=4000,
@@ -178,6 +181,7 @@ Think briefly, then call `play`. Always call `play`.""",
     #       cross_run_memory=True,  # notes survive between runs
     #       plan_chars=1200,     # max plan length; 0 = disabled
     #       bag_tool=True,       # offer the bag tool
+    #       scratch_turns=3,     # last N turns as real messages; 0 = off
     #       extra_tools=[...],   # your tools on top of the shared ones
     #   )
     #

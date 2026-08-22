@@ -16,7 +16,7 @@ from pokelike.core import render
 from .config import LLMBudgetError, LLMConfig, LLMConfigError, LLMError
 from .fallback import _as_index, _parse_index, fallback_move_default
 from .journal import build_user_message, journal_entry, trim_journal
-from .loop import run_turn
+from .loop import _LoopExhausted, run_turn
 from .notebook import Notebook
 from .prompt import exits_text, render_state_default, state_view_label
 from .record import build_artifacts, build_metadata
@@ -114,6 +114,8 @@ class LLMBot(Bot):
         self._last_why = ""
         self._tool_calls: list[dict[str, Any]] = []
         self._pending: tuple[int | None, int | None, str] | None = None
+        # Scratchpad: the last N finished exchanges, carried verbatim.
+        self._scratch: list[list[dict[str, Any]]] = []
 
     def reset(self, seed: int) -> None:
         """Resets all per-run state for a new game.
@@ -127,8 +129,10 @@ class LLMBot(Bot):
         self.tokens_in = self.tokens_out = self.retry_count = 0
         self._last_why = ""
         self._tool_calls: list[dict[str, Any]] = []
-        # Plan is always per-run (it describes a route through THIS map).
+        # Plan and scratchpad are per-run: the plan describes a route through
+        # THIS map, and the scratchpad is this episode's reasoning.
         self.plan = ""
+        self._scratch: list[list[dict[str, Any]]] = []
         # Notebook survives reset only when cross_run_memory is on.
         if self._notebook and not self.cfg.cross_run_memory:
             self._notebook.clear()
@@ -160,6 +164,9 @@ class LLMBot(Bot):
             meta["plan"] = self.plan
         if self.cfg.bag_tool:
             meta["bag_tool"] = True
+        if self.cfg.scratch_turns > 0:
+            meta["scratch_turns"] = self.cfg.scratch_turns
+            meta["scratch_held"] = len(self._scratch)
         return meta
 
     def tool_names(self) -> list[str]:
@@ -272,15 +279,57 @@ class LLMBot(Bot):
         In: the state dict and whether set_lead is allowed. Out: a tuple of
         (action index, reason string, lead slot or None).
         """
-        return run_turn(
-            state=state, allow_lead=allow_lead,
-            system_prompt=self.cfg.prompt,
-            user_message=self._build_user_message(state),
-            max_rounds=self.cfg.max_rounds,
-            call_model_fn=self.call_model, answer_tool_fn=self.answer_tool,
-            parse_index_fn=self._parse_index, as_index_fn=self._as_index,
-            record_call_fn=self._record_call,
-        )
+        # Flatten the scratchpad into the history the loop inserts between the
+        # system prompt and the fresh user message. When scratch_turns is 0 the
+        # list is empty and the messages are exactly [system, user].
+        history: list[dict[str, Any]] = [m for turn in self._scratch for m in turn]
+        try:
+            index, why, lead, this_turn = run_turn(
+                state=state, allow_lead=allow_lead,
+                system_prompt=self.cfg.prompt,
+                user_message=self._build_user_message(state),
+                max_rounds=self.cfg.max_rounds,
+                call_model_fn=self.call_model, answer_tool_fn=self.answer_tool,
+                parse_index_fn=self._parse_index, as_index_fn=self._as_index,
+                record_call_fn=self._record_call,
+                history=history if history else None,
+            )
+        except _LoopExhausted as exc:
+            # Rounds exhausted: the turn is lost to the fallback, but its
+            # exchange is kept anyway (a turn that ran out of ideas is exactly
+            # what the next turn should see rather than repeat).
+            self._remember_turn(exc.this_turn)
+            raise LLMError(str(exc)) from exc
+        self._remember_turn(this_turn)
+        return index, why, lead
+
+    def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
+        """Adds one finished exchange to the scratchpad, oldest dropped first.
+
+        The screen the model was looking at is replaced by one line before the
+        turn is kept: that line is most of what makes the scratchpad affordable.
+        Measured on three seeds with the whole turn kept: 269k input tokens for
+        ONE run against 41k (six and a half times), because every kept turn
+        dragged another full render of team, map and actions along with it.
+
+        It is also wrong on its own terms and not merely dear: a stale screen
+        invites the model to reason about a map that has already changed, while
+        the CURRENT one is right there in the fresh user message. What cannot be
+        reconstructed from anywhere else is what it said and what the tools told
+        it. That is what stays.
+
+        In: the list of messages for the turn just finished. Out: nothing.
+        """
+        if self.cfg.scratch_turns <= 0:
+            return
+        kept = [
+            {"role": "user",
+             "content": "[the screen you were shown that turn, since changed]"}
+            if m.get("role") == "user" else m
+            for m in turn
+        ]
+        self._scratch.append(kept)
+        self._scratch = self._scratch[-self.cfg.scratch_turns:]
 
     def _record_call(self, name: str, args: dict[str, Any]) -> None:
         """Keeps one tool call, as made, for this turn's trace.

@@ -1017,3 +1017,45 @@ def test_a_bot_that_talks_to_no_model_writes_nothing(tmp_path):
     chat.turn(10000, 0)
     chat.close()
     assert not (tmp_path / "c.jsonl").exists()
+
+
+def test_the_scratchpad_keeps_the_words_and_drops_the_screen():
+    """The last N turns travel verbatim, minus the screen they were looking at.
+
+    In: a bot with scratch_turns set. Out: kept turns carry a placeholder user
+    message, and only the current turn carries the real one.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}],
+           "team": [], "bag": [], "map": {"nodes": []}, "run": {"badges": 0},
+           "screen": "map-screen", "seed": 1, "steps": 0}
+    sent = []
+
+    class Probe(LLMBot):
+        def render_state(self, state):
+            return "THE WHOLE SCREEN, which is long"      # stands in for the render
+        def call_model(self, messages):
+            sent.append([(m["role"], m.get("content") or "") for m in messages])
+            return {"content": "", "tool_calls": [
+                {"id": f"c{len(sent)}", "type": "function",
+                 "function": {"name": "play", "arguments": '{"index":0,"why":"x"}'}}]}
+
+    bot = Probe(seed=0, endpoint="http://x", token="t", model="m/m", scratch_turns=2)
+    bot.reset(1)
+    for step in range(3):
+        bot.act({**obs, "steps": step})
+
+    assert [r[0] for r in sent[0]] == ["system", "user"], "the first turn has no history"
+    roles = [r[0] for r in sent[2]]
+    assert roles.count("assistant") == 2, "two turns kept, cap respected"
+    users = [c for role, c in sent[2] if role == "user"]
+    # The kept screens are gone, replaced by one line each; the fresh one is whole.
+    assert all("since changed" in u for u in users[:-1])
+    assert "THE WHOLE SCREEN" in users[-1]
+    # And it is per run, like the plan: notes are the only thing that crosses.
+    bot.reset(2)
+    assert [r[0] for r in [sent[-1]]][0] is not None
+    sent.clear()
+    bot.act({**obs, "steps": 0})
+    assert [r[0] for r in sent[0]] == ["system", "user"], "reset emptied the scratchpad"

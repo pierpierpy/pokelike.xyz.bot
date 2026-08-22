@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LLMError(RuntimeError):
@@ -78,3 +78,13 @@ class LLMConfig(BaseModel):
 
     # --- bag tool: opt-in by setting bag_tool = True ---
     bag_tool: bool = False                       # True = offer the bag tool
+
+    # --- scratchpad: the last N finished turns travel verbatim ---
+    scratch_turns: int = 0                       # 0 = off; how many exchanges to keep
+
+    @field_validator("scratch_turns")
+    @classmethod
+    def _scratch_turns_not_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("scratch_turns must not be negative")
+        return v
