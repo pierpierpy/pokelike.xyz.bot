@@ -235,6 +235,7 @@ against 200k with three turns kept: affordable, and worth knowing before you set
 | `cross_run_memory` | `False` | whether the notes survive into the next run |
 | `plan_chars` | `0` | characters of the route it plans, 0 turns `plan` off |
 | `bag_tool` | `False` | offer a `bag` tool |
+| `drop_tools` | `()` | shared tools to leave out |
 
 The last six arrived with `HARNESS = 2` and are **off by default on purpose**: a bot's
 fingerprint covers `bot.py` and `artifacts/`, not this library, so a changed default
@@ -264,6 +265,19 @@ and N" line are added around it, so replacing the view cannot cost a bot its mem
 leave the model without the range. That is why `_build_user_message()` is **not** the seam.
 **Do not override `act`**, it runs the loop, so replacing it discards the reason to
 inherit from `LLMBot`.
+
+### Four things you can do to the tool set, one line each
+
+| you want to | you write | note |
+|---|---|---|
+| add one | `@tool("...")` on a method | name, schema and dispatch all derived from it |
+| override one | the same, named after the tool | one schema goes out, yours; it answers too |
+| remove one | `drop_tools=("what_lies_ahead",)` | its schema costs tokens every turn either way |
+| touch `play` | nothing: it is refused | the loop ends the turn on that name and reads `index` and `why` from it, so a replacement schema would leave every turn unfinishable or unexplained |
+
+Precedence when two declarations share a name: a decorated method, then `extra_tools`,
+then the shared ones. Only one schema per name is ever sent, which used to be a bug:
+`bag_tool=True` beside a bot's own `bag` sent two.
 
 ### The four shared tools
 

@@ -77,7 +77,11 @@ class LLMConfig(BaseModel):
     plan_chars: int = 0                          # max chars for the route plan; 0 = disabled
 
     # --- bag tool: opt-in by setting bag_tool = True ---
-    bag_tool: bool = False                       # True = offer the bag tool
+    bag_tool: bool = False
+    # Shared tools to leave out. The symmetric half of declaring one: a tool the
+    # view already answers is a round trip to learn something on the screen, and
+    # its schema costs tokens every turn whether it is called or not.
+    drop_tools: tuple[str, ...] = ()                       # True = offer the bag tool
 
     # --- scratchpad: the last N finished turns travel verbatim ---
     scratch_turns: int = 0        # whole turns kept verbatim; 0 = off, -1 = all of them
@@ -88,6 +92,16 @@ class LLMConfig(BaseModel):
     #   "full"  the screen as it was. Measured at six and a half times the input
     #           tokens, and it invites reasoning about a map that has since changed
     scratch_state: str = "line"
+
+    @field_validator("drop_tools")
+    @classmethod
+    def _may_not_drop_play(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        # `play` is how a turn ENDS. Without it the model has no way to commit, so
+        # every single turn would fall back, and the row would measure our heuristic
+        # under the bot's name. Refused here rather than discovered fifty runs in.
+        if "play" in v:
+            raise ValueError("play cannot be dropped: it is how a turn ends")
+        return v
 
     @field_validator("scratch_state")
     @classmethod

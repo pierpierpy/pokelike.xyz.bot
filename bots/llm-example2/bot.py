@@ -219,28 +219,16 @@ Think briefly, then call `play`. Always call `play`."""
         plan_chars=600,         # room for a route that names its nodes
 
         # --- tools
-        bag_tool=True,          # a shared tool now, no code needed
+        bag_tool=True,
+        # The symmetric half of @tool: `render_state` below already prints where each
+        # option leads, so `what_lies_ahead` would be a round trip to learn something
+        # already on the screen, and its schema costs tokens every turn regardless.
+        # A real trade, not a free win: it also removes the chance to observe whether
+        # a model knows to ask before closing a door.
+        drop_tools=("what_lies_ahead",),          # a shared tool now, no code needed
         # No extra_tools needed: @tool-decorated methods above provide the schemas
         # and dispatch automatically.
     )
-
-    # =====================================================================
-    # 4. DROPPING A SHARED TOOL, which is also a saving
-    # =====================================================================
-
-    def tools(self) -> list[dict[str, Any]]:
-        """The tool set, minus the one this bot's view makes redundant.
-
-        In: nothing. Out: the schemas sent with every request.
-        """
-        # `render_state` below already prints where each option leads, so
-        # `what_lies_ahead` would be a round trip to learn what is on the screen.
-        # Its schema costs about 300 characters EVERY turn, called or not, and
-        # dropping it is a real trade rather than a free win: it also removes the
-        # chance to observe whether a model knows to ask before closing a door.
-        # `play` may never be dropped, and that is checked when the bot is built.
-        return [t for t in super().tools()
-                if t["function"]["name"] != "what_lies_ahead"]
 
     # =====================================================================
     # 5. THE VIEW, and the new seam beside it
@@ -325,13 +313,12 @@ Think briefly, then call `play`. Always call `play`."""
     # =====================================================================
 
     def metadata(self) -> dict[str, Any]:
-        """What is filed beside the score.
-
-        In: nothing. Out: the base record plus what this bot varies.
-        """
-        # The base already records the model, the harness generation, the view, the
-        # tool set, the counters, the notes it kept and the plan it held. Added here
-        # is only what nothing else would know. NEVER the token or the endpoint: a
-        # result file is exactly the kind of thing that gets pasted into an issue.
-        return {**super().metadata(),
-                "dropped_tools": ["what_lies_ahead"]}
+        # with this we just add some metadata.
+        # Nothing is added here on purpose, and that is the lesson: the base already
+        # records the model, the harness generation, the view, whether the tool set is
+        # the stock one (it is not, and `stock_tools` says so by itself), the counters,
+        # the notes kept and the plan held. Override this ONLY for a knob of your own
+        # that nothing else could know, such as a threshold you tuned. NEVER the token
+        # or the endpoint: a result file is the kind of thing that gets pasted into an
+        # issue.
+        return super().metadata()

@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .config import LLMConfigError
+
 # ---------------------------------------------------------------- what is true
 
 GAME_RULES = """You are playing Pokelike, a Pokemon roguelike.
@@ -231,6 +233,7 @@ def build_tools(
     bag_tool: bool = False,
     extra_tools: list[dict[str, Any]] | None = None,
     decorated_tools: list[dict[str, Any]] | None = None,
+    drop_tools: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     """Assembles the full tool list from the config flags, deduplicating by name.
 
@@ -255,4 +258,16 @@ def build_tools(
     seen: dict[str, int] = {}
     for i, t in enumerate(result):
         seen[t["function"]["name"]] = i
-    return [result[i] for i in sorted(seen.values())]
+    kept = [result[i] for i in sorted(seen.values())]
+    # `play` is not a bot's to redefine: the loop ends the turn on that NAME and
+    # reads `index` and `why` out of its arguments, so a replacement schema without
+    # them leaves every turn either unfinishable or unexplained. Declaring one is a
+    # mistake worth catching here rather than fifty runs in.
+    for t in (list(extra_tools or []) + list(decorated_tools or [])):
+        if t["function"]["name"] == "play":
+            raise LLMConfigError(
+                "play cannot be redeclared: the loop ends the turn on it and reads "
+                "`index` and `why` from its arguments. Name your tool something else.")
+    if drop_tools:
+        kept = [t for t in kept if t["function"]["name"] not in drop_tools]
+    return kept

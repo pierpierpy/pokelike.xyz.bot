@@ -408,6 +408,7 @@ class LLMBot(Bot):
             notes_cap=cfg.notes_cap,
             plan_chars=cfg.plan_chars,
             bag_tool=cfg.bag_tool,
+            drop_tools=cfg.drop_tools,
             extra_tools=cfg.extra_tools,
             decorated_tools=collect_decorated_tools(type(self)),
         )

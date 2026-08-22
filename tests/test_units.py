@@ -1250,3 +1250,64 @@ def test_scratch_turns_minus_one_keeps_every_turn():
     assert held(5, scratch_turns=-1) == 4, "every earlier turn kept"
     assert held(5, scratch_turns=2) == 2, "capped at two"
     assert held(5, scratch_turns=0) == 0, "off"
+
+
+# ------------------------------------------------- the four things a bot does to tools
+#
+# Add, override, remove, and never touch `play`. Each is one line for the bot author,
+# and the last one is a refusal rather than a knob.
+
+
+def test_a_tool_is_added_overridden_and_removed_in_one_line_each():
+    """In: bots declaring each way. Out: the tool list each asked for."""
+    from pokelike.bot.llm import LLMBot, LLMConfig, tool
+
+    def names(cls):
+        return [t["function"]["name"]
+                for t in cls(seed=0, endpoint="x", token="t", model="m").tools()]
+
+    class Added(LLMBot):
+        @tool("what you carry")
+        def bag(self, state) -> str:
+            return "ok"
+
+    class Overridden(LLMBot):
+        @tool("MY team view")
+        def team_details(self, state) -> str:
+            return "mine"
+
+    class Removed(LLMBot):
+        config = LLMConfig(prompt="p", drop_tools=("what_lies_ahead",))
+
+    assert "bag" in names(Added)
+    # Overriding is the SAME gesture as adding: one schema, and it is the bot's.
+    assert names(Overridden).count("team_details") == 1
+    b = Overridden(seed=0, endpoint="x", token="t", model="m")
+    assert b.answer_tool("team_details", {}, {}) == "mine"
+    assert next(t for t in b.tools()
+                if t["function"]["name"] == "team_details")["function"]["description"] \
+        == "MY team view"
+    assert "what_lies_ahead" not in names(Removed)
+
+
+def test_play_may_be_neither_dropped_nor_redeclared():
+    """The turn ends on `play`, so its schema is not a bot's to change.
+
+    In: a bot trying each. Out: refused, with a reason, at build time.
+    """
+    import pytest
+
+    from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError, tool
+
+    with pytest.raises(Exception):
+        LLMConfig(prompt="p", drop_tools=("play",))
+
+    class Redeclares(LLMBot):
+        @tool("mine")
+        def play(self, state, index: int) -> str:
+            return "x"
+
+    # Without this the loop would still end the turn on the NAME while reading
+    # `index` and `why` out of a schema that no longer promises them.
+    with pytest.raises(LLMConfigError):
+        Redeclares(seed=0, endpoint="x", token="t", model="m").tools()
