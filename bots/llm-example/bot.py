@@ -7,10 +7,9 @@ Credentials come from `.env` at the repository root, so nothing goes on the comm
 A reference, not a contender. It changes everything at once, which shows the surface
 and ruins the score. Not benchmarked. Copy the parts you want.
 
-For generation 2 (a notebook, a plan, kept turns, and the `@tool` decorator) see
-[llm-example2](../llm-example2/). This file stays on the older way of adding a tool,
-a schema in `extra_tools` plus a branch in `answer_tool`, because that still works and
-somebody will read code written that way.
+For generation 2 (a notebook, a plan, and kept turns) see
+[llm-example2](../llm-example2/). This file is the generation-1 surface: the same four
+tools, one user message, no memory beyond the journal.
 
 ONE TURN IS ONE HTTP POST, and this is the whole body:
 
@@ -43,7 +42,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig
+from pokelike.bot.llm import GAME_RULES, LLMBot, LLMConfig, tool
 from pokelike.core import render
 
 
@@ -67,44 +66,30 @@ PLAY LIKE THIS
 
 Think briefly, then call `play`. Always call `play`."""
 
-    # ------------------------------------------------- 2. its own tools, the old way
-    # The schema is prompt: the description is what the model reads to decide whether
-    # to call the thing, and it is re-sent every turn. Say when NOT to call it, which
-    # is the half people leave out and then wonder why the model calls everything.
-    #
-    # llm-example2 does this with one @tool decorator instead. Both work.
+    # ------------------------------------------------- 2. its own tools
+    # @tool is the whole declaration: name from the method, parameters from the
+    # signature. The description is prompt, re-sent every turn, so say when NOT to
+    # call it too.
 
-    EXTRA_TOOLS = [
-        {
-            "type": "function",
-            "function": {
-                "name": "state_json",
-                "description": (
-                    "The raw state dict as JSON: team, bag, map, run, actions, stats, "
-                    "type_items. Everything the Python bots see. Use it when what you "
-                    "need is not in the summary."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "part": {
-                            "type": "string",
-                            "description": ("one key, or 'all'. One key is far cheaper: "
-                                            "the whole dict is about 5900 characters."),
-                        },
-                    },
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "bag",
-                "description": "What you are carrying, by name.",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-    ]
+    @tool("The raw state dict as JSON: team, bag, map, run, actions, stats, "
+          "type_items. Everything the Python bots see. Use it when what you need is "
+          "not in the summary.",
+          part="one key, or 'all'. One key is far cheaper: the whole dict is about "
+               "5900 characters.")
+    def state_json(self, state: dict[str, Any], part: str = "all") -> str:
+        """In: the state and which key to send. Out: that part as compact JSON."""
+        if part != "all" and part not in state:
+            return f"no key '{part}'. There is: {', '.join(sorted(state))}"
+        payload = state if part == "all" else {part: state[part]}
+        text = json.dumps(payload, separators=(",", ":"))
+        # Truncated on purpose: a late-run map is large, and a reply that fills the
+        # context costs the model the reasoning it was about to do.
+        return text if len(text) <= 4000 else text[:4000] + " ...(truncated)"
+
+    @tool("What you are carrying, by name.")
+    def bag(self, state: dict[str, Any]) -> str:
+        """In: the state. Out: the bag, or a note that it is empty."""
+        return ", ".join(state.get("bag") or []) or "(carrying nothing)"
 
     # ------------------------------------------------------------------ 3. the knobs
     config = LLMConfig(
@@ -114,35 +99,14 @@ Think briefly, then call `play`. Always call `play`."""
         max_rounds=6,           # this prompt asks for two tools before play
         memory=8,               # journal lines: enough to notice it is going in circles
         token_budget=60_000,    # ~2x a normal run. Hitting it ENDS the run
-        state_view="screen",    # IGNORED HERE: section 5 replaces render_state, which is
+        state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
                                 # the only thing that reads it. "json" is ~6x the tokens
-        extra_tools=EXTRA_TOOLS,   # without this line the schemas never travel
     )
 
-    # ------------------------------------------------------------- 4. tool answers
-    def answer_tool(self, name: str, args: dict[str, Any],
-                    state: dict[str, Any]) -> str:
-        """In: the tool name, its arguments, the state. Out: text the model reads."""
-        # Never raise: an exception throws the turn away and hands it to
-        # `fallback_move`, so a mistyped tool name costs a decision the model was
-        # about to make. Always end with `super()`, or the shared four stop answering
-        # while `tools()` still advertises them.
-        if name == "bag":
-            return ", ".join(state.get("bag") or []) or "(carrying nothing)"
+    # A tool that raises is answered, not lost: the loop would otherwise treat the
+    # exception as a turn the model failed to take, and play the fallback instead.
 
-        if name == "state_json":
-            part = (args or {}).get("part") or "all"
-            if part != "all" and part not in state:
-                return f"no key '{part}'. There is: {', '.join(sorted(state))}"
-            payload = state if part == "all" else {part: state[part]}
-            text = json.dumps(payload, separators=(",", ":"))
-            # Truncated on purpose: a late-run map is large, and a reply that fills the
-            # context costs the model the reasoning it was about to do.
-            return text if len(text) <= 4000 else text[:4000] + " ...(truncated)"
-
-        return super().answer_tool(name, args, state)
-
-    # ------------------------------------------------------------------- 5. the view
+    # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
         """In: the state. Out: the state as prose, with the arithmetic done."""
         # Three changes from the built-in view: HP as a percentage (the model should
@@ -178,7 +142,7 @@ Think briefly, then call `play`. Always call `play`."""
             parts.append("  Taking one of these closes the others for good.")
         return "\n".join(parts)
 
-    # ------------------------------------------------------- 6. when it does not answer
+    # ------------------------------------------------------- 5. when it does not answer
     def fallback_move(self, state: dict[str, Any]) -> int:
         """In: the state. Out: the index to play when the model did not answer."""
         # Overriding this is rarely wise: it plays under your bot's name on every turn
@@ -193,7 +157,7 @@ Think briefly, then call `play`. Always call `play`."""
                     return i
         return 0
 
-    # ---------------------------------------------------------------- 7. what is filed
+    # ---------------------------------------------------------------- 6. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """In: nothing. Out: my own facts, merged into what is recorded."""
         # Only what nothing else could know. Never the token or the endpoint: a result

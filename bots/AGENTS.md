@@ -305,7 +305,7 @@ the chat file, and it works for any bot that talks to a model, frozen harnesses 
 
 | you want to | you write | note |
 |---|---|---|
-| add one | `@tool("...")` on a method | name, schema and dispatch all derived from it |
+| add one | `@tool("...")` on a method | name, schema and dispatch all derived from it. `extra_tools` plus a branch in `answer_tool` still works, and is what code written before this used |
 | override one | the same, named after the tool | one schema goes out, yours; it answers too |
 | remove one | `drop_tools=("what_lies_ahead",)` | its schema costs tokens every turn either way |
 | touch `play` | nothing: it is refused | the loop ends the turn on that name and reads `index` and `why` from it, so a replacement schema would leave every turn unfinishable or unexplained |
