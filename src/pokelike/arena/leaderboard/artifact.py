@@ -84,13 +84,9 @@ def fingerprint(bot_dir: Path) -> str:
     """Returns a single hash over bot.py and every file in artifacts/.
 
     Each file is hashed together with its relative path, so renaming a file
-    changes the fingerprint.
+    changes the fingerprint. Defined in `pokelike.shared.fingerprint` as
+    `code_fingerprint`, the one place this logic lives; `utils/refingerprint.py`
+    imports it from there too.
     """
-    h = hashlib.sha256()
-    files = [bot_dir / "bot.py", *sorted((bot_dir / "artifacts").glob("**/*"))]
-    for f in files:
-        if not f.is_file():
-            continue
-        h.update(str(f.relative_to(bot_dir)).encode("utf-8"))
-        h.update(f.read_bytes())
-    return h.hexdigest()
+    from ...shared.fingerprint import code_fingerprint
+    return code_fingerprint(bot_dir)

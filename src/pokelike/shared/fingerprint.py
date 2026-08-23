@@ -1,26 +1,30 @@
-"""Behaviour fingerprint: does the engine still decide the same thing?
+"""Code and behaviour, one shared place.
 
-A file hash (see `versions.fingerprints` and `utils/refingerprint.py`) answers
-"which bytes played this", not "could this have changed a score". A comment
-edit and a logic change produce two different hashes over the same file, and
-today's fingerprint cannot tell them apart, so both get reported the same way.
+Neutral on purpose: `arena/` (the bot competition) and `utils/refingerprint.py`
+(outside the package entirely) both need this exact logic, and neither should
+import it from the other. This module is imported by both instead.
 
-This module answers the second question directly, by playing a short replay
-with a deterministic policy (no model, no randomness) and hashing the result.
-Two runs of the same code, same seed, same policy always produce the same
-replay, so the same code always produces the same `behaviour_hash`; two
-versions of the code that decide moves identically produce it too, even if
-every comment and variable name in between changed.
+Two different hashes, two different jobs:
 
-BEHAVIOUR_SCHEMA is a version of this function's own output shape, not of the
-game. Bump it when CASES or what a case records changes, so a schema change
-cannot be mistaken for the game's own behaviour changing.
+`code_fingerprint(bot_dir)` hashes bytes: WHICH FILES played. A comment edit and
+a logic change both change it, because a file hash cannot tell them apart.
+
+`behaviour_hash(game)` plays a short deterministic replay (fixed seeds, scripted
+policies, no model, no randomness) and hashes only engine data from the result:
+WHETHER A DECISION MOVED. Two versions of the code that decide every replay
+identically produce the same behaviour hash, whatever changed in between; one
+that moved a real decision does not.
+
+BEHAVIOUR_SCHEMA versions this module's own output shape, not the game. Bump it
+when CASES or what a case records changes, so a schema change is never mistaken
+for the game's own behaviour changing.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 BEHAVIOUR_SCHEMA = 1
@@ -31,6 +35,29 @@ BEHAVIOUR_SCHEMA = 1
 # with proof that nothing moved), and playing more would only add wall clock
 # without adding certainty for what this checks.
 CASES = [(1, "fixed"), (2, "fixed"), (3, "cycling"), (7, "cycling")]
+
+
+# ---------------------------------------------------------------- code hash
+
+
+def code_fingerprint(bot_dir: str | Path) -> str:
+    """A single hash over bot.py and every file in artifacts/.
+
+    Each file is hashed together with its relative path, so renaming a file
+    changes the fingerprint too.
+    """
+    bot_dir = Path(bot_dir)
+    h = hashlib.sha256()
+    files = [bot_dir / "bot.py", *sorted((bot_dir / "artifacts").glob("**/*"))]
+    for f in files:
+        if not f.is_file():
+            continue
+        h.update(str(f.relative_to(bot_dir)).encode("utf-8"))
+        h.update(f.read_bytes())
+    return h.hexdigest()
+
+
+# ------------------------------------------------------------- behaviour hash
 
 
 def _policy_fixed(state: dict[str, Any]) -> int:
@@ -100,8 +127,33 @@ def behaviour_hash(game, cases: list[tuple[int, str]] | None = None) -> str:
     `game` must already be reset to the engine (bridge.js, init.js) whose
     behaviour is being checked; this function does not construct one, since a
     frozen llm-bench harness and a bot's own artifacts/bridge.js each build
-    their `Game` differently.
+    their `Game` differently. See `behaviour_hash_for` to build and tear one
+    down in one call.
     """
     replays = [replay(game, seed, policy) for seed, policy in (cases or CASES)]
     blob = json.dumps(replays, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def behaviour_hash_for(site, **game_kwargs) -> str:
+    """Builds a Game against `site`, plays the replay through it, tears it down.
+
+    The one place that opens an `AssetServer` and a `Game` for a behaviour
+    check, so a harness version and a bot's own bridge share the plumbing
+    instead of each repeating the same server-start/game-open/try-finally
+    dance. `game_kwargs` is whatever `Game` needs beyond `url` (typically
+    `bridge=` and/or `init=`; neither given plays the shared, live pair).
+    """
+    from ..assets.server import AssetServer
+    from ..core.game import Game
+    from ..interfaces.python.driver.session import free_port
+
+    server = AssetServer(site, port=free_port())
+    server.start()
+    game = Game(url=server.url, **game_kwargs)
+    try:
+        game.open()
+        return behaviour_hash(game)
+    finally:
+        game.close()
+        server.stop()

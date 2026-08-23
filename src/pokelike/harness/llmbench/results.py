@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, summarise
-from ...arena.behaviour import BEHAVIOUR_SCHEMA
+from ...shared.fingerprint import BEHAVIOUR_SCHEMA
 from ...logging import LEARN_K
 from .versions import (BROWSER, GAME, RUNNER, _bench, cross_run_memory,
                        fingerprints, slug, versions)

@@ -110,7 +110,7 @@ _BEHAVIOUR_CACHE: dict[tuple[str, ...], str] = {}
 def behaviour(version: str, site) -> str:
     """This version's behaviour hash: does its engine still decide the same thing?
 
-    Plays a short deterministic replay (see `arena.behaviour`) through this
+    Plays a short deterministic replay (see `pokelike.shared.fingerprint`) through this
     version's own bridge.js and init.js, using the shared browser.py, game.py
     and runner.py exactly as a real pass would. Two versions whose seven files
     hash differently (a comment, a rename) but decide every replay identically
@@ -118,25 +118,13 @@ def behaviour(version: str, site) -> str:
     resolves to, however small, does not. `site` is the asset server root
     already on disk (see `assets.server.AssetServer`); this does not download it.
     """
-    from ...arena.behaviour import behaviour_hash
-    from ...assets.server import AssetServer
-    from ...core.game import Game
-    from ...interfaces.python.driver.session import free_port
+    from ...shared.fingerprint import behaviour_hash_for
 
     key = tuple(sorted(fingerprints(version).values()))
     cached = _BEHAVIOUR_CACHE.get(key)
     if cached is not None:
         return cached
-
-    server = AssetServer(site, port=free_port())
-    server.start()
-    game = Game(url=server.url, **script_paths(version))
-    try:
-        game.open()
-        result = behaviour_hash(game)
-    finally:
-        game.close()
-        server.stop()
+    result = behaviour_hash_for(site, **script_paths(version))
     _BEHAVIOUR_CACHE[key] = result
     return result
 

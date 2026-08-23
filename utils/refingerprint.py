@@ -40,7 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from pokelike.arena.behaviour import BEHAVIOUR_SCHEMA  # noqa: E402
+from pokelike.shared.fingerprint import BEHAVIOUR_SCHEMA  # noqa: E402
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -91,33 +91,22 @@ def _bot_fingerprint(bot_dir: Path) -> str:
 def _bot_behaviour(bot_dir: Path) -> str | None:
     """This bot's behaviour hash: does the engine it plays through still decide
 
-    the same thing? Plays the short deterministic replay used everywhere else
-    in this file (see `src/pokelike/arena/behaviour.py`) through the same
-    bridge.js this bot actually uses when it runs: its own
-    `artifacts/bridge.js` if it carries one, the shared live one otherwise.
-    `init.js` is never a bot's to override (it pins the seeded clock the
-    standard seeds depend on), so it is always the shared one. Returns None
-    rather than raising when the replay cannot be played (missing `site/`,
-    browser not installed), since a re-fingerprint should still be possible
-    with the plain, provenance-only check when this optional part fails.
+    the same thing? Plays the short deterministic replay defined in
+    `pokelike.shared.fingerprint` through the same bridge.js this bot actually
+    uses when it runs: its own `artifacts/bridge.js` if it carries one, the
+    shared live one otherwise. `init.js` is never a bot's to override (it pins
+    the seeded clock the standard seeds depend on), so it is always the shared
+    one. Returns None rather than raising when the replay cannot be played
+    (missing `site/`, browser not installed), since a re-fingerprint should
+    still be possible with the plain, provenance-only check when this optional
+    part fails.
     """
     try:
-        from pokelike.arena.behaviour import behaviour_hash
-        from pokelike.assets.server import AssetServer
-        from pokelike.core.game import Game
-        from pokelike.interfaces.python.driver.session import free_port
+        from pokelike.shared.fingerprint import behaviour_hash_for
 
         own_bridge = bot_dir / "artifacts" / "bridge.js"
         kwargs = {"bridge": own_bridge} if own_bridge.is_file() else {}
-        server = AssetServer(ROOT / "site", port=free_port())
-        server.start()
-        game = Game(url=server.url, **kwargs)
-        try:
-            game.open()
-            return behaviour_hash(game)
-        finally:
-            game.close()
-            server.stop()
+        return behaviour_hash_for(ROOT / "site", **kwargs)
     except Exception:
         return None
 
