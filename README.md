@@ -27,15 +27,19 @@ Python, or over an HTTP API.
 
 This repo is three things in one, and you can use it for any of them:
 
-- &nbsp;[Environment](#1-environment) is the core piece. It provides a headless,
+- &nbsp;![](https://img.shields.io/badge/-blue)
+  [Environment](#1-environment) is the core piece. It provides a headless,
   reproducible copy of the game that you can simulate runs against, drive from a script
   or a notebook, and hand to a coding agent. Use the notebook
-  [example.ipynb](src/pokelike/interfaces/python/example.ipynb) to explore how you or a bot 
+  [example.ipynb](src/pokelike/interfaces/python/example.ipynb)
+  to explore how you or a bot 
   interact with the environment via the Python interface.
-- &nbsp;[LLM agentic benchmark](#2-llm-agentic-benchmark) is an agentic harness that
+- &nbsp;![](https://img.shields.io/badge/-yellow)
+  [LLM agentic benchmark](#2-llm-agentic-benchmark) is an agentic harness that
   runs the same fifty seeds against every LLM. The resulting score measures a model's
   agentic and planning capability.
-- &nbsp;[Bot framework and competition](#3-bot-competition) is the part where you write
+- &nbsp;![](https://img.shields.io/badge/-red)
+  [Bot framework and competition](#3-bot-competition) is the part where you write
   a bot, and the goal is to beat the game. A bot can be anything that turns a state into
   a move, whether that is a trained policy, a prompt, a rulebook, or a tree search. To
   see one think, watch
@@ -44,6 +48,15 @@ This repo is three things in one, and you can use it for any of them:
 ---
 
 ## 1. Environment
+
+[![Environment](https://img.shields.io/badge/Environment-blue)](#environment)
+[![example.ipynb](https://img.shields.io/badge/notebook-example.ipynb-white)](src/pokelike/interfaces/python/example.ipynb)
+
+Environment is the core piece. It provides a headless, reproducible copy of the game
+that you can simulate runs against, drive from a script or a notebook, and hand to a
+coding agent. Use the notebook
+[example.ipynb](src/pokelike/interfaces/python/example.ipynb) to explore how you or a
+bot interact with the environment via the Python interface.
 
 The game lives entirely in the browser and has no server. All of the game's logic sits
 in one JavaScript file, already on your machine once you have run the `setup` command.
@@ -101,6 +114,12 @@ that layer forever.
 
 ## 2. LLM agentic benchmark
 
+[![LLM agentic benchmark](https://img.shields.io/badge/LLM%20agentic%20benchmark-yellow)](#llm-agentic-benchmark)
+[![llm-bench/README.md](https://img.shields.io/badge/results-llm--bench%2FREADME.md-white)](llm-bench/README.md)
+
+LLM agentic benchmark is an agentic harness that runs the same fifty seeds against
+every LLM. The resulting score measures a model's agentic and planning capability.
+
 How well does a language model play the game? The
 [`llm-bench/`](llm-bench/README.md) benchmark answers that question, and it is built so
 the answer reflects the model and nothing else.
@@ -126,6 +145,14 @@ about half an hour. The standings, the version history, and how to read the tabl
 in [llm-bench/README.md](llm-bench/README.md).
 
 ## 3. Bot competition
+
+[![Bot competition](https://img.shields.io/badge/Bot%20competition-red)](#bot-competition)
+[![step.ipynb](https://img.shields.io/badge/notebook-step.ipynb-white)](bots/llm-example2/step.ipynb)
+
+Bot framework and competition is the part where you write a bot, and the goal is to
+beat the game. A bot can be anything that turns a state into a move, whether that is a
+trained policy, a prompt, a rulebook, or a tree search. To see one think, watch
+[a bot play one decision at a time](bots/llm-example2/step.ipynb).
 
 > The competition is open. Write something that plays
 > [pokelike.xyz](https://pokelike.xyz/) better than mine, add it under
