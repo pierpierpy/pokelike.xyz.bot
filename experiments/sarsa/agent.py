@@ -1,7 +1,7 @@
-"""SEMI-GRADIENT SARSA(λ) WITH LINEAR FUNCTION APPROXIMATION
+"""Semi-gradient SARSA(λ) with linear function approximation.
 
-Sutton & Barto, 2nd edition: **chapter 10** "On-policy Control with
-Approximation" for the semi-gradient control update, and **chapter 12**
+Sutton & Barto, 2nd edition: chapter 10 "On-policy Control with
+Approximation" for the semi-gradient control update, and chapter 12
 "Eligibility Traces", section 12.7, for the SARSA(λ) form used here.
 
     q̂(s, a, w) = wᵀ x(s, a)
@@ -20,33 +20,33 @@ Approximation" for the semi-gradient control update, and **chapter 12**
         S, A <- S', A'
 
 
-WHY THIS AND NOT MORE TABULAR
------------------------------
-Two problems with the tabular agent, and neither is fixed by training longer.
+Why linear function approximation over a table
+-----------------------------------------------
+Two problems with the tabular agent, neither fixed by training longer.
 
-**It cannot see.** The state is six numbers and actions are keyed by type, so on
-the starter screen it learns 6.3 / 6.2 / 6.3 — three slots it has no way to tell
-apart. Linear approximation lets the features carry what is actually on screen:
-this Pokemon's types, whether they are new to the team, its bulk relative to the
-alternatives.
+The tabular agent cannot see. The state is six numbers and actions are keyed by
+type, so on the starter screen the table learns 6.3 / 6.2 / 6.3, three
+indistinguishable slots where a player sees Bulbasaur, Charmander and Squirtle.
+No amount of extra episodes fixes that, because the information never reaches the
+table.
 
-**It cannot generalise.** Every table cell is learned alone, and each real step
-costs 0.7 seconds of browser. Sharing weights across states is the difference
-between needing thousands of episodes and needing hundreds.
+The tabular agent cannot generalise. Every table cell is learned alone, and each
+real step costs 0.7 seconds of browser. Sharing weights across states is the
+difference between needing thousands of episodes and needing hundreds.
 
-Traces address the third problem: badges arrive many decisions after the choices
+Traces address the third problem. Badges arrive many decisions after the choices
 that earned them, and a one-step backup moves credit one step per visit. λ = 0.9
-spreads it down the whole chain immediately.
+spreads credit down the whole chain immediately.
 
 
-THE PART THAT NEEDS CARE
+The part that needs care
 ------------------------
 Linear FA with a bootstrapped target can diverge, which tabular methods cannot
-(chapter 11, "the deadly triad": approximation, bootstrapping, off-policy).
-SARSA is on-policy, which removes one leg, but the step size still matters. It is
-normalised by the number of active features so that adding features does not
-silently multiply the effective learning rate — a mistake that looks like the
-algorithm being unstable when it is really the tuning.
+(chapter 11, "the deadly triad" of approximation, bootstrapping, and off-policy).
+SARSA is on-policy, which removes one leg, but the step size still matters. The
+step size is normalised by the number of active features so that adding features
+does not silently multiply the effective learning rate, a mistake that looks like
+the algorithm being unstable when the tuning is the real problem.
 """
 
 from __future__ import annotations
@@ -58,10 +58,10 @@ from typing import Any
 
 from .features import ALL_GROUPS, FeatureSet
 
-# 2 added the team-order decision and the features that describe it, so a v1
-# weight vector indexes a different space. Refused on load rather than
-# zero-filled: silently reading old weights under a new feature set produces a
-# policy nobody trained.
+# Version 2 added the team-order decision and the features that describe it, so
+# a v1 weight vector indexes a different space. A mismatch is refused on load
+# rather than zero-filled, because silently reading old weights under a new
+# feature set produces a policy nobody trained.
 ENCODING_VERSION = 2
 
 
@@ -79,17 +79,18 @@ class SarsaLambda:
         alpha_norm: float | None = None,
     ) -> None:
         # What to divide the step size by. None means "the number of features
-        # active right now", which is the sane default for a single run and is
-        # WRONG for comparing feature sets: fewer groups means fewer active
-        # features means a LARGER step per feature, so an ablation that drops a
-        # group also raises the learning rate and answers a different question.
+        # active right now", which is the sane default for a single run but is
+        # wrong for comparing feature sets because fewer groups means fewer
+        # active features means a larger step per feature. An ablation that drops
+        # a group also raises the learning rate and answers a different question.
         #
-        # Measured on this game: the full set activates 9.0 features per (s, a),
-        # action-only 3.0, minimal 1.2 — a 7.5x spread. The first ablation duly
-        # diverged in exactly that order.
+        # Measured on this game, the full set activates 9.0 features per (s, a),
+        # action-only activates 3.0, and minimal activates 1.2, a 7.5x spread.
+        # The first ablation duly diverged in exactly that order.
         self.alpha_norm = alpha_norm
-        # Which vector this agent speaks. Defaults to the full set, so nothing
-        # that existed before this parameter changes behaviour.
+        # This parameter controls which feature vector the agent speaks. The
+        # default is the full set, so nothing that existed before this parameter
+        # changes behaviour.
         self.fs = featureset or FeatureSet()
         self.alpha = alpha
         self.gamma = gamma
@@ -118,9 +119,9 @@ class SarsaLambda:
                actions: list[dict] | None = None) -> int:
         """Index of the chosen action, over `state["actions"]` or an explicit list.
 
-        The explicit list is what makes team order learnable with the same q̂:
-        reordering is a decision the game does not put in `actions`, so its
-        options are built separately and scored by the very same weights.
+        The explicit list is what makes team order learnable with the same q̂
+        because reordering is a decision the game does not put in `actions`, so
+        its options are built separately and scored by the very same weights.
         """
         xs = self.all_features(state, actions)
         if not greedy and self.rng.random() < self.epsilon:
@@ -153,9 +154,10 @@ class SarsaLambda:
         if x_next is not None:
             delta += self.gamma * self.q(x_next)
 
-        # Normalised so the effective step is stable as features are added or
-        # removed. `alpha_norm` pins it to a constant shared across variants,
-        # which is what makes an ablation vary one thing.
+        # The step is normalised so the effective rate is stable as features are
+        # added or removed. The `alpha_norm` parameter pins the divisor to a
+        # constant shared across variants, which is what makes an ablation vary
+        # one thing.
         step = self.alpha / (self.alpha_norm or max(1, len(x)))
         for i in range(self.fs.n):
             if self.z[i]:
@@ -172,7 +174,7 @@ class SarsaLambda:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps({
             "encoding_version": ENCODING_VERSION,
-            # The groups travel WITH the weights. Weights are stored by name, so
+            # The groups travel with the weights. Weights are stored by name, so
             # loading them into a different set would zero-fill what is missing
             # and hand back a policy nobody ever trained.
             "feature_groups": self.fs.groups,
@@ -182,7 +184,8 @@ class SarsaLambda:
                 "epsilon": self.epsilon, "alpha_norm": self.alpha_norm,
             },
             "updates": self.updates,
-            # Named so the learned policy can be read rather than only run.
+            # Weights are stored by name so the learned policy can be read
+            # rather than only run.
             "weights": dict(zip(self.fs.names, [round(v, 4) for v in self.w])),
         }, indent=1), encoding="utf-8")
         return p
@@ -226,7 +229,7 @@ class SarsaLambda:
     def top_weights(self, n: int = 12) -> list[tuple[str, float]]:
         """The features it leaned on hardest, positive and negative.
 
-        The point of a linear model: you can read what it learned.
+        The point of a linear model is that you can read what it learned.
         """
         pairs = [(name, w) for name, w in zip(self.fs.names, self.w)]
         pairs.sort(key=lambda p: -abs(p[1]))

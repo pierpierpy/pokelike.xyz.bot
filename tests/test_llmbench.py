@@ -1,12 +1,12 @@
 """Regression tests for the model benchmark.
 
-Not coverage for its own sake. Every test here stands for a way this can go wrong
-QUIETLY — a row that looks comparable and is not, a fingerprint that certifies code
-it never ran, a credential written into a file that gets committed. The failures
-that announce themselves need no test; these do not announce themselves.
+These tests exist because the failures they cover happen quietly. A row that looks
+comparable and is not, a fingerprint that certifies code it never ran, a credential
+written into a file that gets committed. The failures that announce themselves need
+no test; these do not.
 
-Several of them pin behaviour in the FROZEN harnesses under `llm-bench/*/harness/`.
-That is the point: those files must not drift, and a test is a cheaper guard than
+Several of them pin behaviour in the frozen harnesses under `llm-bench/*/harness/`.
+That is the point. Those files must not drift, and a test is a cheaper guard than
 remembering.
 
 No browser, no network, no model. The harnesses are loaded and inspected, and where
@@ -35,9 +35,10 @@ OFFLINE = {"endpoint": "https://example.invalid", "token": "not-a-real-token"}
 def memory_harness():
     """The frozen class of the harness that keeps notes, constructed offline.
 
-    v4 today. Named for what it is rather than for its number: v1 introduced the
-    notebook and was deleted without ever being measured, and a fixture called
-    `memory_harness` then had to be read twice to see which claim it was making.
+    This is v4 today. The fixture is named for what it is rather than for its
+    number, because v1 introduced the notebook and was deleted without ever being
+    measured. A fixture called `memory_harness` only had to be read once to see
+    which claim it was making.
     """
     cls = load_class(L.harness_path("v4"))
     return cls(seed=0, model="test-model", **OFFLINE)
@@ -63,7 +64,7 @@ def test_every_harness_is_loadable_and_reports_itself(version):
 
 @pytest.mark.parametrize("version", L.versions())
 def test_every_harness_survives_a_committed_move(version):
-    """`_commit` slices the journal with `self.memory`, so a version that gave that
+    """The `_commit` method slices the journal with `self.memory`, so a version that gave that
     name to something else crashes on the first decision of the first run."""
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
@@ -72,8 +73,8 @@ def test_every_harness_survives_a_committed_move(version):
     for k in range(turns):
         bot._commit(dict(state, steps=k), 0, f"reason {k}")
     # A negative MEMORY means an unbounded journal, and the slice that caps a positive
-    # one silently EMPTIES an unbounded one (journal[1:] every turn), so both are held
-    # here: a version that gets this wrong remembers nothing and says nothing about it.
+    # one silently empties an unbounded one (journal[1:] every turn), so both are held
+    # here, because a version that gets this wrong remembers nothing and says nothing about it.
     if bot.MEMORY >= 0:
         assert len(bot.journal) == bot.MEMORY
     else:
@@ -82,9 +83,8 @@ def test_every_harness_survives_a_committed_move(version):
 
 # --------------------------------------------------- what may be recorded
 #
-# The single most dangerous rule in the file. A pass over anything other than the
-# standard fifty seeds is not comparable to any other row, and nothing downstream
-# can tell the difference once it is written.
+# A pass over anything other than the standard fifty seeds is not comparable to
+# any other row, and nothing downstream can tell the difference once it is written.
 
 
 def test_only_the_standard_seeds_may_be_recorded():
@@ -93,7 +93,8 @@ def test_only_the_standard_seeds_may_be_recorded():
 
 
 def test_fifty_seeds_of_your_own_are_not_the_standard_fifty():
-    """The bug this replaced compared LENGTHS, so this recorded."""
+    """The bug this test replaced compared only lengths, so fifty seeds of your own
+    would have been recorded."""
     mine = [s + 1000 for s in STANDARD_SEEDS]
     assert len(mine) == len(STANDARD_SEEDS)
     assert not L.records(mine)
@@ -113,11 +114,11 @@ def test_a_partial_run_may_not_be_recorded():
 
 
 def test_a_pass_records_the_fingerprint_it_was_given():
-    """Taken before the first seed plays, not after the last one.
+    """The fingerprint is taken before the first seed plays, not after the last one.
 
     Hashing at the end means an edit made during the pass produces a row that
-    claims code it never ran AND matches disk, so nothing can detect it. That is
-    the inverse of what a fingerprint is for.
+    claims code it never ran and matches disk, so nothing can detect the edit. That
+    is the inverse of what a fingerprint is for.
     """
     runs = [{"seed": 10000, "badges": 1, "turns": 20, "fallbacks": 0}]
     stamp = {"bot.py": "0" * 16, "render.py": "1" * 16}
@@ -132,12 +133,12 @@ def test_a_pass_falls_back_to_hashing_disk_when_given_nothing():
 
 
 def test_a_pass_is_named_by_its_log_directory(tmp_path):
-    """`(harness, model, stamp, seed)` is what names one game, and this is the stamp.
+    """The tuple (harness, model, stamp, seed) names one game, and the stamp is this.
 
     The standard fifty seeds are the same fifty for every model, so a seed alone
     names a game in every pass ever played. The stamp is the half that tells them
-    apart, and it is read off the directory so it cannot claim to be somewhere the
-    files are not.
+    apart, and the stamp is read off the directory so it cannot claim to be somewhere
+    the files are not.
     """
     folder = tmp_path / "20260821-162048-1435"
     folder.mkdir()
@@ -158,12 +159,12 @@ def test_a_changed_harness_marks_the_row_stale(tmp_path):
 
 
 def test_fingerprint_covers_what_decides_a_run_and_what_drives_it():
-    """Four frozen files, three shared ones, and the difference is the point.
+    """The fingerprint covers four frozen files and three shared ones.
 
-    The frozen four decide what a run IS: the loop, the text the model reads, the
-    state it is built from, and the pins that make a seed replay. The shared three
-    drive the game, and are hashed rather than copied because copying them would
-    mean each harness carrying its own browser plumbing.
+    The frozen four decide what a run is: the loop, the text the model reads, the
+    state the text is built from, and the pins that make a seed replay. The shared
+    three drive the game, and are hashed rather than copied because copying them
+    would mean each harness carrying its own browser plumbing.
     """
     for v in L.versions():
         keys = set(L.fingerprints(v))
@@ -180,13 +181,13 @@ def test_the_frozen_files_all_live_in_the_harness_directory():
 
 
 def test_every_harness_carries_its_own_renderer():
-    """The renderer is a copy per version, not the module the CLI improves.
+    """The renderer is a copy per version, independent of the module the CLI improves.
 
-    It used to be `pokelike.core.render`, fingerprinted in the hope of catching
-    drift rather than preventing it. That hope failed the first time the shared
-    renderer had a defect: fixing it for the person at the terminal would have
-    marked every score ever recorded, so the benchmark was holding the CLI
-    hostage.
+    The renderer used to be `pokelike.core.render`, fingerprinted in the hope of
+    catching drift rather than preventing it. That hope failed the first time the
+    shared renderer had a defect. Fixing the defect for the person at the terminal
+    would have marked every score ever recorded, so the benchmark was holding the
+    CLI hostage.
     """
     for v in L.versions():
         p = L.render_path(v)
@@ -196,7 +197,7 @@ def test_every_harness_carries_its_own_renderer():
 
 
 def test_a_harness_without_its_own_scripts_is_an_error(tmp_path, monkeypatch):
-    """A key nobody records is a key nobody checks, so absence must be loud."""
+    """A missing key is one nobody records and nobody checks, so absence must be loud."""
     monkeypatch.setattr(L, "BENCH", tmp_path)
     (tmp_path / "v9" / "harness").mkdir(parents=True)
     (tmp_path / "v9" / "harness" / "bot.py").write_text("x = 1\n")
@@ -214,11 +215,11 @@ def test_a_harness_without_its_own_scripts_is_an_error(tmp_path, monkeypatch):
 
 
 def test_adding_a_file_to_the_fingerprint_does_not_mark_older_results(monkeypatch):
-    """Comparing key by key, so the check answers "did anything move".
+    """The check compares key by key, so it answers "did anything move".
 
     Whole-dict equality answered "do we hash the same number of files as the day
     this ran", which is a different question and gets louder every time the
-    fingerprint grows: one new file and every recorded row claims drift.
+    fingerprint grows. One new file and every recorded row claims drift.
     """
     stamp = L.fingerprints("v0")
     one = L._as_pass("v0", "m", [10000], [{"seed": 10000, "badges": 1, "turns": 1,
@@ -260,14 +261,14 @@ def test_command_json_refuses_to_hold_a_credential(tmp_path):
 
 
 def test_command_json_keeps_the_endpoint(tmp_path):
-    """Which provider served a row changes what the row means."""
+    """The provider endpoint changes what the row means, so it must be kept."""
     p = L.record_command(tmp_path, {"harness": "v0", "models": ["a/b"],
                                     "endpoint": "https://openrouter.ai/api"})
     assert json.loads(p.read_text())["endpoint"] == "https://openrouter.ai/api"
 
 
 def test_the_token_never_reaches_a_result_or_a_note(memory_harness):
-    """It has exactly one destination: the Authorization header."""
+    """The token has exactly one destination, the Authorization header."""
     blob = json.dumps(memory_harness.metadata()) + json.dumps(
         [a.data for a in memory_harness.artifacts() if a.data]
     )
@@ -290,7 +291,7 @@ def test_a_memory_harness_refuses_to_be_split_across_workers():
 
 
 def test_the_notes_survive_the_end_of_a_run(memory_harness):
-    """One line is the whole feature: `on_start` must not clear them."""
+    """One line is the whole feature, so `on_start` must not clear the notes."""
     memory_harness._remember("remember", {"note": "trainer nodes pay off early"})
     kept = list(memory_harness.notebook)
     memory_harness.journal = ["step 3: [0] something"]
@@ -302,8 +303,8 @@ def test_the_notes_survive_the_end_of_a_run(memory_harness):
 
 
 def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(memory_harness):
-    """The bug that nearly shipped: the notes took the name of the journal-trim
-    size, and `_commit` slices the journal with it."""
+    """The bug that nearly shipped made the notes take the name of the journal-trim
+    size, and `_commit` slices the journal with that attribute."""
     assert isinstance(memory_harness.memory, int)
     assert memory_harness.memory == memory_harness.MEMORY
     assert isinstance(memory_harness.notebook, list)
@@ -325,8 +326,8 @@ def test_memory_is_the_journal_size_and_the_notes_are_the_notebook(memory_harnes
     ],
 )
 def test_the_memory_verbs_answer_instead_of_raising(memory_harness, verb, args, expect):
-    """A model that gets an exception loses the turn to the fallback; a model that
-    gets a sentence carries on."""
+    """A model that gets an exception loses the turn to the fallback, while a model
+    that gets a sentence carries on."""
     assert expect in memory_harness._remember(verb, args)
 
 
@@ -353,13 +354,13 @@ def test_every_memory_reply_says_how_full_the_notebook_is(memory_harness):
 
 
 def test_the_notes_are_injected_above_the_journal(memory_harness):
-    """What was learned across fifty runs outranks the last six turns of this one."""
+    """Lessons learned across fifty runs outrank the last six turns of the current one."""
     memory_harness._remember("remember", {"note": "a lesson"})
     memory_harness.journal = ["step 3: [0] whatever"]
     text = memory_harness._situation({"actions": [{"kind": "menu", "label": "FIGHT"}],
                                   "team": None, "steps": 3})
-    # The heading changed with the harness: v0 to v2 said YOUR RECENT MOVES over the
-    # model's own sentences, v4 separates what was done from what was said about it.
+    # The heading changed with the harness, because v0 to v2 said YOUR RECENT MOVES over the
+    # model's own sentences while v4 separates what was done from what was said about it.
     assert 0 <= text.find("WHAT YOU HAVE LEARNED") < text.find("WHAT YOU DID")
 
 
@@ -378,10 +379,11 @@ def test_notes_reported_per_run_are_a_copy(memory_harness):
 
 
 def test_the_notes_and_the_plan_get_their_own_files(tmp_path, monkeypatch):
-    """Readable on their own, because the question is how the model WROTE them.
+    """The notes and plan are readable on their own, because the question is how
+    the model wrote them.
 
-    `unchanged` rather than a reprint when nothing moved: fifty identical blocks
-    would bury the three runs where it actually learned something.
+    The `unchanged` marker replaces a reprint when nothing moved. Fifty identical
+    blocks would bury the three runs where the model actually learned something.
     """
     monkeypatch.setattr(L, "BENCH", tmp_path)
     log = L.PassLog("v2", "vendor/m", [10000, 10001, 10002], workers=1, memory=True)
@@ -406,7 +408,7 @@ def test_the_notes_and_the_plan_get_their_own_files(tmp_path, monkeypatch):
 
 
 def test_a_harness_without_notes_leaves_no_empty_files(tmp_path, monkeypatch):
-    """Two blank files a pass would be litter that reads like a bug."""
+    """Two blank files per pass would be litter that reads like a bug."""
     monkeypatch.setattr(L, "BENCH", tmp_path)
     log = L.PassLog("v0", "vendor/m", [10000], workers=1)
     log.run({"seed": 10000, "badges": 1, "steps": 9, "tokens_in": 1, "tokens_out": 1,
@@ -418,8 +420,8 @@ def test_a_harness_without_notes_leaves_no_empty_files(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("version", [v for v in L.versions() if v != "v0"])
 def test_a_memory_harness_reports_the_plan_and_the_notes(version):
-    """The wiring the two files depend on: whatever notes() does not expose cannot
-    reach a log, and both are read off notes() by name."""
+    """The wiring the two files depend on. Whatever notes() does not expose cannot
+    reach a log, and both the notebook and the plan are read off notes() by name."""
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
     keys = bot.metadata()
@@ -443,7 +445,7 @@ def test_learning_is_the_last_ten_runs_against_the_first_ten():
 
 
 def test_learning_is_measured_in_the_order_played_not_by_seed():
-    """Rows are stored sorted by seed; the fortieth run had thirty-nine runs of
+    """Rows are stored sorted by seed, but the fortieth run had thirty-nine runs of
     notes behind it."""
     rows = [{"seed": 10000 + i, "order": 50 - i, "badges": b}
             for i, b in enumerate(range(50))]
@@ -455,7 +457,7 @@ def test_learning_falls_back_to_seed_order_for_rows_recorded_without_it():
 
 
 def test_learning_needs_two_disjoint_ends():
-    """Fewer than 2k runs and the two halves overlap, showing a gain that is the
+    """Fewer than 2k runs means the two halves overlap, showing a gain that is the
     same runs counted twice."""
     assert L.learning([_pass([1] * 19)])["delta"] is None
     assert L.learning([])["delta"] is None
@@ -512,8 +514,8 @@ class _Args:
 
 
 def test_absent_flags_pass_nothing_through():
-    """An absent flag must not become an empty string: that would override the
-    environment with nothing and turn a working setup into "FW_TOKEN is required"."""
+    """An absent flag must not become an empty string, because that would override
+    the environment with nothing and turn a working setup into "FW_TOKEN is required"."""
     from pokelike.interfaces.cli.shared import llm_settings
 
     assert llm_settings(_Args()) == {}
@@ -588,7 +590,7 @@ def test_one_directory_per_command_with_a_numbered_log_per_pass(tmp_path, monkey
 
 
 def test_results_do_not_live_in_the_command_directory():
-    """One file per model with every pass appended is the comparable record: ten
+    """One file per model with every pass appended is the comparable record; ten
     commands over three days build one model's history."""
     assert L.result_path("v0", "a/b").parent.name == "results"
 
@@ -670,10 +672,11 @@ def test_token_counts_are_short_enough_for_a_bar(n, text):
 def test_the_bar_writes_whole_lines_when_nothing_is_watching(capsys, monkeypatch):
     """`docker compose run` allocates a pseudo-tty even with -d, so isatty cannot
     decide this. Carriage-return frames leave Docker's log driver holding an
-    unterminated line and `docker logs` shows nothing for the whole run.
+    unterminated line, and `docker logs` shows nothing for the whole run.
 
-    And no postfix: the live state of one run belongs on a bar you are watching,
-    not repeated on every line of a file that already has the finished runs in it.
+    The postfix is also dropped because the live state of one run belongs on a bar
+    you are watching, not repeated on every line of a file that already has the
+    finished runs in it.
     """
     monkeypatch.setenv("POKELIKE_PLAIN_BAR", "1")
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
@@ -687,7 +690,7 @@ def test_the_bar_writes_whole_lines_when_nothing_is_watching(capsys, monkeypatch
 
 
 def test_a_watched_bar_still_carries_the_live_state(capsys, monkeypatch):
-    """The postfix is dropped only where nobody can see it change."""
+    """The postfix is dropped only where nobody can see the bar change."""
     monkeypatch.delenv("POKELIKE_PLAIN_BAR", raising=False)
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True, raising=False)
     bar = progress_bar(total=2, desc="d", mininterval=0)
@@ -713,7 +716,7 @@ def test_a_setting_without_a_value_is_refused():
 
 
 def test_no_settings_is_an_empty_dict_not_a_none():
-    """It is splatted into a constructor call, so it has to be a mapping either way."""
+    """The return value is splatted into a constructor call, so it has to be a mapping."""
     assert L.parse_settings(None) == {}
     assert L.parse_settings([]) == {}
 
@@ -723,12 +726,14 @@ def test_no_settings_is_an_empty_dict_not_a_none():
 
 @pytest.mark.parametrize("version", L.versions())
 def test_every_harness_records_the_tool_calls_it_makes(version):
-    """The trace and the dashboard read this. A version without it logs less than v4.
+    """The trace and the dashboard read tool_calls_made(). A version without this
+    method logs less than v4.
 
-    It lives in each harness rather than in the shared side because the dispatch loop is
-    the harness: `play` and `set_lead` are handled inline and never reach `run_tool`, so
-    a wrapper around that method from outside cannot see the decision itself. Three
-    copies of one method is what a frozen copy means here.
+    The method lives in each harness rather than in the shared side because the
+    dispatch loop is the harness. The `play` and `set_lead` tools are handled
+    inline and never reach `run_tool`, so a wrapper around that method from outside
+    cannot see the decision itself. Three copies of one method is what a frozen copy
+    means here.
     """
     cls = load_class(L.harness_path(version))
     bot = cls(seed=0, model="test-model", **OFFLINE)
@@ -752,14 +757,14 @@ def test_the_recorder_is_called_for_every_tool_the_model_asks_for(version):
 
 
 def test_a_finished_game_is_counted_separately_from_eight_badges():
-    """Badges stop at 8, so winning has to be its own number.
+    """Badges stop at 8, so a win has to be counted separately.
 
-    In: runs ending in a win and in a loss, both at 8 badges. Out: `won` counts only
-    the win, while badges cannot tell them apart.
+    A model that finishes the game scores the same badges as one that reaches
+    the Elite Four and dies. The `won` field tells them apart.
     """
-    # The engine has eight gym leaders and the Elite Four that follows them awards no
-    # badge, so 8 is the ceiling: a model that FINISHES the game scores exactly what
-    # one that reaches the Elite Four and dies scores.
+    # The engine has eight gym leaders and the Elite Four awards no badge, so 8
+    # is the ceiling. A model that finishes the game scores the same as one that
+    # reaches the Elite Four and dies.
     runs = [{"seed": s, "badges": 8, "turns": 80, "fallbacks": 0,
              "ending": "win-screen" if s == 10000 else "gameover-screen"}
             for s in (10000, 10001, 10002)]

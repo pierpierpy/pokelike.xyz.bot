@@ -1,7 +1,7 @@
-"""llm-survivor: do not die.
+"""The llm-survivor bot focuses on team preservation.
 
-Faints are what ends runs, and a run that ends early scores nothing whatever it did
-first. This prompt spends the whole run buying itself more run.
+Faints are what ends runs, and a run that ends early scores nothing whatever the
+bot did first. This prompt spends the whole run buying itself more run.
 
 Credentials come from `.env` at the repository root.
 

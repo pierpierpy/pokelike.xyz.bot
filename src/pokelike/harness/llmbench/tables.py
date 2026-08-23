@@ -1,6 +1,7 @@
 """Formatting benchmark results as terminal tables and Markdown for the README.
 
-Presentation only: all data comes from results.py and versions.py.
+This module handles presentation only. All data comes from results.py and
+versions.py.
 """
 
 from __future__ import annotations
@@ -36,9 +37,9 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     money = bool(price)
     # Learn column only shown for harnesses with cross-run memory.
     learns = cross_run_memory(version)
-    # Region column: shown only when at least one row is not kanto.
+    # The region column is shown only when at least one row is not kanto.
     show_region = _show_region(rows)
-    # Settings column: shown only when at least one row has a --set override,
+    # The settings column is shown only when at least one row has a --set override,
     # e.g. two rows for the same model under `reasoning=low` and `reasoning=high`.
     show_settings = any(r.get("settings") for r in rows)
     head = (f"{'model':<34}{'passes':>7}{'runs':>6}"
@@ -150,14 +151,14 @@ def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():
         text = path.read_text(encoding="utf-8")
-        # Match on the marker prefix, not the full sentence, so the marker stays
-        # findable even if the command name changes.
+        # The match uses the marker prefix so the marker stays findable even if
+        # the command name changes.
         i, j = text.find(README_BEGIN_MARK), text.find(README_END)
         if i != -1 and j > i:
             path.write_text(text[:i] + generated + text[j + len(README_END):],
                             encoding="utf-8")
         else:
-            # Markers not found; append rather than replace the whole file.
+            # The markers were not found, so the generated block is appended.
             path.write_text(text.rstrip("\n") + "\n\n" + generated + "\n",
                             encoding="utf-8")
         return path

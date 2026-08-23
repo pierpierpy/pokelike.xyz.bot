@@ -1,4 +1,4 @@
-"""The benchmark loop: plays the seed list and returns the result document."""
+"""The benchmark loop, which plays the seed list and returns the result document."""
 
 from __future__ import annotations
 
@@ -80,9 +80,10 @@ def run_benchmark(
                    ("seed", "steps", "score", "badges", "maps", "kos", "faints", "ending",
                     "stalled")}
             row["region"] = full.get("region") or rname
-            # A single-region run plays exactly one region's Elite Four; it is
-            # cleared if the run ended on the win screen. Matches the campaign
-            # branch above, which counts the same thing across several regions.
+            # A single-region run plays exactly one Elite Four. The region
+            # counts as cleared if the run ended on the win screen. This
+            # matches the campaign branch above, which counts the same thing
+            # across several regions.
             row["regions_played"] = 1
             row["regions_cleared"] = 1 if row["ending"] == "win-screen" else 0
 

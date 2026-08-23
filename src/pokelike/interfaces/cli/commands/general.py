@@ -1,4 +1,4 @@
-"""General commands: setup, mirror, play, api, schema, history."""
+"""General commands for setup, mirror, play, api, schema, and history."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ commands:
 
 
 def cmd_setup(args) -> int:
-    """Gets everything ready: browser + offline copy. Run once."""
+    """Gets everything ready by downloading the browser and the offline copy. Run this once."""
     import subprocess
 
     print("[1/3] downloading the headless browser (~120 MB)")
@@ -78,7 +78,7 @@ def cmd_play(args) -> int:
         campaign = getattr(args, "regions", None) is not None
         region = effective_region(args)
         if campaign:
-            # Campaign mode: no REPL, just play all regions in sequence.
+            # Campaign mode plays all regions in sequence without the REPL.
             def on_region(done):
                 print(f"  {done['region']}: badges {done['badges']}, "
                       f"steps {done['steps']}, {'won' if done['won'] else 'lost'}")

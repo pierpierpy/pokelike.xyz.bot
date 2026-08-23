@@ -1,11 +1,11 @@
 """Shared fixtures.
 
-The browser-backed tests need the offline copy of the game in `site/`. If it is
-not there they are skipped rather than failing: a fresh clone has no `site/`
-until `pokelike setup` has been run.
+The browser-backed tests need the offline copy of the game in `site/`. If the copy
+is not there the tests are skipped rather than failing, because a fresh clone has no
+`site/` until `pokelike setup` has been run.
 
-One browser is started for the whole session and reused: launching Chromium
-costs about a second, and every test would otherwise pay it again.
+One browser is started for the whole session and reused. Launching Chromium costs
+about a second, and every test would otherwise pay that cost again.
 """
 
 from __future__ import annotations
@@ -25,12 +25,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 def free_port() -> int:
-    """A port the OS says is free, asked for at the moment it is needed.
+    """Return a port the OS says is free, asked for at the moment it is needed.
 
-    It used to be the constant 8551, which collides with itself: two test runs
-    at once, or one left over from a killed run still holding the socket, and
-    every browser-backed test errors with `Address already in use` — which reads
-    exactly like a real failure and is not one.
+    A fixed port collides with itself when two test runs overlap or a killed run
+    still holds the socket, causing browser-backed tests to error with
+    `Address already in use`.
     """
     import socket
 

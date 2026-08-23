@@ -11,7 +11,8 @@ from typing import Any
 def team_view(team: list[dict] | None) -> str:
     """Draws the team as a table.
 
-    In: the `team` list from a state. Out: the printable block, one line per slot.
+    This function takes the `team` list from a state and returns the printable
+    block with one line per slot.
     """
     if not team:
         return "  (empty team)"
@@ -36,7 +37,8 @@ def team_view(team: list[dict] | None) -> str:
 def score_view(s: dict[str, Any] | None) -> str:
     """Formats a score breakdown as a readable table.
 
-    In: the score dict from `Game.score()`. Out: the formatted score block.
+    This function takes the score dict from `Game.score()` and returns the
+    formatted score block.
     """
     if not s:
         return "score not available"

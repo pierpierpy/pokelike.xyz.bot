@@ -1,7 +1,7 @@
-"""The multi-round agentic loop that drives one turn of thinking.
+"""This module implements the multi-round agentic loop that drives one turn of thinking.
 
-Calls the model up to `max_rounds` times, dispatches tool calls, and returns
-when `play()` is called or raises when the budget is exhausted.
+The loop calls the model up to `max_rounds` times, dispatches tool calls, and
+returns when `play()` is called or raises when the budget is exhausted.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def run_turn(
         msg = call_model_fn(messages)
         calls = msg.get("tool_calls") or []
         if not calls:
-            # No tool: maybe it wrote the index out in prose.
+            # The model called no tool, so it may have written the index in prose.
             index = parse_index_fn(msg.get("content") or "", len(state["actions"]))
             if index is not None:
                 return index, "(read from prose)", lead, this_turn
@@ -64,8 +64,8 @@ def run_turn(
                 args = json.loads(c["function"].get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
-            # Record before dispatch: play, set_lead, and unknown names all
-            # return or continue without reaching answer_tool.
+            # Recording happens before dispatch because play, set_lead, and
+            # unknown names all return or continue without reaching answer_tool.
             if record_call_fn is not None:
                 record_call_fn(name, args)
 
@@ -120,7 +120,10 @@ def run_turn(
 
 
 class _LoopExhausted(LLMError):
-    """Rounds exhausted without a play() call. Carries the exchange for the scratchpad."""
+    """Raised when rounds are exhausted without a play() call.
+
+    The exception carries the exchange so the caller can add it to the scratchpad.
+    """
 
     def __init__(self, msg: str, this_turn: list[dict[str, Any]]) -> None:
         super().__init__(msg)

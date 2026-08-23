@@ -1,4 +1,4 @@
-"""The fixed seed list and scoring helpers for the standard benchmark."""
+"""This module provides the fixed seed list and scoring helpers for the standard benchmark."""
 
 from __future__ import annotations
 

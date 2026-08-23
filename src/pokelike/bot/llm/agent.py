@@ -1,4 +1,4 @@
-"""The LLMBot class and the one-call-per-turn decision loop.
+"""This module defines the LLMBot class and the one-call-per-turn decision loop.
 
 This file is shared on purpose, so editing it reaches every LLM bot. The
 `harness_version` constant is written into every result and bumped whenever a
@@ -24,16 +24,16 @@ from .decorator import collect_decorated_tools, dispatch_decorated_tool
 from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES, build_tools
 from .transport import call_model_http
 
-# Version of the shared loop, written into every result. A row measured under a
-# different number is not ranked as if it were the same.
+# This version of the shared loop is written into every result. A row measured
+# under a different number is not ranked as if it were the same.
 HARNESS = 2
 
 
 class LLMBot(Bot):
     """A bot that asks a model what to do, one call per turn.
 
-    In: subclass it and set `config` (at least a `prompt`). Out: a bot that
-    plays the game via an LLM endpoint, with tools, journal and fallback.
+    Subclass this class and set `config` (at least a `prompt`) to get a bot that
+    plays the game via an LLM endpoint, with tools, journal, and fallback.
     """
 
     name = "llm"
@@ -46,8 +46,8 @@ class LLMBot(Bot):
                  **overrides: Any) -> None:
         """Builds the bot and validates credentials and tool configuration.
 
-        In: endpoint/token/model from args or env, optional config overrides.
-        Out: a ready bot, or LLMConfigError if credentials or tools are wrong.
+        The endpoint, token, and model come from args or the environment.
+        Raises LLMConfigError if credentials or tools are misconfigured.
         """
         super().__init__(seed=seed)
         self.endpoint = (endpoint or os.environ.get("FW_ENDPOINT", "")).rstrip("/")
@@ -78,17 +78,17 @@ class LLMBot(Bot):
                 '  export MODEL_ID="gpt-4o-mini"      or      --model gpt-4o-mini'
             )
         self.verbose = verbose or bool(os.environ.get("POKELIKE_VERBOSE"))
-        # Notebook: only constructed when notes_cap > 0.
+        # The notebook is only constructed when notes_cap > 0.
         self._notebook: Notebook | None = None
         if self.cfg.notes_cap > 0:
             self._notebook = Notebook(self.cfg.notes_cap, self.cfg.note_chars)
-        # Plan: per-run route, only active when plan_chars > 0.
+        # The plan is a per-run route, only active when plan_chars > 0.
         self.plan: str = ""
         self._validate_tools()
         self._init_counters()
 
     def _validate_tools(self) -> None:
-        """Checks that the tool set has `play` and no duplicates."""
+        """Verifies that the tool set includes `play` and has no duplicate names."""
         names = self.tool_names()
         if "play" not in names:
             raise LLMConfigError(
@@ -104,7 +104,7 @@ class LLMBot(Bot):
             )
 
     def _init_counters(self) -> None:
-        """Zeroes all mutable per-run state."""
+        """Zeroes all mutable per-run state to initial values."""
         self.calls = self.turns = self.tokens_used = 0
         self.tokens_in = self.tokens_out = self.retry_count = self.fallbacks = 0
         self.journal: list[str] = []
@@ -112,7 +112,7 @@ class LLMBot(Bot):
         self._tool_calls: list[dict[str, Any]] = []
         self._opening: str = getattr(self, '_opening', '')
         self._pending: tuple[int | None, int | None, str] | None = None
-        # Scratchpad: the last N finished exchanges, carried verbatim.
+        # The scratchpad holds the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
         self._turn_state: dict[str, Any] | None = None
         # The last exchange with the model (for inspection after the turn).
@@ -121,10 +121,7 @@ class LLMBot(Bot):
         self.last_reply: dict[str, Any] | None = None
 
     def reset(self, seed: int) -> None:
-        """Resets all per-run state for a new game.
-
-        In: the new seed. Out: nothing (mutates self).
-        """
+        """Resets all per-run state for a new game with the given seed."""
         self.seed = seed
         self.journal = []
         self._pending = None
@@ -133,23 +130,22 @@ class LLMBot(Bot):
         self._last_why = ""
         self._tool_calls: list[dict[str, Any]] = []
         self._opening: str = getattr(self, '_opening', '')
-        # Plan and scratchpad are per-run: the plan describes a route through
-        # this map, and the scratchpad is this episode's reasoning.
+        # The plan and scratchpad are per-run because the plan describes a route
+        # through this map, and the scratchpad is this episode's reasoning.
         self.plan = ""
         self._scratch: list[list[dict[str, Any]]] = []
         self._turn_state: dict[str, Any] | None = None
-        # Notebook survives reset only when cross_run_memory is on.
+        # The notebook survives reset only when cross_run_memory is on.
         if self._notebook and not self.cfg.cross_run_memory:
             self._notebook.clear()
 
     def region_cleared(self, done: dict[str, Any]) -> str | None:
-        """What the next region opens with, when a campaign crosses one.
+        """Returns the text the next region opens with when a campaign crosses one.
 
-        In: the region result (region, next, badges, won, steps, team). Out: the
-        text the next region starts with.
+        The `done` dict contains region, next, badges, won, steps, and team.
         """
         # Memory is still intact here, so a subclass can call `call_model` with
-        # `memory_text()` to produce a richer summary instead of this default.
+        # `memory_text()` to produce a richer summary.
         kept = self.cfg.keep_across_regions
         carried = "your notes came with you" if "notes" in kept else "nothing came with you"
         team = ", ".join(done.get("team") or []) or "an empty team"
@@ -161,21 +157,18 @@ class LLMBot(Bot):
                 f"{carried}.")
 
     def region_opening(self, text: str) -> None:
-        """Carries what the last region left into this one's first prompt.
-
-        In: the text from `region_cleared`. Out: nothing.
-        """
-        # Stored in the journal slot so it appears in the user message and ages
-        # out naturally as the new region fills up.
+        """Stores the text that the last region left for this one's first prompt."""
+        # The text goes into the journal slot so the model sees it in the user
+        # message, and the entry ages out naturally as the new region fills up.
         if text:
             self._opening = text.strip()
 
     def reset_memory(self, keep: tuple[str, ...] | None = None) -> None:
-        """Forgets the region just finished, keeping what was asked for.
+        """Forgets the region just finished, keeping only the specified parts.
 
-        In: which of notes, journal, scratchpad, plan to keep. Out: nothing.
+        The `keep` tuple names which of notes, journal, scratchpad, and plan to
+        retain. It defaults to the config policy when called with no argument.
         """
-        # Defaults to the config policy when called with no argument.
         keep = self.cfg.keep_across_regions if keep is None else keep
         if "journal" not in keep:
             self.journal = []
@@ -187,10 +180,7 @@ class LLMBot(Bot):
             self._notebook.notes.clear()
 
     def memory_text(self, include_scratch: bool = False) -> str:
-        """The memory as text, for handing to a model.
-
-        In: whether to flatten the kept turns in too. Out: the text.
-        """
+        """Returns the memory as text, suitable for handing to a model."""
         parts = []
         if self._notebook is not None and self._notebook.notes:
             parts.append("NOTES\n" + "\n".join(
@@ -200,26 +190,26 @@ class LLMBot(Bot):
         if self.journal:
             parts.append("WHAT YOU DID\n" + "\n".join(self.journal))
         if include_scratch:
-            # Flattened to strings; `memory_messages()` keeps the message shape.
+            # The scratchpad is flattened to strings here; the
+            # `memory_messages()` method keeps the original message shape.
             for turn in self._scratch:
                 for m in turn:
                     parts.append(f"{m.get('role')}: {(m.get('content') or '')[:400]}")
         return "\n\n".join(parts)
 
     def memory_messages(self, n: int | None = None) -> list[dict[str, Any]]:
-        """The kept turns as real messages, newest last.
+        """Returns the kept turns as real messages, newest last.
 
-        In: how many turns at most. Out: the messages, flattened in order.
+        Only retained turns are returned because `scratch_turns` drops older
+        turns as they age out. For a full region's history, use the journal.
         """
-        # Returns only what was retained: `scratch_turns` drops older turns as
-        # they age out. For a full region's history, use the journal instead.
         turns = self._scratch if n is None else self._scratch[-n:]
         return [m for turn in turns for m in turn]
 
     def metadata(self) -> dict[str, Any]:
         """Returns run metadata for the registry and benchmark results.
 
-        In: nothing. Out: a dict with model, harness, token counts, fallback_rate,
+        The dict includes model, harness version, token counts, fallback_rate,
         and view/tool configuration.
         """
         meta = build_metadata(
@@ -232,8 +222,8 @@ class LLMBot(Bot):
             reasoning_effort=self.cfg.reasoning_effort,
             tool_names=self.tool_names(), state_view_label=self._state_view_label(),
         )
-        # Report notebook/plan settings and current state so a result records
-        # what the bot was allowed to do and what it held at the end.
+        # The result also records notebook/plan settings and current state, so
+        # readers know what the bot was allowed to do and what it held at the end.
         if self._notebook:
             meta["notes_cap"] = self.cfg.notes_cap
             meta["notes_kept"] = len(self._notebook.notes)
@@ -248,21 +238,19 @@ class LLMBot(Bot):
             meta["scratch_turns"] = self.cfg.scratch_turns
             meta["scratch_state"] = self.cfg.scratch_state
             meta["scratch_held"] = len(self._scratch)
-        # Report decorated tools so a result says what the bot was allowed to do.
+        # Decorated tools are recorded so the result shows which extra tools were
+        # available.
         dec = collect_decorated_tools(type(self))
         if dec:
             meta["decorated_tools"] = [t["function"]["name"] for t in dec]
         return {**meta, **self.add_metadata()}
 
     def tool_names(self) -> list[str]:
-        """Returns the names of all tools offered to the model."""
+        """Returns the names of all tools offered to the model on each turn."""
         return [t["function"]["name"] for t in self.tools()]
 
     def artifacts(self) -> list:
-        """Returns what a submission of this bot carries for the record.
-
-        In: nothing. Out: a list of Artifact objects (prompt and model reference).
-        """
+        """Returns the Artifact objects a submission of this bot carries for the record."""
         return build_artifacts(
             bot_class_name=type(self).__name__, prompt=self.cfg.prompt,
             model=self.model, model_pinned=type(self).config.model is not None,
@@ -275,16 +263,17 @@ class LLMBot(Bot):
         )
 
     def reason(self) -> str:
-        """Returns the explanation string for the last decision made."""
+        """Returns the model's explanation string for the last decision made."""
         return self._last_why
 
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Decides who leads, in the same model call as the move.
 
-        In: the state dict. Out: a (from, to) swap pair, or None if no reorder.
+        Returns a (from, to) swap pair, or None if no reorder is needed.
         """
-        # One HTTP call per turn: reorder runs first, caches the move for act.
-        # Offered only on the map screen (elsewhere the options are the team).
+        # One HTTP call per turn. The reorder method runs first and caches the
+        # move for act. This is offered only on the map screen because elsewhere
+        # the options are the team itself.
         self._pending = None
         if state.get("screen") != "map-screen" or not state.get("can_reorder"):
             return None
@@ -306,8 +295,7 @@ class LLMBot(Bot):
     def act(self, state: dict[str, Any]) -> int:
         """Picks the move for this turn.
 
-        In: the state dict the loop read from the game. Out: the index of the
-        chosen action.
+        Returns the index of the chosen action within `state["actions"]`.
         """
         self.turns += 1
         n = len(state["actions"])
@@ -328,10 +316,7 @@ class LLMBot(Bot):
         return self._cache_decision(state, index, why)
 
     def _cache_decision(self, state: dict[str, Any], index: int, why: str) -> int:
-        """Records a decision into the journal and returns the index.
-
-        In: the state, chosen index, and reason. Out: the index (passed through).
-        """
+        """Records a decision into the journal and returns the chosen index."""
         self._last_why = why
         self.journal.append(journal_entry(state, index, why))
         self.journal = trim_journal(self.journal, self.cfg.memory)
@@ -340,10 +325,7 @@ class LLMBot(Bot):
         return index
 
     def _run_fallback(self, state: dict[str, Any], reason: str) -> int:
-        """Counts and executes a fallback when the model fails to decide.
-
-        In: the state and a reason string. Out: the fallback action index.
-        """
+        """Counts a fallback event and returns the backup heuristic's choice."""
         self.fallbacks += 1
         self._last_why = f"(fell back: {reason})"
         if self.verbose:
@@ -351,10 +333,10 @@ class LLMBot(Bot):
         return self.fallback_move(state)
 
     def fallback_move(self, state: dict[str, Any]) -> int:
-        """Backup choice when the model does not answer or gets it wrong.
+        """Returns a safe action when the model does not answer correctly.
 
-        In: the state dict. Out: a safe action index (prefers healing, then
-        widening the team).
+        The heuristic prefers healing when someone is hurt, then widening the
+        team.
         """
         return fallback_move_default(state)
 
@@ -362,12 +344,12 @@ class LLMBot(Bot):
                   allow_lead: bool = False) -> tuple[int, str, int | None]:
         """Runs one turn of the agentic loop until play() is called.
 
-        In: the state dict and whether set_lead is allowed. Out: a tuple of
-        (action index, reason string, lead slot or None).
+        Returns a tuple of (action index, reason string, lead slot or None).
         """
-        # Flatten the scratchpad into the history the loop inserts between the
-        # system prompt and the fresh user message. When scratch_turns is 0 the
-        # list is empty and the messages are exactly [system, user].
+        # The scratchpad is flattened into the history that the loop inserts
+        # between the system prompt and the fresh user message. When
+        # scratch_turns is 0, the list is empty and the messages are exactly
+        # [system, user].
         self._turn_state = state
         history: list[dict[str, Any]] = [m for turn in self._scratch for m in turn]
         try:
@@ -382,18 +364,16 @@ class LLMBot(Bot):
                 history=history if history else None,
             )
         except _LoopExhausted as exc:
-            # Rounds exhausted: keep the exchange anyway so the next turn sees it.
+            # The rounds are exhausted, but the exchange is kept so the next turn sees it.
             self._remember_turn(exc.this_turn)
             raise LLMError(str(exc)) from exc
         self._remember_turn(this_turn)
         return index, why, lead
 
     def render_scratch(self, state: dict[str, Any]) -> str:
-        """What a kept turn shows where its screen used to be.
-
-        In: the state of the turn being kept. Out: the text to put in its user slot.
-        """
-        # Override this to control how much of a kept turn the model sees.
+        """Returns the text a kept turn shows where its original screen used to be."""
+        # Override render_scratch to control how much of a kept turn the model
+        # sees.
         mode = self.cfg.scratch_state
         if mode == "full":
             return self.render_state(state)
@@ -402,12 +382,10 @@ class LLMBot(Bot):
         return "[the screen you were shown that turn, since changed]"
 
     def _brief_state(self, state: dict[str, Any]) -> str:
-        """One line of facts about a turn, for `scratch_state="brief"`.
-
-        In: the state of that turn. Out: a single line, roughly 120 characters.
-        """
-        # Facts that change per turn: position, progress, team health.
-        # The map and options are omitted because they go stale immediately.
+        """Returns one line of facts about a turn, for `scratch_state="brief"`."""
+        # This includes position, progress, and team health because those
+        # change per turn. The map and options are omitted because they go stale
+        # immediately.
         run = state.get("run") or {}
         team = ", ".join(
             f"{p.get('name')} L{p.get('level')} {p.get('hp')}/{p.get('max_hp')}"
@@ -418,13 +396,11 @@ class LLMBot(Bot):
                 + (f", team {team}" if team else "") + "]")
 
     def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
-        """Adds one finished exchange to the scratchpad, oldest dropped first.
+        """Adds one finished exchange to the scratchpad, dropping the oldest first.
 
         The user message in the kept turn is replaced by a brief summary from
         render_scratch, because the full screen is stale and expensive. Only the
         model's reasoning and tool responses are kept verbatim.
-
-        In: the list of messages for the turn just finished. Out: nothing.
         """
         if self.cfg.scratch_turns == 0:
             return
@@ -438,10 +414,7 @@ class LLMBot(Bot):
             self._scratch = self._scratch[-self.cfg.scratch_turns:]
 
     def _record_call(self, name: str, args: dict[str, Any]) -> None:
-        """Keeps one tool call, as made, for this turn's trace.
-
-        In: the tool name and its arguments. Out: nothing (appended to the log).
-        """
+        """Appends one tool call to this turn's trace for later inspection."""
         entry: dict[str, Any] = {"tool": name}
         for k in ("index", "id", "slot", "note", "route", "why"):
             v = args.get(k)
@@ -450,20 +423,20 @@ class LLMBot(Bot):
         self._tool_calls.append(entry)
 
     def tool_calls_made(self) -> list[dict[str, Any]]:
-        """The tool calls of the turn just decided, and clears them.
+        """Returns the tool calls of the turn just decided, then clears the list.
 
-        In: nothing. Out: one dict per call, in the order the model made them.
+        Each entry is one dict per call, in the order the model made them.
         """
-        # Empties after read so the next turn starts clean. The `play` and
-        # `set_lead` calls are recorded by the loop, not by answer_tool.
+        # The list is emptied after reading so the next turn starts clean.
+        # The `play` and `set_lead` calls are recorded by the loop itself.
         calls, self._tool_calls = self._tool_calls, []
         return calls
 
     def tools(self) -> list[dict[str, Any]]:
         """Returns the tool declarations offered to the model.
 
-        In: nothing. Out: list of OpenAI function-calling tool dicts.
-        Precedence when names collide: @tool methods > extra_tools > shared.
+        The result is a list of OpenAI function-calling tool dicts.
+        When names collide, precedence is @tool methods over extra_tools over shared.
         """
         cfg = getattr(self, "cfg", None) or self.config
         return build_tools(
@@ -478,10 +451,9 @@ class LLMBot(Bot):
     def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
         """Answers one tool call and returns the result shown to the model.
 
-        In: tool name, arguments dict, and the current state. Out: the tool
-        response string. Decorated @tool methods are tried first, then shared.
+        Decorated @tool methods are tried first, then the shared implementations.
         """
-        # Decorated tools get first shot: they are the most specific declaration.
+        # Decorated tools get first shot because they are the most specific.
         result = dispatch_decorated_tool(self, name, args, state)
         if result is not None:
             return result
@@ -504,23 +476,19 @@ class LLMBot(Bot):
         return f"unknown tool: {name}"
 
     def render_state(self, state: dict[str, Any]) -> str:
-        """Renders the state into text for the model. Override to change the view.
+        """Renders the state into text for the model.
 
-        In: the state dict. Out: a string the model reads as context for its
-        decision.
+        Override this method to change what the model sees each turn.
         """
         return render_state_default(state, self.cfg.state_view, self.verbose)
 
     def _state_view_label(self) -> str:
-        """Returns a short label for the view mode, for metadata recording."""
+        """Returns a short label describing the view mode, for metadata recording."""
         overridden = type(self).render_state is not LLMBot.render_state
         return state_view_label(self.cfg.state_view, overridden)
 
     def _build_user_message(self, state: dict[str, Any]) -> str:
-        """Assembles the full user message: view, journal, and instruction.
-
-        In: the state dict. Out: the complete user-role message string.
-        """
+        """Assembles the full user message from the view, journal, and instruction."""
         notes_block = self._notebook.view_block() if self._notebook else None
         plan_block = self._plan_block() if self.cfg.plan_chars > 0 else None
         # Show the region-crossing note only until the journal has real entries.
@@ -536,11 +504,9 @@ class LLMBot(Bot):
         )
 
     def _handle_plan(self, args: dict[str, Any]) -> str:
-        """Handles the plan tool call: stores or replaces the route plan.
-
-        In: the tool arguments. Out: confirmation shown to the model.
-        """
-        # Truncated rather than refused: a plan cut short is still a plan.
+        """Handles the plan tool call by storing or replacing the route plan."""
+        # The plan is truncated if too long because a cut-short plan is still
+        # useful.
         route = str(args.get("route") or "").strip().replace("\n", " ")
         if not route:
             return "nothing to plan: `route` was empty."
@@ -550,18 +516,12 @@ class LLMBot(Bot):
                 + "You will see it every turn until you change it.")
 
     def _handle_bag(self, state: dict[str, Any]) -> str:
-        """Handles the bag tool call: returns items the player is carrying.
-
-        In: the state dict. Out: a comma-separated list of bag items.
-        """
+        """Returns a comma-separated list of items the player is carrying."""
         bag = state.get("bag") or []
         return ", ".join(str(item) for item in bag) or "(empty)"
 
     def _plan_block(self) -> list[str]:
-        """The current plan as lines for the user message, or an invitation.
-
-        In: nothing. Out: lines to insert into the user message.
-        """
+        """Returns the current plan as lines for the user message, or an invitation."""
         if not self.plan:
             return ["", "YOUR PLAN FOR THIS MAP: none yet. Use `plan` to write the "
                     "route you mean to take, before the first choice closes options "
@@ -570,19 +530,20 @@ class LLMBot(Bot):
                     f"{self.plan}"]
 
     def _exits_text(self, state: dict[str, Any]) -> str:
-        """Describes where each legal action leads on the map."""
+        """Returns a description of where each legal action leads on the map."""
         return exits_text(state)
 
     def call_model(self, messages: list[dict[str, Any]],
                    tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Calls the model endpoint and updates token counters.
 
-        In: the messages list (OpenAI format). Out: the assistant message dict.
-        Raises LLMConfigError for permanent failures, LLMError for transient ones.
+        Returns the assistant message dict. Raises LLMConfigError for permanent
+        failures and LLMError for transient ones.
         """
         message, usage = call_model_http(
             messages=messages, model=self.model, endpoint=self.endpoint,
-            # Passing `tools=[]` asks for prose only; None means the bot's usual set.
+            # Passing `tools=[]` asks the model for prose only, while None
+            # means the bot's usual tool set.
             token=self.token, tools=self.tools() if tools is None else tools,
             temperature=self.cfg.temperature, max_tokens=self.cfg.max_tokens,
             reasoning_effort=self.cfg.reasoning_effort,
@@ -604,17 +565,13 @@ class LLMBot(Bot):
 
     @staticmethod
     def _as_index(v: Any) -> int | None:
-        """Coerces a tool argument to an int index, tolerating string digits.
-
-        In: any value (often a string like "2"). Out: the integer, or None.
-        """
+        """Coerces a tool argument to an int index, tolerating string digits."""
         return _as_index(v)
 
     @staticmethod
     def _parse_index(text: str, n: int) -> int | None:
         """Extracts the last valid action index from prose text.
 
-        In: the model's prose and the number of legal actions. Out: the last
-        integer in range [0, n), or None.
+        Returns the last integer in range [0, n) found in the text, or None.
         """
         return _parse_index(text, n)

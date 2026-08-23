@@ -1,6 +1,6 @@
 """The reference dictionaries describing every field a bot receives.
 
-In: nothing (pure data). Out: importable dicts keyed by field name.
+This module is pure data with no imports. It exports dicts keyed by field name.
 """
 
 from __future__ import annotations

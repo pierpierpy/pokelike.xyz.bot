@@ -1,23 +1,24 @@
-"""Code and behaviour, one shared place.
+"""This module provides code and behaviour fingerprints in one shared place.
 
-Neutral on purpose: `arena/` (the bot competition) and `utils/refingerprint.py`
-(outside the package entirely) both need this exact logic, and neither should
-import it from the other. This module is imported by both instead.
+`arena/` (the bot competition) and `utils/refingerprint.py` (outside the
+package entirely) both need this exact logic, and neither should import it
+from the other. This module is imported by both instead.
 
-Two different hashes, two different jobs:
+The module provides two hashes that serve different purposes.
 
-`code_fingerprint(bot_dir)` hashes bytes: WHICH FILES played. A comment edit and
-a logic change both change it, because a file hash cannot tell them apart.
+The `code_fingerprint(bot_dir)` function hashes bytes, which identifies which
+files played. A comment edit and a logic change both change the fingerprint,
+because a file hash cannot tell them apart.
 
-`behaviour_hash(game)` plays a short deterministic replay (fixed seeds, scripted
-policies, no model, no randomness) and hashes only engine data from the result:
-WHETHER A DECISION MOVED. Two versions of the code that decide every replay
-identically produce the same behaviour hash, whatever changed in between; one
-that moved a real decision does not.
+The `behaviour_hash(game)` function plays a short deterministic replay (fixed
+seeds, scripted policies, no model, no randomness) and hashes only engine data
+from the result, which identifies whether a decision moved. Two versions of the
+code that decide every replay identically produce the same behaviour hash,
+whatever changed in between; one version that moved a real decision does not.
 
-BEHAVIOUR_SCHEMA versions this module's own output shape, not the game. Bump it
-when CASES or what a case records changes, so a schema change is never mistaken
-for the game's own behaviour changing.
+The BEHAVIOUR_SCHEMA constant versions this module's own output shape rather
+than the game's. Bump the constant when CASES or what a case records changes,
+so a schema change is never mistaken for the game's own behaviour changing.
 """
 
 from __future__ import annotations
@@ -29,11 +30,9 @@ from typing import Any
 
 BEHAVIOUR_SCHEMA = 1
 
-# Same four (seed, policy) pairs as tests/fingerprint.py's regression suite,
-# on purpose: that file already proved they are enough to catch a real
-# behavioural regression (it is what let this repo be translated end to end
-# with proof that nothing moved), and playing more would only add wall clock
-# without adding certainty for what this checks.
+# These four (seed, policy) pairs match the regression suite in
+# tests/fingerprint.py, which already proved they catch real behavioural
+# regressions. Playing more would only add wall clock without adding certainty.
 CASES = [(1, "fixed"), (2, "fixed"), (3, "cycling"), (7, "cycling")]
 
 
@@ -41,7 +40,7 @@ CASES = [(1, "fixed"), (2, "fixed"), (3, "cycling"), (7, "cycling")]
 
 
 def code_fingerprint(bot_dir: str | Path) -> str:
-    """A single hash over bot.py and every file in artifacts/.
+    """Returns a single hash over bot.py and every file in artifacts/.
 
     Each file is hashed together with its relative path, so renaming a file
     changes the fingerprint too.
@@ -61,12 +60,12 @@ def code_fingerprint(bot_dir: str | Path) -> str:
 
 
 def _policy_fixed(state: dict[str, Any]) -> int:
-    """Always the first legal action."""
+    """This policy always returns the first legal action."""
     return 0
 
 
 def _policy_cycling(state: dict[str, Any]) -> int:
-    """Cycles through the options, so the run does not hug one branch."""
+    """This policy cycles through the options so the run does not hug one branch."""
     return state["steps"] % len(state["actions"])
 
 
@@ -74,13 +73,13 @@ _POLICIES = {"fixed": _policy_fixed, "cycling": _policy_cycling}
 
 
 def _stable_action(a: dict[str, Any]) -> str:
-    """A label for one action that survives a wording change but not a real one.
+    """Returns a label for one action that survives a wording change but not a real one.
 
-    Node actions are named by their engine id and kind, never our own text.
-    Other actions use the game's own button label, since that is what decides
-    which action an index actually points at; leading decoration (a sprite
-    fallback pictograph) is stripped because whether it renders depends on
-    which assets happen to be on disk, not on the run itself.
+    Node actions are named by their engine id and kind. Other actions use the
+    game's own button label, since the label decides which action an index
+    actually points at. Leading decoration (a sprite fallback pictograph) is
+    stripped because whether the pictograph renders depends on which assets
+    happen to be on disk, not on the run itself.
     """
     if a.get("kind") == "node":
         return f"{a['id']}:{a['node']}"
@@ -93,9 +92,9 @@ def _stable_action(a: dict[str, Any]) -> str:
 def replay(game, seed: int, policy: str, max_steps: int = 120) -> dict[str, Any]:
     """Plays one deterministic run and returns what it produced.
 
-    Only engine data: screen ids, node types, the game's own labels, scores. No
-    text this codebase writes itself, so a wording change can never show up
-    here, and a decision that actually moved always does.
+    The result contains only engine data (screen ids, node types, the game's
+    own labels, and scores). A wording change in this codebase can never show
+    up here, but a decision that actually moved always does.
     """
     choose = _POLICIES[policy]
     obs = game.reset(seed=seed)
@@ -124,11 +123,11 @@ def replay(game, seed: int, policy: str, max_steps: int = 120) -> dict[str, Any]
 def behaviour_hash(game, cases: list[tuple[int, str]] | None = None) -> str:
     """Plays every case and returns one sha256 over all of them, sorted and stable.
 
-    `game` must already be reset to the engine (bridge.js, init.js) whose
-    behaviour is being checked; this function does not construct one, since a
-    frozen llm-bench harness and a bot's own artifacts/bridge.js each build
-    their `Game` differently. See `behaviour_hash_for` to build and tear one
-    down in one call.
+    The `game` argument must already be reset to the engine (bridge.js, init.js)
+    whose behaviour is being checked. This function does not construct a Game,
+    since a frozen llm-bench harness and a bot's own artifacts/bridge.js each
+    build their Game differently. See `behaviour_hash_for` to build and tear
+    one down in one call.
     """
     replays = [replay(game, seed, policy) for seed, policy in (cases or CASES)]
     blob = json.dumps(replays, sort_keys=True, ensure_ascii=False)
@@ -136,13 +135,14 @@ def behaviour_hash(game, cases: list[tuple[int, str]] | None = None) -> str:
 
 
 def behaviour_hash_for(site, **game_kwargs) -> str:
-    """Builds a Game against `site`, plays the replay through it, tears it down.
+    """Builds a Game against `site`, plays the replay through the Game, and tears it down.
 
-    The one place that opens an `AssetServer` and a `Game` for a behaviour
-    check, so a harness version and a bot's own bridge share the plumbing
-    instead of each repeating the same server-start/game-open/try-finally
-    dance. `game_kwargs` is whatever `Game` needs beyond `url` (typically
-    `bridge=` and/or `init=`; neither given plays the shared, live pair).
+    This is the single place that opens an AssetServer and a Game for a
+    behaviour check, so a harness version and a bot's own bridge share the
+    plumbing instead of repeating the server-start/game-open/try-finally
+    sequence independently. The `game_kwargs` parameter is whatever Game needs
+    beyond `url` (typically `bridge=` and/or `init=`; when neither is given the
+    function plays the shared, live pair).
     """
     from ..assets.server import AssetServer
     from ..core.game import Game

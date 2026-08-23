@@ -9,14 +9,14 @@ from pathlib import Path
 
 from ...shared.paths import BENCH, ROOT  # noqa: F401 (re-exported for callers)
 
-# Shared (not frozen) files fingerprinted so changes are reported.
+# These shared (not frozen) files are fingerprinted so that changes are reported.
 BROWSER = Path(__file__).resolve().parent.parent.parent / "core" / "browser.py"
 GAME = Path(__file__).resolve().parent.parent.parent / "core" / "game.py"
 RUNNER = Path(__file__).resolve().parent.parent.parent / "core" / "runner.py"
 
 
 def _bench() -> Path:
-    """Returns BENCH through sys.modules so monkeypatching in tests propagates."""
+    """Returns the BENCH path through sys.modules so monkeypatching in tests propagates."""
     import sys
     pkg = sys.modules.get(__package__)
     if pkg is not None and hasattr(pkg, "BENCH"):
@@ -25,7 +25,7 @@ def _bench() -> Path:
 
 
 def versions() -> list[str]:
-    """Harness versions on disk, oldest first."""
+    """Returns the harness versions on disk, oldest first."""
     bench = _bench()
     if not bench.is_dir():
         return []
@@ -43,10 +43,11 @@ def harness_path(version: str) -> Path:
 
 
 def render_path(version: str) -> Path:
-    """The renderer frozen beside this harness. Required, not optional.
+    """Returns the renderer frozen beside this harness.
 
-    A harness without its own renderer would measure against the shared module,
-    which the CLI is free to improve at any time.
+    Every harness must carry its own renderer because a harness without one
+    would measure against the shared module, which the CLI is free to improve
+    at any time.
     """
     p = _bench() / version / "harness" / "render.py"
     if not p.is_file():
@@ -58,11 +59,11 @@ def render_path(version: str) -> Path:
 
 
 def script_paths(version: str) -> dict[str, Path]:
-    """The two JavaScript files (bridge.js, init.js) this harness uses.
+    """Returns the two JavaScript files (bridge.js, init.js) this harness uses.
 
-    These decide what the state IS: bridge.js chooses which fields exist and the
-    action order, and init.js pins Math.random and Date.now (the run seed). Both
-    are frozen per version. Handed to `Game(bridge=..., init=...)`.
+    These files decide what the state is. The bridge.js file chooses which fields
+    exist and the action order, and init.js pins Math.random and Date.now (the
+    run seed). Both are frozen per version and handed to `Game(bridge=..., init=...)`.
     """
     bench = _bench()
     out = {}
@@ -79,18 +80,19 @@ def script_paths(version: str) -> dict[str, Path]:
 
 
 def slug(model: str) -> str:
-    """A model id as a filename. `openai/gpt-4o-mini` -> `openai--gpt-4o-mini`."""
+    """Converts a model id into a safe filename. `openai/gpt-4o-mini` -> `openai--gpt-4o-mini`."""
     return model.replace("/", "--").replace(":", "-").replace(" ", "-")
 
 
 def fingerprints(version: str) -> dict[str, str]:
-    """SHA-256 hashes (truncated to 16 hex) of the seven files the measurement depends on.
+    """Returns SHA-256 hashes (truncated to 16 hex) of the seven files the measurement depends on.
 
-    Four frozen files beside the harness (bot.py, render.py, bridge.js, init.js)
-    and three shared files (browser.py, game.py, runner.py) that drive the game.
-    The game bundle is recorded separately as `game` because it is downloaded, not
-    committed. This is provenance, "which bytes played this", and says nothing
-    about whether a change could have moved a score: see `behaviour` below for that.
+    The seven files are four frozen files beside the harness (bot.py, render.py,
+    bridge.js, init.js) and three shared files (browser.py, game.py, runner.py)
+    that drive the game. The game bundle is recorded separately as `game` because
+    the bundle is downloaded rather than committed. This fingerprint is provenance
+    ("which bytes played this") and does not indicate whether a change could have
+    moved a score. See the `behaviour` function below for that check.
     """
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]  # noqa: E731
     frozen = {"bot.py": harness_path(version), "render.py": render_path(version)}
@@ -99,23 +101,24 @@ def fingerprints(version: str) -> dict[str, str]:
     return {k: sha(v) for k, v in {**frozen, **shared}.items()}
 
 
-# In-process only: keyed on the seven-key fingerprint, so a version whose files
+# In-process only, keyed on the seven-key fingerprint, so a version whose files
 # have not changed since the last call in this process never replays twice.
-# Not persisted, so a fresh process always verifies rather than trusting a
-# claim written by an earlier, possibly stale, run of this same code.
+# The cache is not persisted, so a fresh process always verifies rather than
+# trusting a claim written by an earlier, possibly stale, run of this same code.
 _BEHAVIOUR_CACHE: dict[tuple[str, ...], str] = {}
 
 
 def behaviour(version: str, site) -> str:
-    """This version's behaviour hash: does its engine still decide the same thing?
+    """Returns this version's behaviour hash, which indicates whether the engine still decides the same thing.
 
-    Plays a short deterministic replay (see `pokelike.shared.fingerprint`) through this
-    version's own bridge.js and init.js, using the shared browser.py, game.py
-    and runner.py exactly as a real pass would. Two versions whose seven files
-    hash differently (a comment, a rename) but decide every replay identically
-    return the same behaviour hash; a version that changed what any decision
-    resolves to, however small, does not. `site` is the asset server root
-    already on disk (see `assets.server.AssetServer`); this does not download it.
+    This function plays a short deterministic replay (see `pokelike.shared.fingerprint`)
+    through this version's own bridge.js and init.js, using the shared browser.py,
+    game.py, and runner.py exactly as a real pass would. Two versions whose seven
+    files hash differently (a comment, a rename) but decide every replay identically
+    return the same behaviour hash. A version that changed what any decision resolves
+    to, however small, returns a different hash. The `site` parameter is the asset
+    server root already on disk (see `assets.server.AssetServer`). This function does
+    not download the site.
     """
     from ...shared.fingerprint import behaviour_hash_for
 
@@ -129,9 +132,9 @@ def behaviour(version: str, site) -> str:
 
 
 def cross_run_memory(version: str) -> bool:
-    """Whether this harness lets the model carry notes from one run into the next.
+    """Returns whether this harness lets the model carry notes from one run into the next.
 
-    Determined by inspecting the harness class for a `CROSS_RUN_MEMORY` attribute.
+    The check inspects the harness class for a `CROSS_RUN_MEMORY` attribute.
     """
     from ...bot.catalogue import load_class
 

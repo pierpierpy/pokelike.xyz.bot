@@ -1,4 +1,4 @@
-"""Orchestrates the five-phase build of the offline game copy."""
+"""This module orchestrates the five-phase build of the offline game copy."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ PHASES = ("all", "static", "numbered", "slug", "played", "verify")
 
 
 def build(root: Path, phases: str = "all", log=_log) -> dict:
-    """Builds the offline copy, resuming from a given phase if specified."""
+    """This function builds the offline copy and resumes from a given phase if specified."""
     st = nu = sl = pl = ve = None
 
     if phases in ("all", "static"):
@@ -35,8 +35,8 @@ def build(root: Path, phases: str = "all", log=_log) -> dict:
         log("[3/5] slug phase: URLs built as prefix + name")
         sl = phase_slug(root, log=log)
         log(f"      {sl['found']} found out of {sl['tried']} attempts")
-        # The site answers 200 with index.html for missing files, so remove
-        # anything that slipped past validation before verification runs.
+        # The site answers 200 with index.html for missing files, so this step
+        # removes anything that slipped past validation before verification runs.
         clean(root, log=log)
 
     if phases in ("all", "played"):
@@ -52,7 +52,7 @@ def build(root: Path, phases: str = "all", log=_log) -> dict:
     log("[5/5] verify: replaying with the network closed")
     ve = phase_verify(root, log=log)
 
-    # Repair missing files and re-verify, up to 3 rounds.
+    # The build repairs missing files and re-verifies, up to 3 rounds.
     for round_ in range(3):
         if not ve["missing"]:
             break

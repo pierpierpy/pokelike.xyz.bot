@@ -1,9 +1,9 @@
-"""llm-analyst: look before you leap.
+"""The llm-analyst bot forces the model to gather information before committing.
 
-This bot says nothing about how to play, only about what to read first. It is the
-cheapest test of whether models lose runs by choosing badly or by choosing without
-looking. It costs the most tokens per turn because every turn spends tool rounds
-before committing.
+The prompt tells the model what to read first, and the model decides how to play.
+This bot is the cheapest test of whether models lose runs by choosing without
+looking. Each turn costs the most tokens because it spends tool rounds before
+committing.
 
 Credentials come from `.env` at the repository root.
 

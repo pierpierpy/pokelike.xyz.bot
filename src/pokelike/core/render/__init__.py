@@ -1,8 +1,8 @@
 """Text rendering of the game state.
 
 Everything here is rebuilt from `state`, a JavaScript object read as JSON. No
-pixel is ever inspected: the map below is not read from an image, we draw it
-ourselves from the nodes and edges.
+pixel is ever inspected because the map is drawn directly from the nodes and
+edges in memory.
 
 This package re-exports every public name that was previously available as
 `render.<name>`, so existing imports continue to work unchanged.

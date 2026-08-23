@@ -1,15 +1,17 @@
 """Text rendering of the game state, frozen beside the harness that uses it.
 
-This is a copy of pokelike.core.render, not an import, because the shared module
-evolves freely for the CLI and bot submissions while a benchmark needs the renderer
-to stay fixed. Once a result exists beside this file, editing the file would change
+This file is a copy of pokelike.core.render because the shared module evolves
+freely for the CLI and bot submissions while a benchmark needs the renderer to
+stay fixed. Once a result exists beside this file, editing the file would change
 what every recorded score on this harness meant.
 
 Two differences from the v0/v2 copy:
 
-1. actions_view() prints each node's tooltip (trainer archetype, types, gym
-   rosters, trade descriptions), read from the engine's getNodeLabel function.
-2. screen() shows the move tutor block only on the tutor screen, not every turn.
+1. The actions_view() function prints each node's tooltip (trainer archetype,
+   types, gym rosters, trade descriptions), read from the engine's getNodeLabel
+   function.
+2. The screen() function shows the move tutor block only on the tutor screen,
+   not every turn.
 
 Only screen() and team_view() are called by the harness. The shared module's
 graph_view, score_view, trace_view, and ending_view are not included here because
@@ -84,8 +86,8 @@ def team_view(team: list[dict] | None) -> str:
 
 
 def actions_view(actions: list[dict]) -> str:
-    """The numbered options. For map nodes, the tooltip (trainer type, gym roster,
-    trade description) is appended when present.
+    """Returns the numbered options. For map nodes, the tooltip (trainer type, gym
+    roster, trade description) is appended when present.
     """
     if not actions:
         return "  (no actions)"
@@ -102,9 +104,9 @@ def actions_view(actions: list[dict]) -> str:
 def tutor_view(obs: dict[str, Any]) -> str:
     """The move tutor's offer compared against each team member's current move.
 
-    Renders whenever offered_moves is present in the state (the bridge fills it
-    unconditionally). Gating on the screen is the caller's job; screen() shows
-    this block only on the tutor screen.
+    This function renders whenever offered_moves is present in the state (the
+    bridge fills the field unconditionally). Gating on the screen is the caller's
+    job; the screen() function shows this block only on the tutor screen.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -126,7 +128,7 @@ def tutor_view(obs: dict[str, Any]) -> str:
 
 
 def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
-    """The whole turn as text."""
+    """Renders the whole turn as text."""
     run = obs.get("run") or {}
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "

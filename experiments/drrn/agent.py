@@ -1,31 +1,33 @@
-"""The one change under test: a network where SARSA has a dot product.
+"""The one change under test: a network where the SARSA experiment has a dot product.
 
     q̂(s, a) = MLP(x(s, a))          instead of        q̂(s, a) = wᵀ x(s, a)
 
-Same features, same actions-are-scored-one-at-a-time interface. A network is
-run once per candidate action and the best score wins, which is what makes it
-work with an action set that changes every turn — the architecture text-game
-agents use for the same reason (He et al., "Deep Reinforcement Learning with a
-Natural Language Action Space", arXiv:1511.04636).
+The features and the actions-are-scored-one-at-a-time interface are the same. The
+network is run once per candidate action and the best score wins, which is what
+makes the approach work with an action set that changes every turn, the
+architecture text-game agents use for the same reason (He et al., "Deep
+Reinforcement Learning with a Natural Language Action Space", arXiv:1511.04636).
 
-WHY A NETWORK AT ALL, GIVEN THE LINEAR MODEL PLATEAUED
-Read the weights the linear model learns and most of the mass sits on features
-that are identical across every action in a state — `team_size`, `bias`,
-`map_index`. Those cancel in the argmax and cannot change a choice. Deleting
-them does not help either: measured, 1.36 against 1.38, which is nothing.
+Why a network at all, given the linear model plateaued:
 
-They are not dead weight and they are not useful on their own. What they are is
-a term that only means something *crossed with the action*: how much a trainer
-node is worth depends on how small the team is. The linear model can only carry
-such a cross if someone writes it by hand, and three are written by hand today.
-A hidden layer builds them from the same inputs without anyone choosing which.
+The weights the linear model learns have most of their mass on features that are
+identical across every action in a state, such as `team_size`, `bias`, and
+`map_index`. Those features cancel in the argmax and cannot change a choice.
+Deleting them does not help either (measured, 1.36 against 1.38, which is
+nothing).
 
-That is the whole hypothesis. If it is wrong, the features are the ceiling and
-no amount of capacity on top of them helps.
+Those features are terms that only mean something crossed with the action. How
+much a trainer node is worth depends on how small the team is. The linear model
+can only carry such a cross if someone writes it by hand, and three are written
+by hand today. A hidden layer builds them from the same inputs without anyone
+choosing which.
 
-Numpy only, so `uv run --with numpy` runs it without touching the project
-environment. The trained net exports to JSON and a bot does the forward pass in
-plain Python: nothing a submission plays ever needs numpy installed.
+That is the whole hypothesis. If the hypothesis is wrong, the features are the
+ceiling and no amount of capacity on top of them helps.
+
+This module uses numpy only, so `uv run --with numpy` runs it without touching
+the project environment. The trained net exports to JSON and a bot does the
+forward pass in plain Python, so a submission never needs numpy installed.
 """
 
 from __future__ import annotations
@@ -37,19 +39,19 @@ from typing import Any
 
 import numpy as np
 
-# Bumped when the ARCHITECTURE changes meaning — layer sizes, activation, how
-# the input is built. Exported weights carry it and loading a mismatch is
-# refused, for the same reason the feature set carries a version: a matrix of
-# numbers is only a policy under the shape that produced it.
+# Bumped when the architecture changes meaning (layer sizes, activation, how
+# the input is built). Exported weights carry this version and loading a
+# mismatch is refused, because a matrix of numbers is only a policy under the
+# shape that produced it.
 ARCH_VERSION = 1
 
 
 class QNet:
     """An MLP scoring one (state, action) pair, trained by fitted Q iteration.
 
-    Adam, ReLU, He initialisation. Small on purpose: the input is 100 hand-built
-    features rather than pixels, so the job of the hidden layers is to cross
-    them, not to discover them.
+    Uses Adam, ReLU, and He initialisation. The network is small on purpose
+    because the input is 100 hand-built features, so the hidden layers cross
+    them rather than discover them.
     """
 
     def __init__(self, n_in: int, hidden: tuple[int, ...] = (64, 64),
@@ -78,11 +80,11 @@ class QNet:
         """Throw the weights away and start again, keeping the data.
 
         Reusing a fixed dataset many times overfits a network to whatever it saw
-        first, and the more you reuse it the worse that gets — the primacy bias
-        (Nikishin et al., arXiv:2205.07802). Periodically re-initialising while
+        first, and the more you reuse it the worse that gets (the primacy bias,
+        Nikishin et al., arXiv:2205.07802). Periodically re-initialising while
         keeping the replay data is what buys the high reuse ratio this budget
-        depends on: there are only so many transitions, and each has to be worth
-        more than one gradient step.
+        depends on, because there are only so many transitions, and each has to
+        be worth more than one gradient step.
         """
         self.rng = np.random.default_rng(self.seed + seed_offset * 10_000)
         self._init_params()

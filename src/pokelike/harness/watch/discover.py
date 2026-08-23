@@ -1,4 +1,4 @@
-"""Finding passes on disk: listing, sorting, liveness, and selection."""
+"""Finding passes on disk, including listing, sorting, liveness checks, and selection."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _PKG = "pokelike.harness.watch"
 
 
 def _bench() -> Path:
-    """Return the bench path, respecting monkeypatches on the package."""
+    """Returns the bench path, respecting monkeypatches on the package."""
     pkg = sys.modules.get(_PKG)
     return pkg.BENCH if pkg is not None else BENCH
 
@@ -29,15 +29,15 @@ def _bench() -> Path:
 
 
 def newest(version: str | None = None) -> Path | None:
-    """The most recently written pass directory, over one version or all of them."""
+    """Returns the most recently written pass directory, over one version or all of them."""
     found = folders(version)
     return found[0] if found else None
 
 
 def folders(version: str | None = None) -> list[Path]:
-    """Every pass directory that has a trace, most recently written first."""
+    """Returns every pass directory that has a trace, most recently written first."""
     bench = _bench()
-    # Locally imported to avoid a circular import between the two modules.
+    # This import is local to avoid a circular import between the two modules.
     from .read import RUNS_SUFFIX
 
     versions = [bench / version] if version else sorted(bench.glob("v*"))
@@ -48,7 +48,7 @@ def folders(version: str | None = None) -> list[Path]:
 
 
 def _touched(folder: Path) -> float:
-    """Most recent mtime of any .jsonl in the folder."""
+    """Returns the most recent mtime of any .jsonl in the folder."""
     return max((f.stat().st_mtime for f in folder.glob("*.jsonl")), default=0.0)
 
 
@@ -56,10 +56,10 @@ def _touched(folder: Path) -> float:
 
 
 def _slug(model: str) -> str:
-    """Convert a model id to the slug a container name carries.
+    """Converts a model id to the slug a container name carries.
 
-    Replaces non-alphanumeric characters with hyphens and collapses runs of hyphens,
-    e.g. 'qwen/qwen3.7-flash' becomes 'qwen-qwen3-7-flash'.
+    This replaces non-alphanumeric characters with hyphens and collapses runs of
+    hyphens, e.g. 'qwen/qwen3.7-flash' becomes 'qwen-qwen3-7-flash'.
     """
     out = "".join(c if c.isalnum() else "-" for c in model)
     while "--" in out:
@@ -68,24 +68,24 @@ def _slug(model: str) -> str:
 
 
 def _has_container(model: str, names: list[str]) -> bool:
-    """True when a running pokelike container's name contains this model's slug.
+    """Returns True when a running pokelike container's name contains this model's slug.
 
-    Matched as a substring so both `qwen-qwen3-7-flash-180247` and a compose name
-    like `pk_v4_qwen-qwen3-7-flash` match.
+    The slug is matched as a substring so both `qwen-qwen3-7-flash-180247` and a
+    compose name like `pk_v4_qwen-qwen3-7-flash` match.
     """
     slug = _slug(model)
     return any(slug in n for n in names)
 
 
 def _containers() -> list[str]:
-    """Names of running pokelike containers, or an empty list if docker is absent."""
+    """Returns names of running pokelike containers, or an empty list if docker is absent."""
     import subprocess
 
     try:
         out = subprocess.run(
             ["docker", "ps", "--filter", "label=com.docker.compose.project=pokelike-llm-bench",
-             # Names and ids: the heartbeat records the container id as hostname,
-             # so both must be matchable.
+             # The heartbeat records the container id as hostname, so both
+             # names and ids must be matchable.
              "--format", "{{.Names}} {{.ID}}"],
             capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
@@ -94,7 +94,7 @@ def _containers() -> list[str]:
 
 
 def _get_containers() -> list[str]:
-    """Call the package-level _containers, which may be monkeypatched by tests."""
+    """Calls the package-level _containers, which may be monkeypatched by tests."""
     pkg = sys.modules.get(_PKG)
     if pkg is not None:
         return pkg._containers()
@@ -105,7 +105,7 @@ def _get_containers() -> list[str]:
 
 
 def live(version: str | None = None) -> list[Path]:
-    """Passes that are actively running right now.
+    """Returns passes that are actively running right now.
 
     A pass is running when its heartbeat file is fresh, or (as a fallback for
     passes from before the heartbeat existed) when a container is up for the model.
@@ -122,11 +122,11 @@ def live(version: str | None = None) -> list[Path]:
 
 
 def _started(folder: Path) -> tuple[int, str]:
-    """Sort key for ordering passes by launch time.
+    """Returns the sort key for ordering passes by launch time.
 
-    Reads `command.json`'s `at` field (which carries a UTC offset for correct
-    cross-timezone ordering). Falls back to the directory name when no command file
-    exists.
+    This reads the `at` field from `command.json` (which carries a UTC offset for
+    correct cross-timezone ordering). The function falls back to the directory name
+    when no command file exists.
     """
     f = folder / "command.json"
     if f.is_file():
@@ -141,10 +141,10 @@ def _started(folder: Path) -> tuple[int, str]:
 
 def pick(version: str | None = None, stamp: str | None = None,
          model: str | None = None) -> "Path | None":
-    """Select which pass to follow, from the given filters and what is running.
+    """Selects which pass to follow, from the given filters and what is running.
 
-    When more than one pass is live, prompts interactively. In non-interactive mode,
-    picks the most recently written.
+    When more than one pass is live, this prompts interactively. In non-interactive
+    mode, the most recently written pass is chosen.
     """
     from rich.console import Console
     from rich.prompt import IntPrompt
@@ -163,16 +163,17 @@ def pick(version: str | None = None, stamp: str | None = None,
 
     running = live(version)
     if len(running) < 2:
-        # Return a live pass or None; a finished pass on disk is not offered.
+        # Returns a live pass, or None if none is running. A finished pass
+        # on disk is not offered here.
         return running[0] if running else None
 
-    # Sorted by start time so the numbering stays stable between invocations.
+    # The list is sorted by start time so the numbering stays stable between invocations.
     running.sort(key=_started)
     up = _get_containers()
 
     console = Console()
     if not console.is_terminal:
-        # No terminal to prompt in; pick the most recently written.
+        # There is no terminal to prompt in, so the most recently written pass is chosen.
         chosen = max(running, key=_touched)
         console.print(f"[dim]{len(running)} passes going, following "
                       f"{chosen.name}[/dim]")
@@ -182,7 +183,7 @@ def pick(version: str | None = None, stamp: str | None = None,
     for i, d in enumerate(running, 1):
         p = read(d, up)
         where = f"{p.done}/{p.wanted or '?'} runs" if p else "?"
-        # Show state so a stalled pass is visible without selecting it.
+        # The state is shown so a stalled pass is visible without selecting it.
         mark = "" if p is None or p.state == "running" else f"  [yellow]{p.state}[/yellow]"
         console.print(f"  [bold]{i}[/bold]  {d.parent.parent.name}  "
                       f"{p.model if p else '?':<34} {where:<12}"

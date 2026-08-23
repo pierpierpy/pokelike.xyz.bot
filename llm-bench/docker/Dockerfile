@@ -9,9 +9,9 @@
 #
 # WHY THIS EXISTS. A fifty-seed pass against a slow model is a long time to leave
 # a browser, a Python process and eight subprocesses attached to a laptop. The
-# container is not about isolation for its own sake, it is about the run being
-# unable to notice anything you do to the host: no library upgrade halfway
-# through, no Chromium updating under it, no sleeping laptop.
+# container keeps the run from noticing anything that happens to the host: no
+# library upgrade halfway through, no Chromium updating under it, no sleeping
+# laptop.
 #
 # WHY THIS BASE IMAGE. The Playwright image ships Chromium together with every
 # system library it needs, at a version matched to the Playwright pinned in

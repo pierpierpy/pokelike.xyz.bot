@@ -1,14 +1,15 @@
 # The bots
 
-Every bot that plays this game lives here, one folder each, and the folder is the bot:
-its code, whatever it needs to play, and what it scored.
+Every bot that plays this game lives here, one folder each, and the folder is the bot.
+Each folder contains the bot's code, whatever the bot needs to play, and what the bot
+scored.
 
-New here? [CONTRIBUTING.md](../CONTRIBUTING.md) walks the whole thing end to end,
-from a clone to a pull request.
+New here? The [CONTRIBUTING.md](../CONTRIBUTING.md) guide walks the whole thing end to
+end, from a clone to a pull request.
 
 ---
 
-**Contents**
+Contents
 
 - [Standings](#standings)
 - [Play any of them](#play-any-of-them)
@@ -30,7 +31,7 @@ from a clone to a pull request.
 | 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `e10d9825ed80` |
 | 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `501ac3b3e64c` |
 
-Ranked by **badges**, the game's own progress counter. `badges~` is the mean over the standard 50 seeds, `badges+` the best single run. `code` is a fingerprint over the bot and its artifacts; **⚠︎ means the files changed since the score was measured**, so the row no longer describes what is on disk, and **? means the result carries no fingerprint at all** and cannot be checked either way. Re-running the benchmark clears both.
+Ranked by badges, the game's own progress counter. `badges~` is the mean over the standard 50 seeds, `badges+` the best single run. `code` is a fingerprint over the bot and its artifacts; ⚠︎ means the files changed since the score was measured, so the row no longer describes what is on disk, and ? means the result carries no fingerprint at all and cannot be checked either way. Re-running the benchmark clears both.
 
 <!-- END standings -->
 
@@ -46,14 +47,14 @@ out of the table above:
 uv run pokelike bot run --bot sarsa-v2 --seed 40003 --runs 1 -g -dd
 ```
 
-The `-g` flag draws the map beside each decision; the `-dd` flag prints the value it
-gave every option before choosing. Drop both for a plain run. Names are exact, and a
-prefix has to be unique: `--bot sarsa-v` finds `sarsa-v2`; `--bot sarsa` is an error
-that names both.
+The `-g` flag draws the map beside each decision. The `-dd` flag prints the value the
+bot gave every option before choosing. Drop both for a plain run. Names are exact, and
+a prefix has to be unique. For example, `--bot sarsa-v` finds `sarsa-v2`, but
+`--bot sarsa` is an error that names both.
 
 ## What a bot is
 
-A bot is a folder. Nothing is registered anywhere, so someone can hand you a bot by
+A bot is a folder. You do not register a bot anywhere, so someone can hand you a bot by
 handing you a directory.
 
 ```
@@ -74,14 +75,14 @@ uv run pokelike bot run --bot mine --runs 5 -d
 uv run pokelike bot bench --bot mine --dry-run
 ```
 
-Running `pokelike bot new` writes a bot that already plays, so you can measure it
+Running `pokelike bot new` writes a bot that already plays, so you can measure the bot
 before changing a line. The full walk-through covering how entries are judged, what
 makes results comparable, and how to open the pull request is in
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-If your bot is a prompt around a model, one request goes out per turn: the system
-prompt, then the state as text, with the tool schemas beside them. What the model
-remembers is yours to set:
+If your bot is a prompt around a model, one request goes out per turn. The request
+contains the system prompt, then the state as text, with the tool schemas beside them.
+What the model remembers is yours to set:
 
 | setting | what it gives the model | default |
 |---|---|---|
@@ -93,39 +94,41 @@ remembers is yours to set:
 | `plan_chars` | a route it plans for the map, shown back every turn | `0` |
 | `bag_tool` | a tool for what it is carrying | `False` |
 
-A zero means off. Running `bot new --llm` turns them on for you; the six shipped bots
-keep the plain setup, which is why they are comparable with each other. Set them on
-your class:
+A zero means off. Running `bot new --llm` turns the settings on for you. The six
+shipped bots keep the plain setup, which is why those six bots are comparable with each
+other. Set them on your class:
 
 ```python
 class MyBot(LLMBot):
     config = LLMConfig(prompt=MY_PROMPT, notes_cap=12, cross_run_memory=True)
 ```
 
-Tools are one line each: decorating a method with `@tool("...")` adds a tool,
-naming it after a shared tool replaces that shared tool, and setting
-`drop_tools=("what_lies_ahead",)` removes one without replacing it. The `play`
-tool is the exception: the model calls `play` to declare its chosen action index,
-so that tool cannot be removed or replaced.
+Tools are one line each. Decorating a method with `@tool("...")` adds a tool, naming a
+tool after a shared tool replaces that shared tool, and setting
+`drop_tools=("what_lies_ahead",)` removes one without replacing it. The `play` tool is
+the exception, because the model calls `play` to declare its chosen action index, so
+that tool cannot be removed or replaced.
 
-A run plays one region, Kanto by default. Passing `--region johto` plays another, and
-passing `--regions all` plays the four regions in sequence, stopping at the first one
-lost. Each region is a whole game with its own starters, gyms, and Elite Four, so
-nothing carries across a region boundary except your notes (controlled by
+A run plays one region, Kanto by default. Passing `--region johto` plays another
+region, and passing `--regions all` plays the four regions in sequence, stopping at the
+first one lost. Each region is a whole game with its own starters, gyms, and Elite
+Four, so nothing carries across a region boundary except your notes (controlled by
 `keep_across_regions`). The `region_cleared(done)` hook is where you decide what the
-next region is told about the one just finished, with your memory still in front of you.
+next region is told about the one just finished, with your memory still in front of
+you.
 
-And if none of that fits, inherit `Bot` instead and write `act(state) -> int`: no loop,
-no prompt, no constraints beyond returning a legal index.
+And if none of that fits, inherit `Bot` instead and write `act(state) -> int`, which
+skips the agentic loop and the prompt entirely and requires only that you return a
+legal index.
 
 ## Measuring a MODEL instead of a bot
 
-An `llm` entry in these standings ranks a bot's own prompt and tools: the prompt is
-the submission, and the model is whatever you pointed the bot at.
-[`llm-bench/`](../llm-bench/README.md) asks the opposite question: in that benchmark
-the harness is frozen and the model id is the only thing that changes, so the score
-measures the model rather than the prompt. Nothing recorded there appears in these
-standings, and nothing here is compared with it.
+An `llm` entry in these standings ranks a bot's own prompt and tools, because the
+prompt is the submission, and the model is whatever you pointed the bot at. The
+[`llm-bench/`](../llm-bench/README.md) benchmark asks a different question. In that
+benchmark the harness is frozen and the model id is the only thing that changes, so
+the score measures the model itself. Nothing recorded there appears in these standings,
+and nothing here is compared with scores recorded there.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash

@@ -1,6 +1,5 @@
-"""Starting and stopping a game, so a caller does not have to assemble it.
-
-Re-exports all public names from the sub-modules.
+"""This module starts and stops a game so that a caller does not have to assemble
+the pieces manually. All public names from the sub-modules are re-exported here.
 
 Two shapes:
 

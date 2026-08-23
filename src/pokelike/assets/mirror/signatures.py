@@ -1,13 +1,13 @@
 """Magic-byte validation for downloaded files.
 
-The site does not answer 404 for missing files: it returns index.html with
-status 200. Without this check the mirror fills up with HTML pages wearing a
-.png extension.
+The site does not answer 404 for missing files but instead returns index.html
+with status 200. Without this check the mirror fills up with HTML pages wearing
+a .png extension.
 """
 
 from __future__ import annotations
 
-# Magic numbers for binary formats.
+# These are the magic numbers for binary formats.
 SIGNATURES = {
     ".png": (b"\x89PNG",),
     ".jpg": (b"\xff\xd8\xff",),
@@ -22,7 +22,7 @@ SIGNATURES = {
 
 
 def _valid_content(data: bytes, suffix: str) -> bool:
-    """Checks whether raw bytes match the expected format for a file extension."""
+    """This function checks whether raw bytes match the expected format for a file extension."""
     if not data:
         return False
     expected = SIGNATURES.get(suffix.lower())

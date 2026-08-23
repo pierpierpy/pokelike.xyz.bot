@@ -1,4 +1,4 @@
-"""TABULAR DYNA-Q
+"""This module implements tabular Dyna-Q.
 
 Sutton & Barto, 2nd edition, Chapter 8 "Planning and Learning with Tabular
 Methods", section 8.2 "Dyna: Integrated Planning, Acting, and Learning". The
@@ -21,35 +21,35 @@ a learned model of the environment, and n extra updates per real step drawn from
 remembered experience.
 
 
-WHY DYNA-Q AND NOT PLAIN Q-LEARNING HERE
+Why Dyna-Q here
 ----------------------------------------
-Because this environment is slow. Every real step drives a browser and costs
+This environment is slow. Every real step drives a browser and costs
 roughly 0.7 seconds, while a planning update is a dictionary lookup and some
-arithmetic. Dyna is exactly the method for that situation: it is designed to
-squeeze more learning out of each expensive interaction. With n = 20 you get
-twenty times the updates for the same wall-clock cost.
+arithmetic. Dyna is exactly the method for that situation because it squeezes
+more learning out of each expensive interaction. With n = 20 you get twenty
+times the updates for the same wall-clock cost.
 
-That is the textbook motivation for Dyna, and it happens to describe this
-problem almost perfectly.
+That is the textbook motivation for Dyna, and it describes this problem almost
+perfectly.
 
 
-TWO DEPARTURES FROM THE BOOK, AND WHY
+Two departures from the book, and why
 -------------------------------------
-1. THE ACTION SET CHANGES WITH THE STATE. In the maze of section 8.2 every state
+1. The action set changes with the state. In the maze of section 8.2 every state
    offers the same four moves, so `max_a Q(S',a)` ranges over a fixed set. Here
    a turn offers between two and seven options and they differ every time, so
    the model has to remember which actions were legal in S' and the max is taken
    over those. Maximising over actions that are not available would leak value
    from moves that cannot be played.
 
-2. THE MODEL IS DETERMINISTIC, THE GAME IS NOT. The book's Dyna-Q assumes a
-   deterministic environment and stores one (R, S') per pair. Battles here have
-   random damage rolls, so the same (S, A) can lead elsewhere. We keep the
-   book's assumption on purpose — it is the simplest thing that works, and the
-   compressed state hides most of the variation anyway — but it is the first
-   thing to revisit if learning plateaus. The natural next step is stochastic
-   Dyna-Q, storing counts per outcome, or Dyna-Q+ (section 8.3) which adds an
-   exploration bonus for pairs not tried in a long time.
+2. The model is deterministic, but the game is stochastic. The book's Dyna-Q
+   assumes a deterministic environment and stores one (R, S') per pair. Battles
+   here have random damage rolls, so the same (S, A) can lead elsewhere. We keep
+   the book's assumption on purpose because it is the simplest approach that
+   works and the compressed state hides most of the variation anyway. This is
+   the first thing to revisit if learning plateaus. The natural next step is
+   stochastic Dyna-Q, storing counts per outcome, or Dyna-Q+ (section 8.3)
+   which adds an exploration bonus for pairs not tried in a long time.
 """
 
 from __future__ import annotations
@@ -99,12 +99,12 @@ class DynaQ:
         return self.Q[state].get(action, self.optimistic)
 
     def best_action(self, state: tuple, actions: list[str]) -> str:
-        """Greedy pick, ties broken at random so the first key is not privileged."""
+        """Returns the greedy pick, breaking ties at random so the first key is not privileged."""
         best = max(self.value(state, a) for a in actions)
         return self.rng.choice([a for a in actions if self.value(state, a) == best])
 
     def act(self, state: tuple, actions: list[str], greedy: bool = False) -> str:
-        """eps-greedy action selection (Sutton & Barto, section 2.2)."""
+        """Selects an action using eps-greedy policy (Sutton & Barto, section 2.2)."""
         if not greedy and self.rng.random() < self.epsilon:
             return self.rng.choice(actions)
         return self.best_action(state, actions)
@@ -112,10 +112,11 @@ class DynaQ:
     # ---------------------------------------------------------------- learning
 
     def _q_update(self, s: tuple, a: str, r: float, s2: tuple, legal2: list[str]) -> None:
-        """One Q-learning backup: step (d) of the algorithm box.
+        """Performs one Q-learning backup, corresponding to step (d) of the algorithm box.
 
-        `legal2` is empty at a terminal state, and then the bootstrap term is
-        zero, which is what makes the return finite at the end of an episode.
+        The `legal2` list is empty at a terminal state, and then the bootstrap
+        term is zero, which is what makes the return finite at the end of an
+        episode.
         """
         best_next = max((self.value(s2, x) for x in legal2), default=0.0)
         target = r + self.gamma * best_next
@@ -123,12 +124,12 @@ class DynaQ:
         self.updates += 1
 
     def observe(self, s: tuple, a: str, r: float, s2: tuple, legal2: list[str]) -> None:
-        """A real transition: steps (d) and (e)."""
+        """Records a real transition, performing steps (d) and (e)."""
         self._q_update(s, a, r, s2, legal2)
         self.model[(s, a)] = (r, s2, list(legal2))
 
     def plan(self) -> None:
-        """Step (f): n updates from remembered experience.
+        """Performs step (f), running n updates from remembered experience.
 
         This costs no interaction with the game at all, which is the entire
         point of Dyna in a slow environment.
@@ -142,7 +143,7 @@ class DynaQ:
             self._q_update(s, a, r, s2, legal2)
 
     def end_episode(self) -> None:
-        """Anneal exploration. Early on we want breadth, later we want the greedy
+        """Anneals exploration. Early on we want breadth; later we want the greedy
         policy to actually be followed and refined."""
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 

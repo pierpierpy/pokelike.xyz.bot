@@ -6,15 +6,15 @@ each one costs.
 Credentials come from `.env` at the repository root, so nothing goes on the
 command line.
 
-This bot is a reference, not a contender. It turns on every optional feature at
-once so each one is easy to see, which is a bad setup for an actual run. It is
-not benchmarked. Copy the parts you want.
+This bot is a reference. It turns on every optional feature at once so each one
+is easy to see, which is a bad setup for an actual run. It is not benchmarked.
+Copy the parts you want.
 
 For generation 2 (a notebook, a plan, and kept turns), see
-[llm-example2](../llm-example2/). This file is the generation-1 surface: the
-same four tools, one user message, no memory beyond the journal.
+[llm-example2](../llm-example2/). This file is the generation-1 surface, which
+provides the same four tools, one user message, and no memory beyond the journal.
 
-One turn is one HTTP POST, and this is the whole body:
+One turn is one HTTP POST, and the whole body looks like this:
 
     {"model": ..., "temperature": ..., "max_tokens": ..., "seed": ...,
      "tool_choice": "auto",
@@ -36,8 +36,8 @@ state view itself. A fifth tool is not free even when the model never calls it,
 because the schema is sent every turn of every run. A tool that answers with
 three kilobytes has cost more than sending the whole state would have.
 
-Budget: about 30k tokens a run, so ~1.5M for a fifty-seed entry. Using
-`state_view="json"` is about 6x that.
+Budget is about 30k tokens a run, so roughly 1.5M for a fifty-seed entry. Using
+`state_view="json"` costs about 6x that.
 """
 
 from __future__ import annotations
@@ -53,8 +53,8 @@ class ExampleBot(LLMBot):
     name = "llm-example"
 
     # ---------------------------------------------------------------- 1. the prompt
-    # For most LLM bots, this is the whole submission. The GAME_RULES constant is the
-    # factual half, read from the game bundle. It is sent unchanged every turn.
+    # For most LLM bots, the prompt is the whole submission. The GAME_RULES constant
+    # provides the factual half, read from the game bundle and sent unchanged every turn.
 
     PROMPT = GAME_RULES + """
 PLAY LIKE THIS
@@ -70,9 +70,9 @@ PLAY LIKE THIS
 Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------- 2. its own tools
-    # The @tool decorator is the whole declaration: the name comes from the method,
-    # the parameters from the signature. The description is prompt text, so state
-    # when not to call the tool as well.
+    # The @tool decorator handles the whole declaration. The name comes from the
+    # method, and the parameters come from the signature. The description is prompt
+    # text, so state when not to call the tool as well.
 
     @tool("The raw state dict as JSON: team, bag, map, run, actions, stats, "
           "type_items. Everything the Python bots see. Use it when what you need is "
@@ -80,17 +80,17 @@ Think briefly, then call `play`. Always call `play`."""
           part="one key, or 'all'. One key is far cheaper: the whole dict is about "
                "5900 characters.")
     def state_json(self, state: dict[str, Any], part: str = "all") -> str:
-        """In: the state and which key to send. Out: that part as compact JSON."""
+        """Return the requested key from the state as compact JSON."""
         if part != "all" and part not in state:
             return f"no key '{part}'. There is: {', '.join(sorted(state))}"
         payload = state if part == "all" else {part: state[part]}
         text = json.dumps(payload, separators=(",", ":"))
-        # Truncated to prevent a large late-run map from filling the context.
+        # The output is truncated to prevent a large late-run map from filling the context.
         return text if len(text) <= 4000 else text[:4000] + " ...(truncated)"
 
     @tool("What you are carrying, by name.")
     def bag(self, state: dict[str, Any]) -> str:
-        """In: the state. Out: the bag, or a note that it is empty."""
+        """Return the bag contents as a string, or a note that the bag is empty."""
         return ", ".join(state.get("bag") or []) or "(carrying nothing)"
 
     # ------------------------------------------------------------------ 3. the knobs
@@ -99,21 +99,23 @@ Think briefly, then call `play`. Always call `play`."""
         temperature=0.3,        # low but not zero, because zero is not reproducible
         max_tokens=900,         # a short reason plus a tool call
         max_rounds=6,           # this prompt asks for two tools before play
-        memory=8,               # journal lines: enough to notice going in circles
-        token_budget=60_000,    # ~2x a normal run; hitting the budget ends the run
-        state_view="screen",    # ignored here: section 4 replaces render_state, which
-                                # is the only thing that reads this. "json" is ~6x
+        memory=8,               # journal lines, enough to notice going in circles
+        token_budget=60_000,    # about 2x a normal run, and hitting the budget ends the run
+        state_view="screen",    # ignored here because section 4 replaces render_state, which
+                                # is the only thing that reads this setting. "json" is ~6x
     )
 
-    # A raised exception inside a tool is answered to the model, not lost: otherwise
-    # the loop would treat the exception as a missed turn and play the fallback.
+    # A raised exception inside a tool is answered to the model rather than lost,
+    # because otherwise the loop would treat the exception as a missed turn and play
+    # the fallback.
 
     # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
-        """In: the state. Out: the state as prose, with the arithmetic done."""
-        # Replaces the built-in view: HP as a percentage, exits inline.
-        # The journal and "pick an index between 0 and N" line are added around
-        # whatever this returns, so replacing the view does not lose memory.
+        """Return the state as prose, with the arithmetic done."""
+        # This method replaces the built-in view, showing HP as a percentage and
+        # exits inline. The journal and "pick an index between 0 and N" line are
+        # added around whatever this returns, so replacing the view does not lose
+        # memory.
         run = state.get("run") or {}
         team = state.get("team") or []
         # Include the region when it is not Kanto, matching the built-in view.
@@ -145,9 +147,9 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------- 5. when it does not answer
     def fallback_move(self, state: dict[str, Any]) -> int:
-        """In: the state. Out: the index to play when the model did not answer."""
-        # Overriding fallback_move is rarely wise: every turn it handles is counted
-        # toward `fallback_rate` as if the model played it.
+        """Return the index to play when the model did not answer."""
+        # Overriding the fallback_move method is rarely wise, because every turn the
+        # fallback handles is counted toward `fallback_rate` as if the model played it.
         actions = state["actions"]
         team = state.get("team") or []
         hurt = any(p["hp"] / p["max_hp"] < 0.4 for p in team if p.get("max_hp"))
@@ -159,11 +161,12 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ---------------------------------------------------------------- 6. what is filed
     def add_metadata(self) -> dict[str, Any]:
-        """In: nothing. Out: my own facts, merged into what is recorded."""
-        # Only what nothing else could know; the token and endpoint are never stored.
+        """Return bot-specific metadata to merge into the recorded result."""
+        # This records only what nothing else could know. The token and endpoint
+        # are never stored.
         return {"extra_tools": [t["function"]["name"] for t in self.cfg.extra_tools]}
 
-    # The `call_model(messages) -> message dict` hook is for models that are not an
-    # OpenAI-compatible HTTP endpoint. Return `content` plus `tool_calls` as
-    # [{"id", "function": {"name", "arguments"}}] with `arguments` a JSON string.
-    # Raise LLMConfigError for permanent failures, LLMError for transient ones.
+    # The `call_model(messages) -> message dict` hook is for models that are not
+    # an OpenAI-compatible HTTP endpoint. It should return `content` plus `tool_calls`
+    # as [{"id", "function": {"name", "arguments"}}] with `arguments` a JSON string.
+    # Raise LLMConfigError for permanent failures and LLMError for transient ones.

@@ -9,12 +9,12 @@ uv run pokelike bot run --bot llm-example2 --runs 1 -ddd
 
 Credentials come from `.env` at the repository root, so nothing goes on the command line.
 
-Like [llm-example](../llm-example/), this bot is a reference, not a contender: it turns
+Like [llm-example](../llm-example/), this bot is a reference rather than a contender. The bot turns
 on every optional feature at once so each one is easy to see, which is a bad setup for
-an actual run and is not benchmarked. Copy the parts you want.
+an actual run and is therefore not benchmarked. Copy the parts you want.
 
-The sibling bot [llm-example](../llm-example/) shows `HARNESS = 1`: a prompt, one user
-message, four tools. This bot shows `HARNESS = 2`, and every section of
+The sibling bot [llm-example](../llm-example/) shows `HARNESS = 1`, which gives
+a prompt, one user message, and four tools. This bot shows `HARNESS = 2`, and every section of
 [`bot.py`](bot.py) demonstrates one feature:
 
 | in the file | what it demonstrates |
@@ -29,18 +29,18 @@ message, four tools. This bot shows `HARNESS = 2`, and every section of
 
 ## Stepping through a turn
 
-The [`step.ipynb`](step.ipynb) notebook walks one decision at a time: it starts a game,
+The [`step.ipynb`](step.ipynb) notebook walks one decision at a time. The notebook starts a game,
 hands the state to the bot, and shows what went to the model and what came back. You call
 `play` yourself, so nothing moves until you run the next cell.
 
 Every knob is set away from its default on purpose, so the file serves as a catalogue
 of what there is to change. The two seams this bot uses extend the default rather than
-replace it (`render_state` calls `super()` and appends), because replacing a method
-outright kills the knob that feeds it: overriding `render_state` outright makes
+replace the default (`render_state` calls `super()` and appends), because replacing a method
+outright kills the knob that feeds the method. Overriding `render_state` outright makes
 `state_view` stop meaning anything, and overriding `render_scratch` does the same to
 `scratch_state`.
 
-Its four memories, and what each costs:
+The bot's four memories, and what each costs:
 
 | memory | knob here | lifetime | cost |
 |---|---|---|---|
@@ -49,9 +49,9 @@ Its four memories, and what each costs:
 | plan, its own route | `plan_chars=600` | the map | once, every turn |
 | notes, numbered, it edits them | `notes_cap=12`, `cross_run_memory=True` | **crosses runs** | up to 160 char each |
 
-One thing the file spends a comment on and is worth repeating: the turn ends at the
+One thing the file spends a comment on and is worth repeating here is that the turn ends at the
 `play` tool call, so a `plan` or `remember` called after `play` in the same message is
-discarded. A model that orders its tool calls the wrong way believes it saved a note
+discarded. A model that orders its tool calls the wrong way believes the model saved a note
 but did not.
 
 ## Everything you can change
@@ -59,10 +59,10 @@ but did not.
 This section covers every knob and seam available to a bot author, in one place. A
 request to the model has four layers (system message, tools, user message, tool
 replies), and the tables below show which layer each setting lands on. The
-layer-by-layer account, with where each is assembled, is in
+layer-by-layer account, with where each layer is assembled, is in
 [bots/AGENTS.md](../AGENTS.md#the-four-layers-of-one-request-and-the-knob-for-each).
 
-This first group is values: changing them takes no code, just a different number in
+This first group is values. Changing them takes no code, just a different number in
 `config`.
 
 | knob | default | here | changes |
@@ -88,7 +88,7 @@ This first group is values: changing them takes no code, just a different number
 | `drop_tools` | `()` | `("what_lies_ahead",)` | shared tools to leave out. `play` is refused |
 | `extra_tools` | `[]` | unused | tools declared as raw schemas, the old way |
 
-This second group is seams: a method you override, and the knob it silences.
+This second group is seams. A seam is a method you override, and the knob the method silences.
 
 | seam | you decide | silences |
 |---|---|---|

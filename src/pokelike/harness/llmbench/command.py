@@ -1,8 +1,8 @@
-"""Session management: what was asked for, and whether it may be recorded.
+"""Session management, including what was asked for and whether a pass may be recorded.
 
 Each command invocation gets its own directory containing what was asked for
-beside what it produced. The seed guard that decides whether a pass may enter
-the official standings lives here too.
+beside what the command produced. The seed guard that decides whether a pass may
+enter the official standings lives here too.
 """
 
 from __future__ import annotations
@@ -17,17 +17,17 @@ from .versions import _bench
 
 
 def session_dir(version: str) -> Path:
-    """One directory per command, named by timestamp plus a short random suffix.
+    """Creates one directory per command, named by timestamp plus a short random suffix.
 
-    Everything that command writes goes inside: a log and a decision trace for
-    each pass, and a record of what was asked for. Results do NOT live here;
-    a result is one file per model with every pass appended.
+    Everything that command writes goes inside, including a log and a decision trace
+    for each pass and a record of what was asked for. Results do not live here
+    because a result is one file per model with every pass appended.
     """
     import uuid
 
-    # Timestamp for readability and sort order; random suffix for uniqueness when
-    # two commands launch in the same second (parallel containers, shell loops).
-    # mkdir(exist_ok=False) is the atomic backstop on suffix collision.
+    # The timestamp provides readability and sort order. The random suffix ensures
+    # uniqueness when two commands launch in the same second (parallel containers,
+    # shell loops). mkdir(exist_ok=False) is the atomic backstop on suffix collision.
     base = _bench() / version / "logs"
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     while True:
@@ -40,10 +40,10 @@ def session_dir(version: str) -> Path:
 
 
 def parse_settings(pairs: list[str] | None) -> dict[str, Any]:
-    """`--set notes=4` into `{"notes": 4}`, for the harness constructor to accept or refuse.
+    """Converts `--set notes=4` into `{"notes": 4}` for the harness constructor to accept or refuse.
 
-    Nothing is validated here; the harness constructor already refuses unknown keys
-    by name. Values are typed by shape (int/float/bool/str).
+    Nothing is validated here because the harness constructor already refuses
+    unknown keys by name. Values are typed by shape (int/float/bool/str).
     """
     out: dict[str, Any] = {}
     for item in pairs or []:
@@ -88,10 +88,10 @@ def record_command(folder: Path, payload: dict[str, Any]) -> Path:
 
 
 def records(seeds: list[int]) -> bool:
-    """Whether a pass over these seeds may be written to `results/`.
+    """Returns whether a pass over these seeds may be written to `results/`.
 
-    Only the standard fifty, compared by value and order. Order matters because a
-    harness with cross-run memory plays them sequentially, so the order is part of
-    the measurement.
+    Only the standard fifty are accepted, compared by value and order. Order
+    matters because a harness with cross-run memory plays the seeds sequentially,
+    so the order is part of the measurement.
     """
     return list(seeds) == list(STANDARD_SEEDS)

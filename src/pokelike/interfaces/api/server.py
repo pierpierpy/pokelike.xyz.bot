@@ -1,4 +1,4 @@
-"""HTTP JSON API. The second face over the same `core.game.Game`.
+"""HTTP JSON API that exposes the same core.game.Game over HTTP.
 
 Endpoints:
 
@@ -91,7 +91,7 @@ def _handler(game: Game):
             elif route == "/score":
                 self._json(game.score() or {"error": "score not available"})
             elif route == "/screenshot":
-                # Rendered in memory; no window involved.
+                # The screenshot is rendered in memory without a visible window.
                 self._png(game)
             elif route == "/schema":
                 from ...core.schema import describe
@@ -104,7 +104,7 @@ def _handler(game: Game):
             route = self.path.split("?")[0].rstrip("/") or "/"
             body = self._body()
             if route == "/new":
-                # Bad seeds return 400 rather than raising into a 500.
+                # Invalid seeds return 400 rather than raising into a 500.
                 try:
                     obs = game.reset(seed=int(body.get("seed", 1)))
                 except (ValueError, TypeError) as e:
@@ -122,7 +122,7 @@ def _handler(game: Game):
                     return
                 self._json(self._with_view(obs))
             elif route == "/reorder":
-                # Reorder does not consume the turn; /actions stays unchanged.
+                # A reorder does not consume the turn, so /actions stays unchanged.
                 if "a" not in body or "b" not in body:
                     self._json({"error": "missing fields 'a' and 'b'"}, 400)
                     return
@@ -153,8 +153,8 @@ def create_api(game: Game, port: int = 8423) -> HTTPServer:
 def serve(game: Game, port: int = 8423) -> None:
     """Serve requests until Ctrl-C.
 
-    Single-threaded because Playwright's sync API is bound to the thread that
-    created it.
+    The server is single-threaded because Playwright's sync API is bound to the
+    thread that created it.
     """
     httpd = create_api(game, port)
     try:

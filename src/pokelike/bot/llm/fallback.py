@@ -1,9 +1,9 @@
-"""Fallback policy and index parsing helpers.
+"""This module provides the fallback policy and index parsing helpers.
 
 The backup heuristic plays when the model does not answer or returns something
-unusable. It prefers what keeps the team alive (heal first if someone is hurt,
-otherwise widen the team). The two index helpers convert model output into the
-integer the loop needs.
+unusable. The heuristic prefers what keeps the team alive (heal first if someone
+is hurt, otherwise widen the team). The two index helpers convert model output
+into the integer the loop needs.
 """
 
 from __future__ import annotations
@@ -30,8 +30,10 @@ def fallback_move_default(state: dict[str, Any]) -> int:
 
 
 def _as_index(v: Any) -> int | None:
-    """Coerces a tool argument to int, or returns None. Treats a plain integer
-    string like "2" as the integer 2."""
+    """Coerces a tool argument to int, or returns None.
+
+    A plain integer string like "2" is treated as the integer 2.
+    """
     if isinstance(v, bool):
         return None
     if isinstance(v, int):
@@ -42,7 +44,7 @@ def _as_index(v: Any) -> int | None:
 
 
 def _parse_index(text: str, n: int) -> int | None:
-    """Last resort: fish a valid index out of a prose answer.
+    """Fishes a valid action index out of a prose answer as a last resort.
 
     Returns the last valid number in the text, because a model typically states
     reasoning before its conclusion.

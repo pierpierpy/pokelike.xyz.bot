@@ -1,4 +1,4 @@
-"""Building and formatting the standings from measured results on disk."""
+"""This module builds and formats the standings from measured results on disk."""
 
 from __future__ import annotations
 
@@ -41,8 +41,8 @@ def build_index(root: Path | None = None) -> dict[str, Any]:
         if e.get("region") and e["region"] != "kanto":
             entry["region"] = e["region"]
         rows.append(entry)
-    # Ranked by badges, not score: the engine's score formula rewards fighting
-    # more than it rewards progress. See experiments/env/rewards.py.
+    # Ranked by badges because the engine's score formula rewards fighting
+    # more than progress. See experiments/env/rewards.py.
     rows.sort(key=lambda r: (
         r["badges_mean"] is None, -(r["badges_mean"] or 0), -(r["score_mean"] or 0)
     ))
@@ -77,7 +77,7 @@ def as_markdown(index: dict[str, Any]) -> str:
             f"| {n('score_mean')} | {n('score_best')} | `{r.get('fingerprint') or '-'}`{mark} |"
         )
 
-    # LLM sub-table: shows model, harness version, and fallback rate.
+    # The LLM sub-table shows model, harness version, and fallback rate.
     llm = [r for r in rows if r.get("model")]
     if llm:
         out += ["", "**Models.**", "",

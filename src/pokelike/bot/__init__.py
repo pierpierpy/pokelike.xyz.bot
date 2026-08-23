@@ -8,8 +8,8 @@ Each bot lives in its own folder under `bots/` at the repo root:
     └── result.json   what the benchmark measured
 
 This package holds the abstract `Bot` interface and `RandomBot`, the baseline
-everything is measured against. The baseline must exist even in a checkout with
-no `bots/` folder at all, because `compare()` defaults to it.
+that everything is measured against. The baseline must exist even in a checkout
+with no `bots/` folder at all, because `compare()` defaults to it.
 
     uv run pokelike bot new mine     # creates bots/mine/
     uv run pokelike bot run --bot mine
@@ -27,23 +27,23 @@ from .llm import LLMBot
 from .random_bot import RandomBot
 
 # The baseline lives in the package rather than only in `bots/random/` because
-# `compare()` defaults to it: measuring against random must work in a checkout
+# `compare()` defaults to it. Measuring against random must work in a checkout
 # where `bots/` is empty, missing, or holds nothing but the bot being written.
 BASELINE = "random"
 
 
 def available() -> list[str]:
-    """Every bot that can be built, from `bots/` plus the built-in baseline."""
+    """Return every bot that can be built, from `bots/` plus the built-in baseline."""
     from .catalogue import available as on_disk
 
     return sorted({*on_disk(), BASELINE})
 
 
 def resolve(name: str) -> str:
-    """The full name of the bot `name` refers to.
+    """Return the full name of the bot that `name` refers to.
 
     An exact name always wins. A unique prefix is also accepted, so `--bot
-    sarsa-v` finds `sarsa-v2`. An ambiguous prefix is an error, not a guess.
+    sarsa-v` finds `sarsa-v2`. An ambiguous prefix raises an error.
     """
     from .catalogue import available as on_disk
     from .catalogue import slugify
@@ -68,7 +68,7 @@ def resolve(name: str) -> str:
 
 
 def create(name: str, seed: int = 0, **settings: Any) -> Bot:
-    """Builds a bot by name, from `bots/`, the baseline, or by path.
+    """Build a bot by name, from `bots/`, the baseline, or by path.
 
     A path (anything with a separator in it) loads the bot where it lives:
 
@@ -76,9 +76,9 @@ def create(name: str, seed: int = 0, **settings: Any) -> Bot:
 
     Only a bot in `bots/` can be recorded; measuring by path never records.
 
-    `settings` are passed to the bot's constructor, which is how `--endpoint`,
-    `--api-key` and `--model` reach an LLM bot without going through the
-    environment.
+    The `settings` argument is passed to the bot's constructor, which is how
+    `--endpoint`, `--api-key` and `--model` reach an LLM bot without going
+    through the environment.
     """
     from .catalogue import available as on_disk
     from .catalogue import load, load_class
@@ -99,7 +99,7 @@ def create(name: str, seed: int = 0, **settings: Any) -> Bot:
 
 
 def build(cls: type[Bot], seed: int = 0, **settings: Any) -> Bot:
-    """Constructs a bot class, refusing settings it cannot take.
+    """Construct a bot class, refusing settings it cannot accept.
 
     The check uses signature inspection rather than catching TypeError, so a
     constructor that raises TypeError for its own reasons is not misreported.

@@ -1,9 +1,9 @@
 """The representation: what the agent is allowed to see.
 
-Split from the algorithm on purpose. Tabular Dyna-Q lost to random on this game
-and its own logs said why — it could not tell three starters apart — so the
-lesson written into this package's existence is that the representation is the
-part worth arguing about, not the update rule.
+The features are split from the algorithm on purpose. Tabular Dyna-Q lost to
+random on this game and its own logs said why (the table could not tell three
+starters apart) so the lesson written into this package's existence is that the
+representation is the part worth arguing about, not the update rule.
 
     groups.py     the 81 features, in named groups
     variants.py   which groups a given run carries, and what that run is asking

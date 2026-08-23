@@ -1,4 +1,4 @@
-"""Metadata and artifact generation for LLM bot submissions."""
+"""This module handles metadata and artifact generation for LLM bot submissions."""
 
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ def build_metadata(
     state_view_label: str,
 ) -> dict[str, Any]:
     """Builds the metadata dict written into the run registry and result files."""
-    # fallback_rate: fraction of turns decided by the backup heuristic rather
-    # than the model.
+    # The fallback_rate field is the fraction of turns decided by the backup
+    # heuristic.
     return {
         "model": model,
         "harness": harness_version,
@@ -64,7 +64,7 @@ def build_artifacts(
     state_view_label: str,
 ) -> list:
     """Builds the list of Artifact objects a submission carries."""
-    # Records the prompt and model reference (never the key).
+    # The artifacts record the prompt and model reference, never the key.
     from pokelike.arena.leaderboard import Artifact
 
     return [

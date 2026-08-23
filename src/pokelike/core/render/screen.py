@@ -15,19 +15,20 @@ from .world import LEGEND, map_view
 def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     """Renders an entire turn as one text block.
 
-    In: the observation dict from `Game.state()`. Out: the full printable view.
+    This function takes the observation dict from `Game.state()` and returns
+    the full printable view.
     """
     run = obs.get("run") or {}
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "
         f"map {run.get('map', '-')}   badges {run.get('badges', '-')}"
-        # Only shown when the region is not Kanto (the default).
+        # Shown only when the region differs from the default (Kanto).
         + (f"   region: {obs['region']}" if obs.get("region") not in (None, "kanto") else "")
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking. Without it, "pick one of your team" is
-        # ambiguous between promoting and releasing.
+        # What the screen is asking. Without the prompt, "pick one of your team"
+        # is ambiguous between promoting and releasing.
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 
@@ -54,9 +55,10 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
 def trace_line(t: dict[str, Any]) -> str:
     """Formats one decision as a single line.
 
-    In: one trace entry dict. Out: a compact one-line summary.
+    This function takes one trace entry dict and returns a compact one-line
+    summary.
 
-    `>` marks what was taken, so no second column is needed.
+    The `>` marker indicates what was taken, so no second column is needed.
     """
     options = "  ".join(
         f"{'>' if i == t['chosen'] else ' '}{o}" for i, o in enumerate(t["options"])
@@ -69,7 +71,8 @@ def trace_line(t: dict[str, Any]) -> str:
 def trace_view(trace: list[dict[str, Any]], detail: int = 1) -> str:
     """Formats the log of a run at the chosen detail level.
 
-    In: the trace list, detail level (1-3). Out: the formatted log.
+    This function takes the trace list and a detail level (1-3), and returns
+    the formatted log.
 
     detail 1: one line per decision
     detail 2: a block per decision, with the bot's own explanation
@@ -112,9 +115,10 @@ def ending_view(final: dict[str, Any], alive: dict[str, Any] | None,
                 score: dict[str, Any] | None) -> str:
     """Formats the end-of-run summary.
 
-    In: the final obs, the last-alive snapshot, the score dict. Out: the block.
+    This function takes the final obs, the last-alive snapshot, and the score
+    dict, and returns the summary block.
 
-    Reads the team from `last_alive`, because at game over the engine wipes
+    The team is read from `last_alive` because at game over the engine wipes
     `state` and the final observation has an empty team.
     """
     ended = final.get("screen") or "?"
@@ -124,8 +128,8 @@ def ending_view(final: dict[str, Any], alive: dict[str, Any] | None,
     out.append(f"      | {'the League is beaten' if won else 'the run ended here'}"
                f":  badges {run.get('badges', 0)}, map {run.get('map', 0)}")
 
-    # The team here is from last_alive (before the fatal fight), not from the
-    # final state, because the engine wipes the team at game over.
+    # The team here is from last_alive (before the fatal fight) because the
+    # engine wipes the team at game over.
     team = (alive or {}).get("team") or []
     if team:
         out.append("      | team as of the last snapshot (before the final fight):")

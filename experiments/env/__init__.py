@@ -1,8 +1,8 @@
-"""The game stated as an MDP: states, actions, rewards, and the env adapter.
+"""The game expressed as an MDP with states, actions, rewards, and an env adapter.
 
-This is what a Reinforcement Learning method needs and nothing else does. The
-LLM experiment reads the raw observation and imports none of it, which is
-exactly why this is not called `common`: it never was.
+This package contains what a Reinforcement Learning method needs. The LLM
+experiment reads the raw observation and imports none of these modules, which is
+why the package is called `env` rather than `common`.
 
     encoding.py     observation -> hashable state key, action -> stable key
     rewards.py      five reward functions, selectable by name

@@ -1,23 +1,24 @@
-"""The smallest complete experiment: propose, measure, keep, save.
+"""The smallest complete experiment, showing the structure of propose, measure, keep, save.
 
     uv run python -m experiments.example.train --episodes 20
 
-It is deliberately not good. What it is for is the SHAPE — every experiment in
-this project is this loop with something better in the middle:
+This experiment is deliberately simple. Its purpose is the structure: every
+experiment in this project is this loop with something better in the middle.
 
     1. play episodes against the environment in `env/`
     2. score them with a reward from `env/rewards.py`
     3. change the thing being learned
     4. save it somewhere a bot can load
 
-What it learns is one number per node kind: how much that kind of node seems to
-be worth. Tabular, one row, no state at all — which is exactly why it will not
-beat much, and why the interesting question in this game turned out to be what
-the agent gets to SEE rather than how it updates. See ../README.md.
+The learned model is one number per node kind, representing how much that kind
+of node seems to be worth. The approach is tabular with one row and no state at
+all, which is why it will not beat much, and why the interesting question in this
+game turned out to be what the agent gets to see rather than how it updates. See
+../README.md.
 
-Your own experiments are yours: `experiments/` is gitignored apart from this
-example and the shared `env/`, so nothing you try here ends up in a pull request
-by accident.
+Your own experiments are yours. The `experiments/` directory is gitignored apart
+from this example and the shared `env/`, so nothing you try here ends up in a
+pull request by accident.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ NODE_KINDS = ["catch", "battle", "trainer", "item", "pokecenter", "question",
 
 def act(values: dict[str, float], state: dict, rng: random.Random,
            epsilon: float) -> int:
-    """Epsilon-greedy over the value of each action's node kind."""
+    """Selects an action epsilon-greedy over the value of each action's node kind."""
     actions = state["actions"]
     if rng.random() < epsilon:
         return rng.randrange(len(actions))
@@ -81,7 +82,8 @@ def train(episodes: int = 20, seed0: int = 1, reward: str = "progress",
                     taken.append(kind)
 
             # Every node kind taken this episode moves toward the run's total.
-            # Crude on purpose: no discounting, no credit assignment, no state.
+            # This is crude on purpose, with no discounting, no credit
+            # assignment, and no state.
             for kind in set(taken):
                 values[kind] += alpha * (total - values[kind])
 

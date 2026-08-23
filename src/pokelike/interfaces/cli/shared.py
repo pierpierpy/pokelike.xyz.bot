@@ -34,8 +34,8 @@ the virtualenv is not on root's PATH."""
 
 # --------------------------------------------------------------- credentials
 #
-# Three flags on every command that can call a model: --endpoint, --api-key,
-# --model. They override the environment; without them, FW_ENDPOINT/FW_TOKEN/
+# Every command that can call a model takes three flags: --endpoint, --api-key,
+# and --model. They override the environment; without them, FW_ENDPOINT/FW_TOKEN/
 # MODEL_ID work as before. The --api-key flag also accepts @path to read a
 # file, keeping the key out of `ps` and shell history.
 
@@ -153,7 +153,7 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     # 2. A bot may carry its own at bots/<name>/artifacts/bridge.js.
     # 3. Everything else gets the shared live pair.
     #
-    # init.js is not overridable by a bot: it pins Math.random and Date.now,
+    # init.js is not overridable by a bot because it pins Math.random and Date.now,
     # so a custom one would play different games while claiming the standard seeds.
     scripts = {}
     if getattr(args, "harness", None):
@@ -204,7 +204,7 @@ def browser_works() -> tuple[bool, str]:
 
 
 def seed_arg(value: str) -> int:
-    """Argparse type for --seed: validates and returns the integer.
+    """Argparse type for --seed that validates and returns the integer.
 
     Rejects invalid seeds early, before the browser starts.
     """
@@ -247,13 +247,13 @@ def parse_seeds(text: str) -> list[int]:
 
 # ---------------------------------------------------------------- region flags
 #
-# Two mutually exclusive flags:
+# The following two flags are mutually exclusive:
 #   --region NAME   one of kanto, johto, hoenn, sinnoh (or 1-4). Default kanto.
 #   --regions all   play them in sequence, stopping at the first not won.
 
 
 def region_arg(value: str) -> int:
-    """Argparse type for --region: returns a 1-4 integer or raises."""
+    """Argparse type for --region that returns a 1-4 integer or raises."""
     try:
         return normalise_region(value if not value.isdigit() else int(value))
     except ValueError as e:

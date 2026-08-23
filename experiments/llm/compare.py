@@ -2,26 +2,26 @@
 
     uv run python -m experiments.llm.compare --seeds 5 --bots llm-survivor,llm-explorer
 
-Prompt engineering invites confident storytelling, so this measures instead.
-Every prompt plays THE SAME SEEDS, and the comparison is paired: the question is
-not "what did survivor score" but "on this identical run, did survivor do better
-than explorer".
+Prompt engineering invites confident storytelling, so this module measures
+outcomes on fixed seeds. Every prompt plays the same seeds, and the comparison
+is paired. On each identical run, the question is whether survivor did better
+than explorer.
 
-It compares the ACTUAL BOTS in `bots/`, loaded from disk, so what is measured
-here is what a submission would be — and so a prompt cannot win the comparison
-and then be quietly different by the time it is benchmarked. They all sit on the
-one harness in `pokelike.bot.llm`, which is what makes the difference between
+The module compares the actual bots in `bots/`, loaded from disk, so what is
+measured here is what a submission would be. A prompt cannot win the comparison
+and then be quietly different by the time it is benchmarked. All LLM bots share
+the one harness in `pokelike.bot.llm`, which is what makes the difference between
 them a difference between prompts.
 
 The metric is badges, because that is the game's own progression counter in Story
 mode. The engine's score formula was written for the Battle Tower and two of its
-terms never fire here, so ranking prompts by it would reward fighting rather than
-getting further. See experiments/common/rewards.py.
+terms never fire here, so ranking prompts by score would reward fighting rather
+than getting further. See experiments/common/rewards.py.
 
-A warning about what this can and cannot tell you: the model is stochastic and a
+Be aware of what this tool can and cannot tell you. The model is stochastic and a
 run is high variance, so a handful of seeds will not separate two decent prompts.
-Treat small differences as noise and look at the per-seed table, not just the
-mean.
+Treat small differences as noise and look at the per-seed table rather than the
+mean alone.
 """
 
 from __future__ import annotations
@@ -66,9 +66,9 @@ def play_one(game: Game, bot: LLMBot, seed: int, max_steps: int = 400) -> dict:
 def compare(strategies: list[str], seeds: list[int], port: int = 8610) -> dict:
     from tqdm import tqdm
 
-    # Built up front: an LLM bot refuses to construct without credentials, and
-    # finding that out after twenty minutes of the first prompt playing is a
-    # waste of a comparison.
+    # All bots are built up front because an LLM bot refuses to construct
+    # without credentials, and discovering that after twenty minutes of the
+    # first prompt playing is a waste of a comparison.
     made = {}
     for s in strategies:
         try:

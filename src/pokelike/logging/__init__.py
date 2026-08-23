@@ -1,8 +1,8 @@
-"""Shared pass-logging machinery: progress log, heartbeat, trace enrichment.
+"""Shared pass-logging machinery, including the progress log, heartbeat, and trace enrichment.
 
 Both `arena/` and `harness/` import from here. The writer accepts a folder, a
-file stem, header lines, and a memory flag; it knows nothing about harnesses or
-models. Domain-specific text is passed in by the caller.
+file stem, header lines, and a memory flag; the writer knows nothing about
+harnesses or models. Domain-specific text is passed in by the caller.
 """
 
 from .conversation import Conversations

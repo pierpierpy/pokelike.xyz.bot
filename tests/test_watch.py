@@ -1,8 +1,9 @@
 """The dashboard's reader, against a trace built here.
 
-In process and with `BENCH` pointed at a tmp directory, because the real one is
-gitignored: on a fresh checkout there is no pass to read, which is exactly the state
-CI runs in. What is worth testing is the parsing, and that needs a file, not a run.
+This runs in process, with `BENCH` pointed at a tmp directory, because the real
+`llm-bench/` directory is gitignored. On a fresh checkout there is no pass to read
+yet, which is exactly the state CI runs in. What is worth testing is the parsing,
+and that needs a file, not a run.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ from pokelike.harness import watch
 
 
 def _trace(folder, model: str, rows: list[dict], alive: bool | float = True) -> None:
-    """Write a pass's files. `alive` controls the heartbeat that decides liveness:
+    """Write a pass's files. The `alive` parameter controls the heartbeat that
+    decides liveness.
 
     True  -> a fresh .alive (a pass being played right now)
     False -> no .alive at all (a pass from an image older than the heartbeat)
@@ -56,8 +58,7 @@ def bench(tmp_path, monkeypatch):
 def test_a_seed_that_has_moved_on_is_a_finished_run(bench):
     """Grouping by seed is what tells a finished run from the one in flight.
 
-    Read from the trace rather than from the columns of the human log, which is what
-    the shell script this replaced parsed with `grep -c` and a fixed-width `cut`.
+    The grouping is read from the trace, not from the columns of the human log.
     """
     _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
@@ -86,7 +87,7 @@ def test_a_fallback_is_counted_from_the_reason(bench):
 
 
 def test_a_half_written_line_is_skipped_not_fatal(bench):
-    """The last line is being written while this reads. It arrives whole a moment later."""
+    """The last line is being written while this reads. The line arrives whole a moment later."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     f = d / "a--b-pass1.jsonl"
@@ -97,7 +98,8 @@ def test_a_half_written_line_is_skipped_not_fatal(bench):
 
 
 def test_the_state_comes_from_the_log_and_not_from_the_trace_stopping(bench):
-    """A trace that stops looks the same whether the pass ended or the container died."""
+    """A trace that stops looks the same whether the pass ended or the container died.
+    The state must come from the log itself."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     assert watch.read(d).state == "running"
@@ -112,8 +114,8 @@ def test_the_state_comes_from_the_log_and_not_from_the_trace_stopping(bench):
 def test_wanted_is_never_less_than_what_was_played(bench):
     """Some older command files record `--seeds` as a range of two numbers.
 
-    A pass that says it wanted 2 and played 50 reads as a broken pass rather than as a
-    file being read the wrong way.
+    A pass that says it wanted 2 but played 50 reads as a broken pass rather than
+    as a file being read the wrong way.
     """
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000 + i, 0, "2026-08-20T17:00:00") for i in range(5)])
@@ -123,14 +125,15 @@ def test_wanted_is_never_less_than_what_was_played(bench):
 
 
 def test_the_notes_come_from_the_last_block_that_changed(bench):
-    """`unchanged` means the previous block still stands, so it must not clear it."""
+    """The `unchanged` marker means the previous block still stands, so reading it
+    must not clear the notes."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     (d / "a--b-pass1-notebook.log").write_text(
         "notes a/b kept between runs\n\n"
         "run  1  seed 10000  (1 notes)\n  [1] first\n"
         "run  2  seed 10001  (1 notes)  unchanged\n", encoding="utf-8")
-    # Without its number: the panel numbers them, and a replayed operation and a note
+    # Without its number, because the panel numbers them and a replayed operation and a note
     # read from the file have to be numbered by the same thing.
     assert watch.read(d).notes == ["first"]
 
@@ -138,8 +141,8 @@ def test_the_notes_come_from_the_last_block_that_changed(bench):
 def test_the_notes_shown_are_the_ones_it_holds_this_turn(bench):
     """The notebook file is per finished run, so a note written mid-run was invisible.
 
-    A dashboard that said "nothing written yet" while the tool log on the line above it
-    showed a `remember` is the reason this exists.
+    A dashboard that said "nothing written yet" while the tool log on the line above
+    showed a `remember` call is the reason this check exists.
     """
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [
@@ -173,7 +176,7 @@ def test_newest_prefers_the_directory_written_to_last(bench):
 
 
 def test_the_map_is_remembered_between_the_lines_that_carry_it(bench):
-    """It is written only when it changes, so the reader has to hold the last one."""
+    """The map is written only when it changes, so the reader has to hold the last value."""
     d = bench / "v9" / "logs" / "20260820-170000"
     picture = "  layer  0 | [@]\n  layer  1 | <o> <x>"
     _trace(d, "a/b", [
@@ -205,7 +208,7 @@ def test_a_pass_can_be_chosen_by_stamp_or_by_model(bench):
 
 def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(
         bench, capsys, monkeypatch):
-    """The alternative is a number read as the other pass."""
+    """Without a note about which was chosen, a number could be read as the other pass."""
     monkeypatch.setattr(watch, "_containers", lambda: [])
     a = bench / "v9" / "logs" / "20260820-160000"
     b = bench / "v9" / "logs" / "20260820-170000"
@@ -218,11 +221,13 @@ def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(
 
 
 def test_the_heartbeat_decides_what_is_live(bench, monkeypatch):
-    """A pass is live while it is touching its heartbeat, and dead the moment it
-    stops -- not by the clock, and not by whether a container happens to be up.
+    """A pass is live while it is touching its heartbeat and dead the moment the
+    heartbeat stops. Liveness is determined by the heartbeat file, independently of
+    whether a container happens to be up.
 
-    A stale heartbeat is a pass that stopped for SOME reason (a kill, an OOM, a
-    power cut), and it must not be offered however recently the trace was written.
+    A stale heartbeat is a pass that stopped for some reason (a kill, an OOM, a
+    power cut), and the dashboard must not offer it however recently the trace was
+    written.
     """
     alive = bench / "v9" / "logs" / "20260820-170000"
     dead = bench / "v9" / "logs" / "20260820-150000"
@@ -236,7 +241,7 @@ def test_the_heartbeat_decides_what_is_live(bench, monkeypatch):
 
 
 def test_a_fresh_heartbeat_is_live_without_any_container(bench, monkeypatch):
-    """A pass played on the host has no container; its heartbeat is enough."""
+    """A pass played on the host has no container, so its heartbeat alone is enough."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     monkeypatch.setattr(watch, "_containers", lambda: [])
@@ -244,11 +249,12 @@ def test_a_fresh_heartbeat_is_live_without_any_container(bench, monkeypatch):
 
 
 def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
-    """No heartbeat means not running, even if a container of the same model is up.
+    """No heartbeat means the pass is not running, even if a container of the same model is up.
 
-    A container up for `qwen` cannot prove that THIS qwen pass is the one it is
-    running: a newer qwen pass could own it. The heartbeat is per pass, so it is
-    the only thing that answers the question, and its absence is a dead pass.
+    A container up for `qwen` cannot prove that a particular qwen pass is the one
+    the container is running; a newer qwen pass could own it. The heartbeat is per
+    pass, so the heartbeat is the only thing that answers the question, and its
+    absence means the pass is dead.
     """
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")],
@@ -259,10 +265,10 @@ def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
 
 
 def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
-    """A dry run that ended three seconds ago is not something to follow.
+    """A dry run that ended three seconds ago should not be offered as something to follow.
 
-    It was, and being offered it was the confusing part: a one-run pass, `done`, top of
-    the list because it had written most recently.
+    Being offered it was the confusing part. A one-run pass, done, appeared at the top
+    of the list because the pass had written most recently.
     """
     a = bench / "v9" / "logs" / "20260820-160000"
     b = bench / "v9" / "logs" / "20260820-170000"
@@ -276,7 +282,7 @@ def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
 
 
 def test_a_stale_pass_is_stalled_and_not_offered(bench, monkeypatch):
-    """A pass whose heartbeat stopped is stalled, and never offered to follow."""
+    """A pass whose heartbeat stopped is stalled and never offered to follow."""
     d = bench / "v9" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=time.time() - 600)
     monkeypatch.setattr(watch, "_containers", lambda: [])
@@ -285,11 +291,11 @@ def test_a_stale_pass_is_stalled_and_not_offered(bench, monkeypatch):
 
 
 def test_the_numbers_in_the_list_do_not_move(bench, monkeypatch):
-    """A number has to mean the same pass twice in a row.
+    """A number has to mean the same pass on two consecutive invocations.
 
-    Ordered by last write, which is how everything else here is ordered, the list
-    reshuffled between two invocations: the 3 chosen a minute ago was the 1 chosen now,
-    and both were the same pass.
+    When ordered by last write (how everything else here is ordered), the list
+    reshuffled between two invocations. The 3 chosen a minute ago was the 1 chosen
+    now, and both were the same pass.
     """
     import os
 
@@ -312,10 +318,12 @@ def test_the_numbers_in_the_list_do_not_move(bench, monkeypatch):
 
 
 def test_a_container_and_a_host_pass_sort_against_each_other(bench):
-    """The stamps are two clocks two hours apart, so the name cannot be the key.
+    """The stamps are two clocks two hours apart, so the directory name cannot be
+    the sort key.
 
-    A container writes UTC into the directory name and the host writes UTC+2. The `at`
-    in the command file carries its offset, which is why that is what this reads.
+    A container writes UTC into the directory name and the host writes UTC+2. The
+    `at` field in the command file carries its offset, which is why the sort reads
+    that field.
     """
     utc = bench / "v9" / "logs" / "20260820-150000"
     host = bench / "v9" / "logs" / "20260820-163000"
@@ -330,10 +338,10 @@ def test_a_container_and_a_host_pass_sort_against_each_other(bench):
 
 
 def test_nothing_running_is_not_a_finished_pass(bench, monkeypatch):
-    """With nothing live, watch follows NOTHING -- never the newest finished pass.
+    """With nothing live, watch follows nothing and never the newest finished pass.
 
-    A `done` (or stalled) pass shown as the thing you are watching is the exact
-    confusion this removes: it looks like a live run that simply is not moving.
+    A done (or stalled) pass shown as the thing you are watching is the exact
+    confusion this removes. It looks like a live run that simply is not moving.
     """
     done = bench / "v9" / "logs" / "20260820-170000"
     _trace(done, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
@@ -378,18 +386,15 @@ def test_it_draws_what_it_read(bench):
 
 # ------------------------------------------------------------------ the cost column
 #
-# Money is derived, never stored: the pass records tokens, and what they cost is
-# today's list price applied to them when the table is drawn. So the column has to
-# survive a price list that does not know the model, and must not turn a missing
-# price into zero, which would read as free.
+# Money is derived, never stored. The pass records tokens, and today's list price is
+# applied to them when the table is drawn. So the column has to survive a price list
+# that does not know the model, and must not turn a missing price into zero, which
+# would read as free.
 
 
 def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
-    """A priced model shows what its finished runs have spent.
-
-    In: a trace with known token counts. Out: the overview row carries the dollars.
-    """
-    # importlib, because the package re-exports a FUNCTION called `overview` that
+    """A priced model shows what its finished runs have spent."""
+    # importlib, because the package re-exports a function called `overview` that
     # shadows the submodule of the same name.
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
@@ -399,7 +404,7 @@ def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
         _row(10001, 0, "2026-08-20T17:01:00", run_in=1, run_out=1),
     ])
     monkeypatch.setattr(ov, "_get_containers", lambda: [])
-    # $1 per million in, $10 per million out: the first run alone is 1 + 1 = $2.00.
+    # At $1 per million in and $10 per million out, the first run alone is 1 + 1 = $2.00.
     monkeypatch.setattr("pokelike.harness.llmbench.pricing.cached_prices",
                         lambda *a, **k: {"a/b": {"in": 1e-6, "out": 1e-5}})
     table, n = ov._running_table(None)
@@ -410,11 +415,9 @@ def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
 
 
 def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
-    """An endpoint the price list has never heard of is unknown, not free.
-
-    In: a trace for a model absent from the list. Out: the cost cell is a dash.
-    """
-    # importlib, because the package re-exports a FUNCTION called `overview` that
+    """An endpoint the price list has never heard of is unknown, and the cost cell
+    must show a dash rather than zero."""
+    # importlib, because the package re-exports a function called `overview` that
     # shadows the submodule of the same name.
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
@@ -432,11 +435,8 @@ def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
 
 
 def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch):
-    """The live table redraws every couple of seconds, the list must not be refetched.
-
-    In: a counting stub for prices(). Out: one call while cached, and a failed fetch
-    is retried rather than remembered.
-    """
+    """The live table redraws every couple of seconds, so the list must not be refetched
+    each time. A failed fetch should be retried rather than remembered as empty."""
     from pokelike.harness.llmbench import pricing
 
     calls = []
@@ -447,11 +447,11 @@ def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch)
 
     monkeypatch.setattr(pricing, "prices", fake_prices)
     monkeypatch.setattr(pricing, "_PRICE_CACHE", None)
-    # First call fails (offline): nothing cached, so the next one tries again.
+    # The first call fails (offline), so nothing is cached and the next one tries again.
     assert pricing.cached_prices() == {}
     assert pricing.cached_prices() == {"a/b": {"in": 1.0, "out": 2.0}}
     assert len(calls) == 2
-    # Now it is cached: no third fetch.
+    # Now the value is cached, so no third fetch occurs.
     assert pricing.cached_prices() == {"a/b": {"in": 1.0, "out": 2.0}}
     assert len(calls) == 2
 
@@ -459,15 +459,12 @@ def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch)
 # ------------------------------------------------------------- stopping on purpose
 #
 # `model stop <stamp>` ends a pass the way docker stop does. Two things have to be
-# true afterwards: the pass reads as STOPPED rather than as a failure (it was
-# nobody's bug), and everything it wrote is still on disk.
+# true afterwards, because the pass reads as stopped (it was
+# nobody's bug) and everything it wrote is still on disk.
 
 
 def test_a_pass_stopped_on_purpose_is_not_read_as_a_failure(bench):
-    """The word in the log is what tells a deliberate stop from a crash.
-
-    In: a pass log ending in STOPPED. Out: state is 'stopped', not 'FAILED'.
-    """
+    """The word in the log distinguishes a deliberate stop from a crash."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
     log = folder / "a--b-pass1.log"
@@ -478,10 +475,7 @@ def test_a_pass_stopped_on_purpose_is_not_read_as_a_failure(bench):
 
 
 def test_a_real_failure_still_reads_as_failed(bench):
-    """The distinction has to cut both ways.
-
-    In: a pass log ending in FAILED. Out: state is 'FAILED'.
-    """
+    """The distinction has to cut both ways."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
     (folder / "a--b-pass1.log").write_text(
@@ -492,10 +486,7 @@ def test_a_real_failure_still_reads_as_failed(bench):
 
 
 def test_the_stopper_resolves_a_stamp_prefix_and_refuses_an_ambiguous_one(bench):
-    """A prefix is enough, unless it matches more than one pass.
-
-    In: stamps on disk. Out: the folder, or None with an explanation.
-    """
+    """A prefix is enough, unless it matches more than one pass."""
     import importlib
     stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
 
@@ -508,10 +499,7 @@ def test_the_stopper_resolves_a_stamp_prefix_and_refuses_an_ambiguous_one(bench)
 
 
 def test_the_stopper_reads_who_owns_a_pass_from_the_heartbeat(bench):
-    """A pass names its own process, so the right one is signalled.
-
-    In: a pass whose .alive carries pid and host. Out: both, parsed.
-    """
+    """A pass names its own process so that the right one is signalled."""
     import importlib
     stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
 
@@ -526,10 +514,7 @@ def test_the_stopper_reads_who_owns_a_pass_from_the_heartbeat(bench):
 
 
 def test_a_recorded_pid_is_only_trusted_while_it_is_still_that_pass(bench):
-    """Pids are reused, so the process behind one has to be checked.
-
-    In: a pid and the pass's version and model. Out: True only when it matches.
-    """
+    """Pids are reused, so the process behind a pid has to be checked."""
     import importlib
     import os
     stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
@@ -541,10 +526,7 @@ def test_a_recorded_pid_is_only_trusted_while_it_is_still_that_pass(bench):
 
 
 def test_the_heartbeat_writes_who_is_playing(tmp_path):
-    """The owner line is what makes a pass stoppable by name.
-
-    In: a heartbeat on a tmp path. Out: its file carries this process's pid.
-    """
+    """The owner line is what makes a pass stoppable by name."""
     import os
     from pokelike.logging import HeartbeatThread
 
@@ -554,10 +536,10 @@ def test_the_heartbeat_writes_who_is_playing(tmp_path):
 
 # ------------------------------------------------------------------- the score
 #
-# A run's score is the engine's own points_no_time, and it exists only once the run
-# is over, so it cannot come from the decision trace (one line per decision). The
-# pass writes it to `<pass>-runs.jsonl`, which is also a .jsonl in the same folder,
-# so the trace must never be found by "the newest .jsonl".
+# A run's score is the engine's own points_no_time, and the score exists only once
+# the run is over. The score cannot come from the decision trace (one line per
+# decision). The pass writes it to `<pass>-runs.jsonl`, which is also a .jsonl in
+# the same folder, so the trace must never be found by "the newest .jsonl".
 
 
 def _runs_file(folder, model: str, rows: list[dict]) -> None:
@@ -568,10 +550,7 @@ def _runs_file(folder, model: str, rows: list[dict]) -> None:
 
 
 def test_a_finished_run_carries_its_score(bench):
-    """The score reaches the table from the runs file, keyed by seed.
-
-    In: a trace and a runs file. Out: each finished run has its score.
-    """
+    """The score reaches the table from the runs file, keyed by seed."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
@@ -585,10 +564,7 @@ def test_a_finished_run_carries_its_score(bench):
 
 
 def test_the_runs_file_is_never_mistaken_for_the_trace(bench):
-    """It is a .jsonl in the same folder, and it is written last.
-
-    In: a folder holding both. Out: the trace is the decisions, not the runs.
-    """
+    """The runs file is a .jsonl in the same folder, and it is written last."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00", badges=3)])
     # Written after the trace, so "newest .jsonl" would pick this one.
@@ -601,10 +577,7 @@ def test_the_runs_file_is_never_mistaken_for_the_trace(bench):
 
 
 def test_a_pass_without_a_runs_file_has_no_score_rather_than_a_wrong_one(bench):
-    """Passes started before that file existed simply have nothing to show.
-
-    In: a trace with no runs file. Out: score is None, and nothing raises.
-    """
+    """Passes started before that file existed simply have nothing to show."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     p = watch.read(folder)
@@ -612,10 +585,7 @@ def test_a_pass_without_a_runs_file_has_no_score_rather_than_a_wrong_one(bench):
 
 
 def test_a_pass_writes_its_runs_file_with_the_score(tmp_path):
-    """The writing half: the row the result will hold is also written per run.
-
-    In: a PassLog and one run row. Out: the runs file holds it as JSON.
-    """
+    """The writing half: the row the result will hold is also written per run."""
     from pokelike.harness import llmbench as L
 
     folder = tmp_path / "20260821-000000-abcd"
@@ -636,16 +606,18 @@ def test_a_pass_writes_its_runs_file_with_the_score(tmp_path):
 
 # ------------------------------------------------- who is playing, and is it still there
 #
-# A pass writes `pid=... host=...` so it can be found and stopped, and the reader uses
-# the same line to know at once when it is over instead of waiting out the heartbeat.
-# The first version of that check lumped two cases together and got this wrong: a pass
-# running OUTSIDE a container writes this machine's hostname, which can never appear in
-# a list of container names, so every local pass vanished from `model watch` the moment
-# any container happened to be up. These lock the distinction.
+# A pass writes `pid=... host=...` so the pass can be found and stopped, and the
+# reader uses the same line to know at once when the pass is over instead of waiting
+# out the heartbeat. The first version of that check lumped two cases together and
+# got this wrong. A pass running outside a container writes this machine's hostname,
+# which can never appear in a list of container names, so every local pass vanished
+# from `model watch` the moment any container happened to be up. These tests lock
+# the distinction.
 
 
 def _pass_owned_by(bench, pid, host):
-    """A running pass whose heartbeat names `pid` and `host`. Returns the trace."""
+    """Create a running pass whose heartbeat names `pid` and `host`, then return
+    the folder and the trace path."""
     folder = bench / "v9" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     trace = folder / "a--b-pass1.jsonl"
@@ -654,10 +626,7 @@ def _pass_owned_by(bench, pid, host):
 
 
 def test_a_pass_outside_a_container_is_not_killed_off_by_other_containers(bench):
-    """The regression. A local pass is judged by its pid, never by the container list.
-
-    In: a pass naming this machine and a live pid, with containers up. Out: running.
-    """
+    """The regression. A local pass is judged by its pid, never by the container list."""
     import importlib
     import os
     import socket
@@ -670,10 +639,8 @@ def test_a_pass_outside_a_container_is_not_killed_off_by_other_containers(bench)
 
 
 def test_a_local_pass_whose_process_is_gone_is_over_at_once(bench):
-    """The other half: no waiting out the five-minute heartbeat when we can just ask.
-
-    In: a pass naming this machine and a pid that no longer exists. Out: not running.
-    """
+    """The other half: the reader need not wait out the five-minute heartbeat when
+    it can check the process directly."""
     import importlib
     import socket
     import subprocess
@@ -688,10 +655,7 @@ def test_a_local_pass_whose_process_is_gone_is_over_at_once(bench):
 
 
 def test_a_container_pass_follows_its_container(bench):
-    """A hostname that is not this machine is a container id.
-
-    In: a pass naming a container. Out: running while it is up, over when it is not.
-    """
+    """A hostname that is not this machine is a container id."""
     import importlib
     rd = importlib.import_module("pokelike.harness.watch.read")
 
@@ -703,10 +667,7 @@ def test_a_container_pass_follows_its_container(bench):
 
 
 def test_a_pass_that_never_said_who_it_is_falls_back_to_the_heartbeat(bench):
-    """Older passes wrote an empty heartbeat, and must keep working unchanged.
-
-    In: a pass with an empty .alive. Out: the owner check abstains.
-    """
+    """Older passes wrote an empty heartbeat, and must keep working unchanged."""
     import importlib
     rd = importlib.import_module("pokelike.harness.watch.read")
 

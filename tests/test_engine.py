@@ -1,4 +1,4 @@
-"""The contract of `Game`: what callers are allowed to rely on."""
+"""The contract of the `Game` class, covering what callers are allowed to rely on."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def test_state_has_the_expected_keys(game):
 
 @pytest.mark.slow
 def test_every_decision_offers_at_least_two_choices(game):
-    """`_settle` must never hand back a turn with nothing to decide."""
+    """The `_settle` function must never hand back a turn with nothing to decide."""
     obs = game.reset(seed=4)
     for _ in range(8):
         if obs["done"]:
@@ -75,7 +75,7 @@ def test_stats_arrive_at_every_step(game):
 
 @pytest.mark.slow
 def test_last_alive_survives_game_over(game):
-    """At game over the engine wipes `state`; the snapshot must keep the team."""
+    """At game over the engine wipes `state`, so the snapshot must keep the team."""
     obs = game.reset(seed=1)
     while not obs["done"] and obs["actions"] and game.steps < 60:
         obs = game.step(0)
@@ -101,11 +101,11 @@ def test_the_map_is_a_consistent_graph(game):
 
 @pytest.mark.slow
 def test_reordering_swaps_the_team_without_using_the_turn(game):
-    """Team order is a decision — slot 0 leads — but not a move.
+    """Team order is a decision (slot 0 leads) but it is not a move.
 
-    So it must change the team and leave `steps` alone: if it consumed a turn,
-    a bot would be paying a move for something the game gives away, and the
-    step budget would stop meaning what it says.
+    So the method must change the team and leave `steps` alone. If reordering
+    consumed a turn, a bot would be paying a move for something the game gives
+    away, and the step budget would stop meaning what it says.
     """
     obs = game.reset(seed=11)
     while len(obs.get("team") or []) < 2 and obs.get("actions") and game.steps < 40:
@@ -122,7 +122,7 @@ def test_reordering_swaps_the_team_without_using_the_turn(game):
     assert after[0] == before[1] and after[1] == before[0]
     assert obs["steps"] == steps_before
 
-    # Swapping back is the identity: the mechanic is a swap, not a rotation.
+    # Swapping back is the identity because the mechanic is a swap.
     obs = game.reorder(0, 1)
     assert [p["name"] for p in obs["team"]] == before
 
@@ -141,11 +141,9 @@ def test_a_swap_outside_the_team_is_refused(game):
 
 @pytest.mark.slow
 def test_the_tutorial_callouts_are_not_on_screen(game):
-    """We cause them and never dismiss them, so they must not be rendered.
-
-    `INIT_SCRIPT` clears localStorage for determinism, which makes the game greet
+    """The init script clears localStorage for determinism, which makes the game greet
     a first-time player on every run. A bot never clicks the callouts away, so
-    without this they stack up over the map and every screenshot.
+    without hiding them the callouts would stack up over the map and every screenshot.
     """
     game.reset(seed=13)
     visible = game.session.page.evaluate(

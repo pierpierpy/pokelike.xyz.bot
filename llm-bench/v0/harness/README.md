@@ -1,10 +1,10 @@
 # Harness v0
 
-This is the first one. Every model measured under `v0` was asked exactly what
-`bot.py` in this directory asks, and nothing else. This file says what that is.
+This is the first harness version. Every model measured under `v0` was asked exactly what
+`bot.py` in this directory asks, and nothing else. This file describes what the harness asks.
 
-There is no "what changed" section, because there is nothing before it. The
-versions after it each have one.
+The versions after this one each include a "what changed" section. This version has none because
+no earlier version exists to compare against.
 
 ---
 
@@ -23,51 +23,51 @@ Each turn sends one HTTP request to an OpenAI-compatible `/v1/chat/completions` 
 | memory | the last 6 turns, shown back as a journal |
 | retries | 4, on rate limits and the 5xx family, with backoff |
 
-The prompt contains no strategy, and that is the design. It states what the
+The prompt contains no strategy, and that absence is the design. The prompt states what the
 game is. Badges are the goal. Choosing a node closes the others on that layer
-forever. Faints are permanent. Battles resolve themselves. It never says what to
+forever. Faints are permanent. Battles resolve themselves. The prompt never says what to
 prefer. A benchmark whose prompt contained advice would be measuring how well each
-model follows our advice.
+model follows the benchmark author's advice rather than how well the model plays.
 
 Two of those facts were wrong in an earlier version of the shared prompt and are
 worth repeating here because they are easy to get wrong again. Badges are the
-goal, not the engine's score, because the engine's formula was written for the
+goal, because the engine's score formula was written for the
 Battle Tower and leaves only `5·KO − 10·faints` in Story mode. A choice is
-irreversible: picking a node closes every other node on its layer.
+irreversible because picking a node closes every other node on its layer.
 
 ## Why temperature is 0
 
-This is the one deliberate departure from the shared harness, which ships `0.6`.
+This temperature setting is the one deliberate departure from the shared harness, which ships `0.6`.
 
 Badges vary run to run with a standard deviation near 0.7, so fifty runs already
-carry a standard error near 0.1. Sampling noise on top of that would be measured as
-if it were a difference between models. Sampling noise cannot be removed entirely,
-since providers are not deterministic even at 0, which is why passes are repeated
-and the spread between them is reported. There is no reason to add to that noise
+carry a standard error near 0.1. Sampling noise on top of that variance would be measured as
+if the noise were a difference between models. Sampling noise cannot be removed entirely,
+since providers are not deterministic even at temperature 0, which is why passes are repeated
+and the spread between passes is reported. There is no reason to add to that noise
 deliberately.
 
 ## What it decides, and what it does not
 
 The model chooses where to go on the map, who to catch, which item to take and who
-to hold it, and who leads the next battle. It never chooses moves in a battle: the
+to hold it, and who leads the next battle. The model never chooses moves in a battle because the
 engine plays those out. Team order arrives as a tool (`set_lead`) rather than as an
-action, because reordering does not consume the turn. The tool is offered only on
+action, because reordering does not consume the turn. The `set_lead` tool is offered only on
 the map screen, because on other screens the options are the team itself, and
 reordering underneath would change what an index means between deciding and playing.
 
-The tools `set_lead` and `play` are answered in the same request. The run loop asks for
+The `set_lead` and `play` tools are answered in the same request. The run loop asks for
 the lead before the move, so the whole turn is thought about once and the model
 simply gets one more tool. That design keeps the whole turn to one HTTP call.
 
 ## When the model does not answer
 
 The turn falls back to a safe heuristic (heal if someone is hurt, otherwise widen
-the team) and the fallback is counted. Every fallback is a turn our heuristic
+the team) and the fallback is counted. Every fallback is a turn the harness's own heuristic
 played under the model's name, which is why `fallback_rate` sits beside the score
 and why a row above 0.1 is measuring the harness rather than the model.
 
 Three failures are not recoverable and stop the run instead of falling back,
-because retrying them only wastes the run more slowly: a bad API token, a model
+because retrying those failures only wastes the run more slowly. Those three failures are a bad API token, a model
 the endpoint does not serve, and a token budget that the bot set for itself and
 then exceeded.
 
@@ -75,12 +75,12 @@ then exceeded.
 
 The `bot.py` file is a copy of `src/pokelike/bot/llm/` as it stood when v0 opened,
 generated mechanically, carrying the whole harness inside one class rather than
-inheriting it. The shared package is meant to evolve, since it serves the submissions in
+inheriting a shared one. The shared package is meant to evolve, since the shared package serves the submissions in
 `bots/`, and that is exactly what a benchmark cannot tolerate. Copying breaks the
-link deliberately; the difference between the frozen file and the shared package is the
+link deliberately. The difference between the frozen file and the shared package is the
 material the next version is made of.
 
-Four files in this directory are frozen, and nothing outside it can reach them:
+Four files in this directory are frozen, and nothing outside this directory can reach them:
 
 | file | decides |
 |---|---|
@@ -89,33 +89,33 @@ Four files in this directory are frozen, and nothing outside it can reach them:
 | `bridge.js` | what is in the state, and the order `actions` come in |
 | `init.js` | the seeded `Math.random` and the pinned clock |
 
-The `bridge.js` file is frozen for a stronger reason than the renderer: a bot answers with an
-index into the `actions` list, so reordering that list does not change what the model sees,
-but changes what the model's answer means. The `init.js` file is stronger again: a run's seed
-is built from `Date.now()` and `Math.random()`, so changing how those are pinned would not
-merely mark a recorded score but void it entirely.
+The `bridge.js` file is frozen for a stronger reason than the renderer, because a bot answers with an
+index into the `actions` list. Reordering that list does not change what the model sees,
+but reordering does change what the model's answer means. The `init.js` file is frozen for a stronger reason still, because a run's seed
+is built from `Date.now()` and `Math.random()`. Changing how those functions are pinned would
+void every recorded score entirely.
 
 Two things are still imported from the main package, and they are imports rather than
 copies on purpose. The classes `pokelike.bot.base.Bot` and
-`pokelike.arena.leaderboard.Artifact` are interfaces rather than behaviour: one defines
-the shape a bot must have, the other declares what artifacts a bot carries. Neither
+`pokelike.arena.leaderboard.Artifact` are interfaces rather than behaviour. The `Bot` class defines
+the shape a bot must have, and the `Artifact` class declares what artifacts a bot carries. Neither
 class can change what a model is asked. (The `Artifact` class is also effectively frozen
-public API, because every submitted bot in `bots/` imports it from that same path, and
+public API, because every submitted bot in `bots/` imports `Artifact` from that same path, and
 those files are fingerprinted against their scores.)
 
-Three more files are shared and hashed rather than copied, because freezing them would
-mean this harness directory carrying its own browser plumbing: `browser.py`, `game.py`
+Three more files are shared and hashed rather than copied, because freezing those files would
+mean this harness directory carrying its own browser plumbing. Those three files are `browser.py`, `game.py`,
 and `runner.py`. Every result records a sha256 of all seven files, plus the name and
 hash of the game bundle, taken before the first seed is played.
 
 > The header inside `bot.py` describes the arrangement as it was written, when the
 > renderer was imported from `pokelike.core` and watched by the fingerprint rather
-> than copied here. It cannot be corrected: editing the file would make every row
+> than copied here. The header cannot be corrected, because editing the file would make every row
 > under `../results/` a claim about code that no longer exists. This page is the
 > current description.
 
 Do not edit this directory. An improvement belongs in a fresh directory such as
-`llm-bench/v4/`. That is why the version is in the path and not in a variable, and a
+`llm-bench/v4/`. The version is in the path rather than in a variable for exactly this reason, and a
 continuous integration check refuses a pull request that edits a frozen file with results
 beside it.
 
@@ -130,10 +130,10 @@ uv run pokelike model bench --harness v0 --model <the model id> --repeat 1 \
   --endpoint https://openrouter.ai/api --api-key @~/.openrouter-key
 ```
 
-Either way is the same measurement: credentials are not part of what a model was
-asked, and nothing about them reaches a result.
+Either way is the same measurement, because credentials are not part of what a model was
+asked, and nothing about the credentials reaches a result.
 
-The result will not come out identical to the published row, and that is a property of
-the thing being measured rather than a fault: providers change models behind a fixed name
+The result will not come out identical to the published row, and that difference is a property of
+the thing being measured rather than a fault. Providers change models behind a fixed name,
 and sampling is stochastic. Every result says so (`reproducible: false`), which is the
-reason passes are kept whole and the spread between them is published next to the mean.
+reason passes are kept whole and the spread between passes is published next to the mean.

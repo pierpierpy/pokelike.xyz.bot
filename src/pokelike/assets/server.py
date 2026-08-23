@@ -1,8 +1,8 @@
 """Static server that serves the game from disk.
 
-In normal use the server is fully offline: it only reads from site/ and never
-touches the network. When a file is missing it records the path in `missing`
-and answers 404.
+In normal use the server is fully offline because it only reads from site/ and
+never touches the network. When a file is missing the server records the path
+in `missing` and answers 404.
 
 With `upstream` set (only while mirroring) the server downloads the missing
 file, saves it, and serves it, so the copy fills itself in by playing.
@@ -51,7 +51,7 @@ class AssetServer:
         rel = unquote(urlparse(request).path).lstrip("/")
         if not rel or rel.endswith("/"):
             rel += "index.html"
-        # No escaping above the root.
+        # Prevent path traversal above the root.
         p = (self.root / rel).resolve()
         if not str(p).startswith(str(self.root.resolve())):
             raise PermissionError(rel)
@@ -78,7 +78,7 @@ class AssetServer:
         server = self
 
         class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *_args) -> None:  # keep it quiet
+            def log_message(self, *_args) -> None:  # Suppress request logging.
                 pass
 
             def do_GET(self) -> None:  # noqa: N802 (name imposed by BaseHTTPRequestHandler)
@@ -102,7 +102,7 @@ class AssetServer:
                 try:
                     self.wfile.write(data)
                 except (BrokenPipeError, ConnectionResetError):
-                    # Normal when the browser tears down a page between runs.
+                    # This is normal when the browser tears down a page between runs.
                     pass
 
         self._httpd = ThreadingHTTPServer(("127.0.0.1", self.port), Handler)

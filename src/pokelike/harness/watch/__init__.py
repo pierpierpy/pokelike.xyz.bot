@@ -4,12 +4,12 @@ This package reads the trace files a pass writes to disk. Nothing here talks to 
 running process, so the watch works on a container, on a pass started in another
 terminal, and on one that finished last week.
 
-The decision trace (`<model>-passN.jsonl`) is the primary source: one line per
-decision, grouped by seed for finished runs. The `.log` supplies whether the pass
+The decision trace (`<model>-passN.jsonl`) is the primary source, with one line per
+decision grouped by seed for finished runs. The `.log` supplies whether the pass
 ended, and the notebook file supplies notes for harnesses before v4.
 """
 
-# Keep the submodules reachable so that __setattr__ can forward patches.
+# The submodules are kept reachable so that __setattr__ can forward patches.
 from . import discover as _discover_mod  # noqa: F401
 from . import liveness as _liveness_mod  # noqa: F401
 from . import read as _read_mod  # noqa: F401
@@ -38,7 +38,7 @@ def __setattr__(name: str, value) -> None:
     """Forward attribute patches to the submodule that owns the name.
 
     Tests monkeypatch names on the package (e.g. `watch.BENCH`), and the functions
-    that use them live in the submodules.
+    that use those names live in the submodules.
     """
     globals()[name] = value
     if hasattr(_discover_mod, name):

@@ -1,4 +1,4 @@
-"""The notebook: remember, revise, forget.
+"""The notebook provides remember, revise, and forget operations.
 
 A capped list of notes the model writes for itself and sees every turn. Notes
 survive across runs when cross_run_memory is on.

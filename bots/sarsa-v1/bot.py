@@ -5,8 +5,9 @@
 
     q̂(s, a, w) = wᵀ x(s, a)
 
-Trained by `experiments/sarsa/`. Sutton & Barto, 2nd edition: chapter 10
-for the semi-gradient control update, section 12.7 for the SARSA(lambda) form.
+The weights were trained by `experiments/sarsa/`. See Sutton & Barto, 2nd edition,
+chapter 10 for the semi-gradient control update, section 12.7 for the SARSA(lambda)
+form.
 
 This is the first feature set (81 features, encoding v1). The feature code is
 frozen in this file alongside the weights so the submission stays self-contained.
@@ -24,12 +25,12 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# Bumped whenever the feature vector changes meaning. Weights carry the version
-# they were trained under; loading a mismatch raises an error.
+# This version is bumped whenever the feature vector changes meaning. Weights
+# carry the version they were trained under, and loading a mismatch raises an error.
 FEATURES_VERSION = 1
 
-# The weights live beside this file. POKELIKE_SARSA_WEIGHTS overrides for
-# measuring a candidate before promotion.
+# The weights live beside this file. The POKELIKE_SARSA_WEIGHTS environment
+# variable overrides this path for measuring a candidate before promotion.
 HERE = Path(__file__).resolve().parent
 WEIGHTS = HERE / "artifacts" / "weights.json"
 
@@ -109,7 +110,7 @@ def _leads_to(state: dict[str, Any], node_id: str) -> list[str]:
 
 
 def feature_names() -> list[str]:
-    """The vector's index order, named."""
+    """Return the vector's index order as a list of names."""
     names = [
         "bias", "team_size", "min_hp", "mean_hp", "map_index", "depth",
         "badges", "any_fainted", "n_actions",
@@ -134,7 +135,7 @@ _NAME_INDEX = {n: i for i, n in enumerate(feature_names())}
 
 
 def features(state: dict[str, Any], action: dict[str, Any]) -> dict[int, float]:
-    """Sparse x(s, a): index -> value, non-zero entries only."""
+    """Return sparse x(s, a) as a dict of index to value, non-zero entries only."""
     names = _NAME_INDEX
     x: dict[int, float] = {}
 
@@ -255,7 +256,7 @@ class SarsaBot(Bot):
         return sum(self.w[i] * v for i, v in x.items())
 
     def act(self, state: dict[str, Any]) -> int:
-        """Greedy over q̂(s, a, w). Ties broken at random, seeded."""
+        """Choose greedily over q̂(s, a, w), breaking ties at random with the seeded RNG."""
         self.decisions += 1
         actions = state["actions"]
         values = [self.q(features(state, a)) for a in actions]

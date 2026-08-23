@@ -1,6 +1,7 @@
 """Generates a human-readable schema description from a live observation.
 
-In: a dict observation from the game. Out: formatted text (plain or markdown).
+This module takes a dict observation from the game and produces formatted text
+(plain or markdown).
 
 Fields present in a real observation but absent from the reference dicts are
 reported as undocumented every time the schema is printed.
@@ -17,7 +18,8 @@ from .fields import FIELDS, MAP_FIELDS, NODE_KINDS, RUN_FIELDS, TEAM_FIELDS
 def describe(obs: dict[str, Any]) -> str:
     """The human-readable reference, built from a real observation.
 
-    In: a mid-run observation dict. Out: the full formatted schema text.
+    This function takes a mid-run observation dict and returns the full
+    formatted schema text.
     """
     out: list[str] = []
     add = out.append
@@ -123,10 +125,11 @@ def describe(obs: dict[str, Any]) -> str:
 def as_markdown(obs: dict[str, Any]) -> str:
     """Wraps the schema description in markdown for STATE.md.
 
-    In: a mid-run observation dict. Out: markdown text with code blocks.
+    This function takes a mid-run observation dict and returns markdown text
+    with code blocks.
     """
-    # Headings start at h3: this is written into a section of STATE.md, not into
-    # a file of its own, so an h1 or h2 here would break the document around it.
+    # Headings start at h3 because this text is written into a section of
+    # STATE.md, so an h1 or h2 here would break the document around it.
     return (
         "_Generated from a live observation. Edit `schema.py`, never this block._\n"
         "_Regenerate with `pokelike schema --markdown` after any change to_\n"
@@ -142,8 +145,9 @@ def as_markdown(obs: dict[str, Any]) -> str:
 def _trimmed(obs: dict[str, Any], keep: int = 4) -> dict[str, Any]:
     """A shortened observation that is still valid JSON.
 
-    In: a full observation and a max-items-per-list count. Out: the same dict
-    with long lists truncated and a marker saying what was dropped.
+    This function takes a full observation and a max-items-per-list count, and
+    returns the same dict with long lists truncated and a marker saying what
+    was dropped.
     """
     def cut(seq: list, what: str) -> list:
         if len(seq) <= keep:
@@ -166,11 +170,11 @@ def _trimmed(obs: dict[str, Any], keep: int = 4) -> dict[str, Any]:
 def capture(game, seed: int = 42, max_steps: int = 12) -> dict[str, Any]:
     """A mid-run observation deep enough to show everything.
 
-    In: a Game instance and optional seed/max_steps. Out: an observation dict
-    with map, team and stats populated.
+    This function takes a Game instance and optional seed/max_steps, and returns
+    an observation dict with map, team and stats populated.
 
-    Plays forward from reset until the state has all three fields, because a
-    fresh run starts with none of them.
+    The function plays forward from reset until the state has all three fields,
+    because a fresh run starts with none of them.
     """
     obs = game.reset(seed=seed)
     for _ in range(max_steps):

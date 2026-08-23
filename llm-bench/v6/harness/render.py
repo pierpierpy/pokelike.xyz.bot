@@ -1,16 +1,17 @@
 """Text rendering of the game state, frozen beside the harness that uses it.
 
-This is a copy of the relevant part of pokelike.core.render, not an import of
-it. The shared module evolves for the CLI and for bots in bots/; a benchmark
-needs the opposite. This file is never edited once a result exists beside it.
+This is a copy of the relevant part of pokelike.core.render, rather than an import
+of the shared module. The shared module evolves for the CLI and for bots in bots/,
+while a benchmark needs the file to stay fixed. This file is never edited once a
+result exists beside it.
 
-This file provides: screen() and team_view(), plus their building blocks
-(map_view, actions_view, tutor_view). Everything is rebuilt from the state dict
-(a JavaScript object read as JSON); no pixels are inspected.
+This file provides screen() and team_view(), plus their building blocks (map_view,
+actions_view, tutor_view). Everything is rebuilt from the state dict (a JavaScript
+object read as JSON), and no pixels are inspected.
 
-Differences from v0-v4: actions_view includes node tooltips; the move tutor
-block renders only on the tutor screen; the header shows obs["region"] when it
-is not kanto; each action shows where it leads on the next layer.
+Differences from v0-v4: The actions_view function includes node tooltips. The move
+tutor block renders only on the tutor screen. The header shows obs["region"] when the
+region is not Kanto. Each action shows where it leads on the next layer.
 """
 
 from __future__ import annotations
@@ -67,7 +68,7 @@ def team_view(team: list[dict] | None) -> str:
         shiny = " *" if p.get("shiny") else ""
         # Slot 0 leads the next battle.
         lead = "  <- leads" if i == 0 and len(team) > 1 else ""
-        # Move type, physical/special, and STAB: the facts that decide a battle.
+        # Move type, physical/special, and STAB are the facts that decide a battle.
         mv = p.get("move") or {}
         move = ""
         if mv.get("name"):
@@ -82,10 +83,10 @@ def team_view(team: list[dict] | None) -> str:
 
 
 def _exits_of(a: dict, m: dict[str, Any] | None) -> str:
-    """What kinds of node a map action leads to on the next layer.
+    """Returns the kinds of node a map action leads to on the next layer.
 
-    Shown inline so the model sees the consequence of an irreversible choice
-    without spending a tool round.
+    The result is shown inline so the model sees the consequence of an irreversible
+    choice without spending a tool round.
     """
     if not m or not m.get("edges") or a.get("id") is None:
         return ""
@@ -96,8 +97,10 @@ def _exits_of(a: dict, m: dict[str, Any] | None) -> str:
 
 
 def actions_view(actions: list[dict], m: dict[str, Any] | None = None) -> str:
-    """The numbered options. Each node shows its tooltip (trainer types, gym roster,
-    trade details) and where it leads on the next layer.
+    """Renders the numbered options.
+
+    Each node shows its tooltip (trainer types, gym roster, trade details) and
+    where it leads on the next layer.
     """
     if not actions:
         return "  (no actions)"
@@ -114,9 +117,9 @@ def actions_view(actions: list[dict], m: dict[str, Any] | None = None) -> str:
 def tutor_view(obs: dict[str, Any]) -> str:
     """Compares each team member's current move against the tutor's offer.
 
-    Renders whenever offered_moves is present (the bridge fills it unconditionally).
-    Gating on the screen is the caller's job; screen() only shows this on the
-    tutor screen.
+    This function renders whenever offered_moves is present (the bridge fills the
+    field unconditionally). Gating on the correct screen is the caller's job, and
+    screen() only shows this block on the tutor screen.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -142,17 +145,17 @@ def tutor_view(obs: dict[str, Any]) -> str:
 
 
 def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
-    """The whole turn as text."""
+    """Renders the whole turn as text."""
     run = obs.get("run") or {}
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "
         f"map {run.get('map', '-')}   badges {run.get('badges', '-')}"
-        # Only shown when not kanto, keeping the common case short.
+        # The region is only shown when not Kanto, keeping the common case short.
         + (f"   region: {obs['region']}" if obs.get("region") not in (None, "kanto") else "")
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking (e.g. "choose a Pokemon to release").
+        # Shows what the screen is asking (e.g. "choose a Pokemon to release").
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 

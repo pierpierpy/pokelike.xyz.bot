@@ -1,4 +1,4 @@
-"""The model benchmark: one frozen harness, many models.
+"""The model benchmark, with one frozen harness and many models.
 
     uv run pokelike model bench --harness v0 --model openai/gpt-4o-mini
 
@@ -6,28 +6,29 @@ The harness is held still and the model is the only variable, so a row says
 something about the model rather than about who tuned their harness hardest.
 
 Each version is a directory (`llm-bench/v0/harness/` + `llm-bench/v0/results/`).
-Token counts are recorded per run; cost is derived at query time from OpenRouter
-prices because stored dollar amounts rot when providers change rates.
+Token counts are recorded per run, and cost is derived at query time from
+OpenRouter prices because stored dollar amounts rot when providers change rates.
 
-Multiple passes exist because LLM runs are not reproducible: the spread across
+Multiple passes exist because LLM runs are not reproducible. The spread across
 passes over a fixed seed list isolates the model's own sampling noise from seed
 luck.
 
 Submodules:
-  versions.py  -- paths, fingerprints, slug, version discovery, cross_run_memory
-  command.py   -- session_dir, parse_settings, record_command, records
-  results.py   -- record, load, stats, learning, _as_pass (the stored record)
-  tables.py    -- format_table, markdown_table, write_readme (presentation)
-  pricing.py   -- prices, cost, estimate, TYPICAL_RUN, preflight
-  passes.py    -- play_model (sequential execution)
-  parallel.py  -- fan_out, _worker (the fan-out and its subprocess logic)
-  worker.py    -- the subprocess entry point (`python -m`), not imported by __init__
+
+- versions.py: paths, fingerprints, slug, version discovery, cross_run_memory
+- command.py: session_dir, parse_settings, record_command, records
+- results.py: record, load, stats, learning, _as_pass (the stored record)
+- tables.py: format_table, markdown_table, write_readme (presentation)
+- pricing.py: prices, cost, estimate, TYPICAL_RUN, preflight
+- passes.py: play_model (sequential execution)
+- parallel.py: fan_out, _worker (the fan-out and its subprocess logic)
+- worker.py: the subprocess entry point (`python -m`), separate from __init__
 
 All public names are re-exported here so that
 `from pokelike.harness import llmbench as L` keeps the same surface.
 """
 
-# Re-export from arena.bench (was imported at module level in the original)
+# Re-exported from arena.bench for callers that import seeds from this package.
 from ...arena.bench import STANDARD_SEEDS  # noqa: F401
 
 # --- versions.py: paths, fingerprints, slug, version discovery

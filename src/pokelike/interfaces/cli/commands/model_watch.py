@@ -1,4 +1,4 @@
-"""Model benchmark: the watch/dashboard command."""
+"""Model benchmark watch and dashboard command."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def cmd_watch(args) -> int:
 def model_watch_args(s) -> None:
     """Registers the arguments for `pokelike model watch`."""
     from ....harness import llmbench as _lbv
-    # Optional here: watching follows whichever pass was written to last.
+    # The harness is optional here because watching follows whichever pass was written to last.
     s.add_argument("--harness", default=None,
                    help="follow a pass of this version, one of: "
                         f"{', '.join(_lbv.versions()) or 'none on disk'}. "

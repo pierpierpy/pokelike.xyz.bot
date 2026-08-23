@@ -1,6 +1,6 @@
 """Pricing, cost estimation, and pre-flight checks for a benchmark pass.
 
-Token counts are recorded per run; cost is derived at query time from
+Token counts are recorded per run. Cost is derived at query time from
 OpenRouter's model list because stored dollar amounts rot when prices change.
 """
 
@@ -12,11 +12,11 @@ from typing import Any
 
 from .versions import _bench, cross_run_memory, harness_path
 
-# Filled by `cached_prices()`: (when it was fetched, the list). Module level so
-# every view in one process shares the one fetch.
+# Filled by `cached_prices()` with a (timestamp, dict) tuple. This is module-level
+# so every view in one process shares the one fetch.
 _PRICE_CACHE: tuple[float, dict[str, dict[str, float]]] | None = None
 
-# Fallback per-run token estimate when no passes have been recorded yet.
+# This fallback per-run token estimate is used when no passes have been recorded yet.
 TYPICAL_RUN = (30_000, 1_600)
 
 
@@ -46,7 +46,7 @@ def prices(url: str = "https://openrouter.ai/api/v1/models",
 
 
 def cached_prices(ttl: float = 600.0) -> dict[str, dict[str, float]]:
-    """The same list as `prices()`, fetched at most once every `ttl` seconds.
+    """Returns the same list as `prices()`, fetched at most once every `ttl` seconds.
 
     A failed fetch is not cached, so connectivity restored mid-session takes
     effect immediately.
@@ -72,8 +72,9 @@ def estimate(version: str, model: str, n_runs: int,
              price: dict[str, float] | None) -> dict[str, Any]:
     """Estimates what a pass will cost before any tokens are spent.
 
-    Uses real per-run averages from this harness when available, otherwise the
-    documented TYPICAL_RUN fallback. Reports which basis was used.
+    The estimate uses real per-run averages from this harness when available, and
+    falls back to the documented TYPICAL_RUN constant otherwise. The returned dict
+    reports which basis was used.
     """
     import sys
     _pkg = sys.modules[__package__]
@@ -103,8 +104,8 @@ def preflight(version: str, model: str, endpoint: str | None = None,
 
     A model that cannot emit tool calls scores zero across fifty runs because
     every turn falls back to the harness heuristic. This probe costs a few
-    hundred tokens and catches that before a full pass is spent. Returns a dict
-    with `ok` as the branch key; never raises.
+    hundred tokens and catches that before a full pass is spent. The function
+    returns a dict with `ok` as the branch key and never raises.
     """
     from ...bot.catalogue import load_class
 

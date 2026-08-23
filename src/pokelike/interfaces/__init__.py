@@ -1,10 +1,10 @@
 """How something outside drives the game.
 
-Two entry points, both thin faces over `core.game.Game`:
+This package provides two entry points, both thin faces over `core.game.Game`:
 
     cli/    a human, in a terminal
     api/    a program, over HTTP
 
-The `bot/` package lives elsewhere because it is an extension point, not an
-entry point: you write a bot, and these interfaces run it.
+The `bot/` package lives elsewhere because a bot is an extension point that
+these interfaces run, rather than an entry point of its own.
 """

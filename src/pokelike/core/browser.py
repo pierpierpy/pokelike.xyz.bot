@@ -15,23 +15,24 @@ from playwright.sync_api import Browser, Page, sync_playwright
 
 BRIDGE = Path(__file__).with_name("bridge.js")
 
-# init.js pins randomness before the bundle; bridge.js exposes the surface Python
-# drives the game through. Both are files on disk so that llm-bench harnesses can
-# pass frozen copies to the Session. Substituted with str.replace (not %-formatting)
-# because init.js contains literal percent signs in comments.
+# The init.js file pins randomness before the bundle. The bridge.js file exposes
+# the surface Python drives the game through. Both are files on disk so that
+# llm-bench harnesses can pass frozen copies to the Session. The content is
+# substituted with str.replace (not %-formatting) because init.js contains
+# literal percent signs in comments.
 CFG_MARK = "__PK_CFG_JSON__"
 INIT = Path(__file__).with_name("init.js")
 
-# Hides the game's tutorial callouts and the tutorial overlay layer. Since init.js
-# clears localStorage on every load, the game shows onboarding on every run. These
-# sit outside every .screen, so __pk_choices never offers them as actions. The layer
-# itself must also be hidden; leaving it visible blocks the overlay detector in
-# bridge.js and stalls _settle for 90 seconds per step.
+# Hides the game's tutorial callouts and the tutorial overlay layer. Since the
+# init.js script clears localStorage on every load, the game shows onboarding on
+# every run. These callouts sit outside every .screen, so __pk_choices never
+# offers them as actions. The layer itself must also be hidden; leaving it visible
+# blocks the overlay detector in bridge.js and stalls _settle for 90 seconds per step.
 HIDE_TUTORIAL_CSS = (
     "#tutorial-overlay, .tutorial-callout { display: none !important; }"
 )
 
-# The engine's PRNG is 32-bit: init.js does `(cfg.seed >>> 0) || 1`.
+# The engine's PRNG is 32-bit because init.js does `(cfg.seed >>> 0) || 1`.
 # Seeds outside 0..2**32-1 are rejected rather than truncated because Python's
 # `& 0xFFFFFFFF` and JavaScript's `>>> 0` disagree above 2**53, so no single
 # truncation is correct on both sides.
@@ -63,10 +64,11 @@ REGIONS = ("kanto", "johto", "hoenn", "sinnoh")
 def normalise_region(region: int | str) -> int:
     """Turns a region name or number into the engine's 1-based index.
 
-    Accepts 1-4 or one of kanto, johto, hoenn, sinnoh (any case). Returns 1-4.
+    This function accepts 1-4 or one of kanto, johto, hoenn, sinnoh (any case)
+    and returns 1-4.
     """
-    # Refuses invalid input rather than defaulting to Kanto, because a typo
-    # would otherwise silently record the wrong region.
+    # This function refuses invalid input rather than defaulting to Kanto,
+    # because a typo would otherwise silently record the wrong region.
     if isinstance(region, bool):
         raise ValueError("the region must be a number 1-4 or a name, not a bool")
     if isinstance(region, int):
@@ -92,7 +94,8 @@ DECISION_SCREENS = [
     "starter-screen", "trainer-screen", "stat-buff-screen", "trade-screen", "shiny-screen",
 ]
 TERMINAL_SCREENS = ["gameover-screen", "win-screen"]
-# Modals that are genuine player choices (not informational ones like Pokedex).
+# Modals that represent genuine player choices (the Pokedex modal is informational
+# and excluded).
 GAME_MODALS = [
     "item-equip-modal", "usable-item-modal", "item-discard-modal",
     "submap-pick-modal", "vitamin-apply-modal", "legend-voucher-modal", "shop-modal",
@@ -116,17 +119,19 @@ class Session:
     url: str
     watch: bool = False
     max_delay: int = 1
-    # Milliseconds the virtual clock jumps per performance.now() read. 64 is
-    # the measured knee: 4.4x faster than real-time while still sampling each
-    # animation a dozen times. Set to 0 to disable (used by --watch).
+    # Milliseconds the virtual clock jumps per performance.now() read. The value
+    # 64 is the measured knee, giving 4.4x faster than real-time while still
+    # sampling each animation a dozen times. A value of 0 disables the virtual
+    # clock (used by --watch).
     tick: int = 64
-    # Skipping images removes layout passes per run. Off by default because
-    # --watch and --shots need them.
+    # Skipping images removes layout passes per run. This is off by default
+    # because --watch and --shots need them.
     load_images: bool = True
-    # The two JS files that define a run. Default to the shared copies; a frozen
-    # harness in llm-bench/ passes its own instead. bridge.js controls the action
-    # order (a bot answers by index), and init.js controls the seed-to-run mapping,
-    # so changing either changes what a recorded result means.
+    # The two JS files that define a run. These default to the shared copies; a
+    # frozen harness in llm-bench/ passes its own instead. The bridge.js file
+    # controls the action order (a bot answers by index), and the init.js file
+    # controls the seed-to-run mapping, so changing either file changes what a
+    # recorded result means.
     bridge: Path | None = None
     init: Path | None = None
     _pw: object | None = field(default=None, repr=False)
@@ -148,7 +153,7 @@ class Session:
         )
 
     def load(self, seed: int) -> Page:
-        """Opens a fresh page with the seed pinned. One context per run."""
+        """Opens a fresh page with the seed pinned, using one browser context per run."""
         if self.browser is None:
             raise RuntimeError("session not started: call start()")
         ctx = self.browser.new_context(viewport={"width": 1280, "height": 900})
@@ -160,7 +165,7 @@ class Session:
             self._init_js().replace(CFG_MARK, json.dumps({
                 "seed": seed,
                 "max_delay": self.max_delay,
-                # A person watching wants to see the battle play out, not its conclusion.
+                # A person watching wants to see the battle play out in real time.
                 "tick": 0 if self.watch else self.tick,
             }))
         )

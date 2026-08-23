@@ -6,16 +6,17 @@ playing greedily.
 
     q̂(s, a, w) = wᵀ x(s, a)
 
-Trained by `experiments/lspi/train.py`. Lagoudakis & Parr, "Least-Squares Policy
-Iteration", JMLR 4 (2003); Boyan (2002) for the lambda trace form.
+The weights were trained by `experiments/lspi/train.py`. See Lagoudakis & Parr,
+"Least-Squares Policy Iteration", JMLR 4 (2003), and Boyan (2002) for the lambda
+trace form.
 
-Uses the same 100 linear features and reward as `bots/sarsa-v2`, with a different
-estimator: LSTD-Q solves the exact linear fixed point from batch statistics rather
-than an incremental step-size update.
+This bot uses the same 100 linear features and reward as `bots/sarsa-v2`, with a
+different estimator. LSTD-Q solves the exact linear fixed point from batch
+statistics rather than an incremental step-size update.
 
-The feature code is frozen in this file alongside the weights, not imported from
-the training code, so the submission remains valid regardless of changes to the
-experiments folder.
+The feature code is frozen in this file alongside the weights and is not imported
+from the training code, so the submission remains valid regardless of changes to
+the experiments folder.
 """
 
 from __future__ import annotations
@@ -42,8 +43,8 @@ def find_weights() -> Path:
 
 # ---------------------------------------------- the frozen feature set, v2
 #
-# Identical to experiments/sarsa/features/groups.py; not imported so the
-# submission stays self-contained.
+# This code is identical to experiments/sarsa/features/groups.py but is not
+# imported, so the submission stays self-contained.
 
 TYPES = {
     "NORMAL", "FIRE", "WATER", "ELECTRIC", "GRASS", "ICE", "FIGHTING", "POISON",

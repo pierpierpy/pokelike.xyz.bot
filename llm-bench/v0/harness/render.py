@@ -1,8 +1,14 @@
 """Text rendering of the game state, frozen beside the harness that uses it.
 
-This is a self-contained copy of the part of `pokelike.core.render` this harness
-calls: `screen()` and `team_view()`, plus supporting block renderers. Do not edit
-once results exist beside it; a new idea belongs in a new harness directory.
+This is a self-contained copy of the parts of `pokelike.core.render` that this
+harness calls, specifically:
+
+- `screen()`
+- `team_view()`
+- supporting block renderers
+
+Do not edit once results exist beside it; a new idea belongs in a new harness
+directory.
 
 Everything is built from `state`, a JavaScript object read as JSON. No pixels are
 inspected.
@@ -110,7 +116,7 @@ def tutor_view(obs: dict[str, Any]) -> str:
 
 
 def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
-    """The whole turn as text."""
+    """Renders the whole turn as text."""
     run = obs.get("run") or {}
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "
@@ -118,7 +124,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking, to disambiguate the action list.
+        # The screen's prompt disambiguates the action list.
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 

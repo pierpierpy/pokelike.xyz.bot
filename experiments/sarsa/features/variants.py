@@ -1,11 +1,12 @@
 """The feature sets being compared, and what each one is asking.
 
-A variant is not "some features off". It is a question with an answer you can be
-wrong about, written down before the run so the result cannot be reinterpreted
-afterwards into whatever happened.
+A variant is a question with an answer you can be wrong about, written down
+before the run so the result cannot be reinterpreted afterwards into whatever
+happened.
 
-Lives next to the agent it varies: it is all SARSA, and a variant means nothing
-without the feature set in `features.py` that defines the groups.
+This module lives next to the agent it varies because the variants are all SARSA,
+and a variant means nothing without the feature set in `features.py` that defines
+the groups.
 """
 
 from __future__ import annotations
@@ -37,8 +38,8 @@ STATE_ONLY = ["context", "screen"]
 ACTION_AWARE = [g for g in ALL_GROUPS if g not in STATE_ONLY]
 INTERACTIONS = ["node_deep", "node_hurt", "node_team"]
 # The three groups feature set v2 added. Measured against v1 on the standard 50
-# seeds they bought +0.06 badges, t = 0.62: nothing. Whether they are useless or
-# merely drowned out is what `no-v2` asks.
+# seeds they bought +0.06 badges with t = 0.62, which is nothing. Whether those
+# features are useless or merely drowned out is what `no-v2` asks.
 V2_GROUPS = ["item", "tutor", "order"]
 
 

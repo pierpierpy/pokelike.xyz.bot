@@ -1,4 +1,4 @@
-"""Bot competition commands: run, new, bench, board.
+"""Bot competition commands (run, new, bench, board).
 
 Re-exports for the `pokelike bot` family.
 """

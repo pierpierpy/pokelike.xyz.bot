@@ -1,7 +1,7 @@
-"""Creating a new bot: `pokelike bot new <name>`.
+"""Creating a new bot via ``pokelike bot new <name>``.
 
-Writes a folder that already plays, so you can benchmark it before changing a
-line. When the number moves, you know it moved because of something you did.
+The command writes a folder that already plays, so you can benchmark the bot
+before changing a line. When the number moves, you know the change caused it.
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ from ..bot.catalogue import BOTS, available, slugify
 
 
 def fill(template: str, **fields: str) -> str:
-    """Substitutes `{name}`-style placeholders without `str.format`.
+    """Substitutes ``{name}``-style placeholders without using ``str.format``.
 
     Plain replacement is used because the templates contain literal JSON braces
-    that `str.format` would interpret as fields.
+    that ``str.format`` would interpret as fields.
     """
     for key, value in fields.items():
         template = template.replace("{" + key + "}", value)
@@ -218,10 +218,11 @@ uv run pokelike bot bench --bot {name} --dry-run
 
 
 def new_bot(name: str, root: Path | None = None, llm: bool = False) -> Path:
-    """Creates `bots/<name>/`, or raises if it already exists.
+    """Creates ``bots/<name>/``, or raises if the directory already exists.
 
-    With `llm=True` the bot starts from the shared LLM harness instead of an
-    empty `choose`, because the loop is the part nobody wants to reimplement.
+    With ``llm=True`` the bot starts from the shared LLM harness instead of an
+    empty ``choose``, because the agentic loop is the part nobody wants to
+    reimplement.
     """
     slug = slugify(name)
     base = Path(root) if root else BOTS

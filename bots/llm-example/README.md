@@ -1,10 +1,10 @@
 # llm-example
 
 This bot is the reference for building an LLM bot, and for building a benchmark of
-them. Its `bot.py` puts every parameter you can play with in one place, each one next
-to the part of the request it lands in. This bot is not a contender: it is not
-benchmarked, because a bot that changes everything at once cannot tell you which change
-mattered.
+them. The `bot.py` file puts every parameter you can play with in one place, each one next
+to the part of the request where the parameter lands. This bot is a reference rather than a
+contender and is not benchmarked, because a bot that changes everything at once cannot
+tell you which change mattered.
 
 ```bash
 # .env at the repository root is enough, and it is gitignored:
@@ -26,8 +26,8 @@ uv run pokelike bot run --bot llm-example --runs 1 -d \
 ## What one turn actually sends
 
 Each turn sends one HTTP POST to `{FW_ENDPOINT}/v1/chat/completions`. Four things in
-it are prompt, not three, because the tool schemas are read by the model like anything
-else, and they are re-sent every turn:
+the request body are prompt rather than three, because the tool schemas are read by the model
+like anything else, and the tool schemas are re-sent every turn:
 
 | part of the body | where you tune it | `llm-survivor` |
 |---|---|--:|
@@ -38,11 +38,11 @@ else, and they are re-sent every turn:
 | `model`, `temperature`, `max_tokens`, `seed` | `config.model`, `config.temperature`, `config.max_tokens` | n/a |
 
 The total comes to 3498 characters a turn before the model has asked for anything. The
-tool definitions cost nearly twice what the state does. A fifth tool is not free even
-when nobody calls it: you pay for its schema every turn of every run.
+tool definitions cost nearly twice what the state does. A fifth tool would not be free even
+when nobody calls it, because you pay for the tool's schema every turn of every run.
 
 Every number on this page is measured at one state, the first map turn of seed 10000,
-so each one can be checked rather than believed.
+so each number can be checked rather than believed.
 
 The `user` message is three pieces, one yours and two the harness's:
 
@@ -58,8 +58,8 @@ wholesale cannot cost the bot its memory or leave the model without the range
 of legal indices.
 
 Each journal line carries what was done (taken from `state["actions"]`), with the
-model's own reasoning sentence underneath, labelled as its own words. This labelling
-matters because without it a model reads its own plan back as a record of events: one
+model's own reasoning sentence underneath, labelled as the model's own words. This labelling
+matters because without the label a model reads its own plan back as a record of events. One
 turn later, a plan looks like a thing that happened, and there is nothing to tell the
 two apart.
 
@@ -75,20 +75,20 @@ Four settings need no code:
 | `["team", "actions"]` | those keys, as JSON | varies |
 
 The `"json"` view costs about eight times the tokens of `"screen"`, and the cost is not
-only money: filling the context with a full map the current turn does not need takes
+only money. Filling the context with a full map the current turn does not need takes
 room away from the model's reasoning.
 
-Measured, the `"screen"` view leaves out the engine's type to item table (0 of 18
-shown), the map edges, raw `base_stats`, `item_id`, and 21 of 23 node ids. It
-renders what a person would look at, not everything that is true.
+Measured against the raw state, the `"screen"` view leaves out the engine's type to item table (0 of 18
+shown), the map edges, raw `base_stats`, `item_id`, and 21 of 23 node ids. The `"screen"` view
+renders what a person would look at rather than everything that is true.
 
 The `"screen"` view includes the game's own description of each node alongside the
-option: the same text a browser shows on hover, such as
+option, which is the same text a browser shows on hover, such as
 `Officer — +2 Levels — Fire Pokemon`, rather than just the node type `trainer`.
 
-The `render_state()` method is where you go beyond those four presets: override it
-to produce any view you want. This bot overrides it to show what "easier for a model"
-looks like, which is not the same as easier for a person:
+The `render_state()` method is where you go beyond those four presets. Override the method
+to produce any view you want. This bot overrides the method to show what "easier for a model"
+looks like, which may differ from what is easier for a person:
 
 ```
 TURN 6 — map 0, 0 badges, 2 Pokemon alive.
@@ -107,19 +107,19 @@ YOUR OPTIONS
 
 The code block above shows a later turn, included to illustrate the format. Measured at
 the same state as every other number on this page, this custom view is 325 characters
-against the default `"screen"` view's 631, and it makes three deliberate changes: HP as
-a percentage because `#######...` and `17/24` both make the model divide before it can
-compare; the consequence written as a sentence instead of drawn as a graph; the exits
-inline instead of behind a tool call.
+against the default `"screen"` view's 631, and the custom view makes three deliberate changes. HP is rendered as
+a percentage because both `#######...` and `17/24` force the model to divide before comparing.
+The consequence is written as a sentence instead of drawn as a graph. The exits are inlined
+instead of being placed behind a tool call.
 
-Putting the exits inline rather than behind a tool call is a real trade, not a free
-win. The inline version is cheaper in tokens, but it also removes the chance to observe
+Putting the exits inline rather than behind a tool call is a real trade rather than a free
+win. The inline version is cheaper in tokens, but the inline version also removes the chance to observe
 whether the model knows to ask for information on its own.
 
 ## If you are benchmarking models
 
 Hold everything below the model still and vary `MODEL` alone. Three fields decide
-whether two rows are comparable, and all three are recorded and shown in the
+whether two rows are comparable, and all three fields are recorded and shown in the
 standings:
 
 | | |
@@ -128,13 +128,13 @@ standings:
 | `state_view` | what the model was looking at |
 | `stock_tools` | the shared four, or a set of its own |
 
-A fourth field decides whether a row is worth reading at all: `fallback_rate`, the
+A fourth field decides whether a row is worth reading at all. The `fallback_rate` field records the
 share of turns the model did not decide. Those turns were played by `fallback_move`
 under the model's name. A `fallback_rate` above 0.1 means the row is measuring the
 harness's fallback heuristic more than the model itself.
 
-The budget is about 30k tokens per run, about 1.5M for a full fifty-seed pass. Using
-`state_view="json"` costs 6.6x that.
+The budget is about 30k tokens per run, which comes to about 1.5M for a full fifty-seed pass. Using
+`state_view="json"` costs 6.6x that amount.
 
 ## A model from Hugging Face
 
@@ -148,7 +148,7 @@ There are three routes, and two need no code:
 
 For a local checkpoint, pin the repo id and a commit sha in the bot file rather than
 a branch, because the fingerprint (the hash recorded with the result) covers the
-pointer text in `bot.py` but not the actual weights. A moving branch means a row
+pointer text in `bot.py` but does not cover the actual weights. A moving branch means a row
 claiming a model that no longer exists at that revision.
 
 ## What to copy

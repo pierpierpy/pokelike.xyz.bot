@@ -1,6 +1,7 @@
 """State rendering and view modes for the LLM harness.
 
-Pure functions that turn a game state into text for the model.
+This module provides pure functions that turn a game state into text for the
+model.
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ def render_state_default(
     verbose: bool = False,
 ) -> str:
     """Renders the game state according to the configured view mode."""
-    # "screen" is ~880 chars; "json" is ~5900 chars (six times the tokens).
+    # The "screen" view is about 880 chars; "json" is about 5900 chars (six
+    # times the tokens).
     if isinstance(state_view, str) and state_view == "screen":
         return render.screen(state)
     if isinstance(state_view, str) and state_view in ("json", "both"):

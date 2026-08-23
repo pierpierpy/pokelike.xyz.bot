@@ -1,8 +1,8 @@
 """Turning (state, action) into a feature vector.
 
-This is the part that matters. Tabular Dyna-Q is blind by construction: it
+This is the part that matters. Tabular Dyna-Q is blind by construction because it
 compresses the state to six numbers and keys actions by type, so on the starter
-screen it learns Q values of 6.3, 6.2, 6.3 — three indistinguishable slots where
+screen it learns Q values of 6.3, 6.2, 6.3, three indistinguishable slots where
 a player sees Bulbasaur, Charmander and Squirtle. No amount of extra episodes
 fixes that, because the information never reaches the table.
 
@@ -13,9 +13,9 @@ what it was missing:
 
 Two consequences beyond seeing more. Features generalise, so a lesson learned
 about "catching something that adds a type I lack" transfers to every such
-choice rather than to one table cell — which matters enormously here, because
+choice rather than to one table cell, which matters enormously here, because
 every real step costs 0.7 seconds of browser. And actions are described rather
-than named, so five EQUIP buttons are five different vectors instead of one
+than named, so five equip buttons are five different vectors instead of one
 collapsed key.
 
 The features are deliberately hand-made and few. With ~15 s per episode there is
@@ -101,17 +101,17 @@ def _leads_to(state: dict[str, Any], node_id: str) -> list[str]:
 
 
 # The vector, split into named groups so a variant can switch one off and the
-# rest keep their meaning. GROUP ORDER IS THE INDEX ORDER and must not be
-# reshuffled: a weight vector is a plain list, and `w[43]` means `mon_new_type`
-# only because this list says so.
+# rest keep their meaning. The group order is the index order and must not be
+# reshuffled, because a weight vector is a plain list, and `w[43]` means
+# `mon_new_type` only because this list says so.
 #
 # The groups exist because of what the first trained policy turned out to look
-# like. Its heaviest weights were all in `context` — features that depend on the
+# like. Its heaviest weights were all in `context`, features that depend on the
 # state but not on the action, so they shift every option by the same amount and
-# CANCEL in the argmax. They fit the level of the return, not the choice. That is
+# cancel in the argmax. They fit the level of the return, not the choice. That is
 # a hypothesis you can only test by taking them away, which is what this is for.
 GROUPS: dict[str, list[str]] = {
-    # State only. Cannot discriminate between actions, by construction.
+    # State only. These features cannot discriminate between actions, by construction.
     "context": ["bias", "team_size", "min_hp", "mean_hp", "map_index", "depth",
                 "badges", "any_fainted", "n_actions"],
     # Which kind of node this move leads to.
@@ -122,31 +122,31 @@ GROUPS: dict[str, list[str]] = {
     "node_team": [f"node:{k}*small_team" for k in NODE_KINDS],
     # One step of lookahead past the node.
     "lookahead": ["leads_to_heal", "leads_to_catch", "leads_to_boss", "leads_dead_end"],
-    # Which screen the choice is on. State only as well.
+    # Identifies which screen the choice is on. Also state only.
     "screen": [f"screen:{s}" for s in SCREENS],
-    # What is actually on the card: the part the tabular agent could not see.
+    # What is actually on the card, the part the tabular agent could not see.
     "mon": ["mon_new_type", "mon_level_rel", "mon_power", "mon_bulk", "mon_atk",
             "mon_shiny", "mon_best_stats"],
     # Which team member a slot-shaped screen is pointing at.
     "slot": ["equip_on_strongest", "equip_on_weakest", "swap_out_weakest"],
     "button": ["is_skip", "is_cancel", "is_bag"],
-    # Team order. A separate decision, not one of the game's actions: slot 0
-    # leads the next battle but reordering does not consume the turn. The
+    # Team order. A separate decision that is not one of the game's actions.
+    # Slot 0 leads the next battle but reordering does not consume the turn. The
     # options are "leave it" plus "bring slot j to the front".
     #
-    # Every feature here is written as a DIFFERENCE against the current leader,
+    # Every feature here is written as a difference against the current leader,
     # or as an interaction with `noop`. A feature that reads the same for the
     # leave-it option and for every swap would add the same number to all of
-    # them and cancel in the argmax — which is exactly the mistake the ablation
+    # them and cancel in the argmax, which is exactly the mistake the ablation
     # was built to catch.
-    # Items. Until now there were none at all, which is why the item screen
-    # produced three identical q-values: the agent was choosing at random among
-    # a Red Card, a Moon Stone and an Assault Vest.
+    # Items. Before these were added, the item screen produced three identical
+    # q-values because the agent was choosing at random among a Red Card, a
+    # Moon Stone and an Assault Vest.
     #
-    # Effects are not structured data anywhere — an item is {id, name, desc,
+    # Item effects are not structured data anywhere. An item is {id, name, desc,
     # icon} and every magnitude is inline in the battle code, keyed on the
-    # string id. So these read the two things that ARE structured: the id, and
-    # TYPE_ITEM_MAP, the engine's own type -> item table, which collapses
+    # string id. So these features read the two things that are structured: the
+    # id, and TYPE_ITEM_MAP, the engine's own type-to-item table, which collapses
     # eighteen near-identical "+40% X-type damage" items into one question.
     "item": [
         "item:matches_my_type",   # boosts a type someone on my team actually is
@@ -159,8 +159,9 @@ GROUPS: dict[str, list[str]] = {
     ],
     # The move tutor. It offers a replacement move for a specific team member,
     # and the engine can be asked what that member currently uses, with power
-    # and type. Before this the agent saw two names and guessed: on seed 40003
-    # it took SKIP over three offers scoring 68.6 / 65.6 / 68.6 / 70.4.
+    # and type. Before these features were added, the agent saw two names and
+    # guessed. On seed 40003 the agent took SKIP over three offers scoring
+    # 68.6 / 65.6 / 68.6 / 70.4.
     "tutor": [
         "tutor:power_gain",       # offered power minus what they use now
         "tutor:is_upgrade",
@@ -185,10 +186,11 @@ ALL_GROUPS = list(GROUPS)
 def feature_names(groups: list[str] | None = None) -> list[str]:
     """The vector's index order, named.
 
-    Explicit names are most of the point of a linear model: a trained weight
-    vector can be read and argued with. With no argument this is the full set,
-    which must stay byte-identical to what shipped — `bots/sarsa-v2/bot.py` freezes a
-    copy of it, and a test holds the two side by side.
+    Explicit names are most of the point of a linear model, because a trained
+    weight vector can be read and argued with. With no argument this returns the
+    full set, which must stay byte-identical to what shipped. The file
+    `bots/sarsa-v2/bot.py` freezes a copy of it, and a test holds the two side
+    by side.
     """
     for g in (groups or []):
         if g not in GROUPS:
@@ -204,16 +206,16 @@ def features(state: dict[str, Any], action: dict[str, Any],
              index: dict[str, int] | None = None) -> dict[int, float]:
     """Sparse x(s, a): index -> value. Only non-zero entries.
 
-    `index` is a name -> position map, so a variant with some groups switched off
-    computes the same quantities and simply drops the ones it does not carry.
-    The alternative — a separate function per variant — is how two feature sets
-    silently stop meaning the same thing.
+    The `index` parameter is a name-to-position map, so a variant with some
+    groups switched off computes the same quantities and simply drops the ones it
+    does not carry. The alternative, a separate function per variant, is how two
+    feature sets silently stop meaning the same thing.
     """
     names = _NAME_INDEX if index is None else index
     x: dict[int, float] = {}
 
     def put(name: str, value: float = 1.0) -> None:
-        # A name the variant left out is skipped, not an error: that is what
+        # A name the variant left out is skipped rather than treated as an error, because that is what
         # switching a group off means.
         i = names.get(name)
         if value and i is not None:
@@ -317,9 +319,9 @@ def features(state: dict[str, Any], action: dict[str, Any],
             weakest = min(range(len(team)), key=lambda i: (team[i]["level"], hp_of[i]))
             put("equip_on_strongest", 1.0 if idx == strongest else 0.0)
             put("equip_on_weakest", 1.0 if idx == weakest else 0.0)
-            # On the swap screen the listed Pokemon is the one RELEASED, so
+            # On the swap screen the listed Pokemon is the one released, so
             # releasing the weakest is the good move and releasing the best is
-            # the mistake. Same list, opposite meaning: see state["prompt"].
+            # the mistake. The same list has the opposite meaning (see state["prompt"]).
             if screen == "swap-screen":
                 put("swap_out_weakest", 1.0 if idx == weakest else 0.0)
     return x
@@ -329,10 +331,10 @@ _NAME_INDEX = {n: i for i, n in enumerate(feature_names())}
 
 
 class FeatureSet:
-    """One variant of the vector: which groups are in, and their index order.
+    """One variant of the vector, specifying which groups are in and their index order.
 
     Carrying the group list around with the weights is what keeps an ablation
-    honest. Weights are saved by NAME, so loading them into a different set would
+    honest. Weights are saved by name, so loading them into a different set would
     otherwise zero-fill the missing ones and quietly produce a policy nobody
     trained.
     """
@@ -354,13 +356,14 @@ class FeatureSet:
 def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
     """The team-order decision, as a list of actions scored like any other.
 
-    Always leads with the leave-it option, so "do nothing" competes on the same
-    footing instead of being a special case in the caller. Empty when there is
-    nothing to decide, which the caller reads as "skip this decision point".
+    The list always leads with the leave-it option, so "do nothing" competes on
+    the same footing instead of being a special case in the caller. The list is
+    empty when there is nothing to decide, which the caller reads as "skip this
+    decision point".
 
-    Only slot 0 is a target: what matters is who LEADS, and offering all fifteen
-    pairs of a full team would spend the sample budget on distinctions that do
-    not pay.
+    Only slot 0 is a target, because what matters is who leads, and offering all
+    fifteen pairs of a full team would spend the sample budget on distinctions
+    that do not pay.
     """
     team = state.get("team") or []
     if not state.get("can_reorder") or len(team) < 2:
@@ -371,10 +374,11 @@ def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # Effect kinds, keyed on the item id, because the engine keeps no structured
-# effect field: an item is {id, name, desc, icon} and the numbers live inline in
-# the battle code. Only the COARSE kind is encoded here, never a magnitude — a
-# magnitude table would have to be copied out of the bundle and would keep
-# reporting the old value after any upstream rebalance, silently. See TODO.md.
+# effect field. An item is {id, name, desc, icon} and the numbers live inline in
+# the battle code. Only the coarse kind is encoded here, never a magnitude,
+# because a magnitude table would have to be copied out of the bundle and would
+# keep reporting the old value after any upstream rebalance, silently.
+# See TODO.md.
 EVOLUTION_ITEMS = {"moon_stone", "fire_stone", "water_stone", "thunder_stone",
                    "leaf_stone", "sun_stone", "dusk_stone", "shiny_stone",
                    "dawn_stone", "ice_stone", "rare_candy"}
@@ -403,8 +407,8 @@ def _item_features(put, state: dict[str, Any], action: dict[str, Any]) -> None:
     item = _item_id(action)
     team = state.get("team") or []
     type_items = state.get("type_items") or {}
-    # TYPE_ITEM_MAP is Pokemon type -> item id, so invert it: this item boosts
-    # this type. The single structured item fact the engine gives away.
+    # TYPE_ITEM_MAP is Pokemon type -> item id, so the inverted mapping shows which item boosts
+    # which type. The single structured item fact the engine gives away.
     boosts = {v: k.upper() for k, v in type_items.items()}
     boosted = boosts.get(item)
 
@@ -429,11 +433,12 @@ def _tutor_features(put, state: dict[str, Any], action: dict[str, Any],
                     label: str) -> None:
     """Judge the offer instead of guessing at its name.
 
-    The label carries the offered move and who receives it. What it does NOT
-    carry is power or type — and the agent used to have no way to tell a 130-power
-    upgrade from a sidegrade, which is how it learned to take SKIP. `move` on each
-    team member is the engine's own answer for what they use now, so the offer can
-    be compared against it.
+    The label carries the offered move and who receives the move. The label does
+    not carry power or type, and without those the agent had no way to tell a
+    130-power upgrade from a sidegrade, which is how the agent learned to take
+    SKIP. The `move` field on each team member is the engine's own answer for
+    what the member currently uses, so the offer can be compared against the
+    current move.
     """
     team = state.get("team") or []
     if not team:

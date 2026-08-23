@@ -25,8 +25,8 @@ LEGEND = (
 # alignment. The only wide characters are the emoji themselves, which are
 # unambiguously two columns.
 #
-# No graph library: the engine gives every node a `layer` and a `col`, so there
-# is no layout to compute.
+# No graph library is needed because the engine gives every node a `layer` and
+# a `col`, so there is no layout to compute.
 
 # Every one of these is two columns wide (east_asian_width W or F). Mixing
 # widths breaks alignment, so the full set must be uniform.
@@ -39,8 +39,8 @@ EMOJI = {
 
 ANSI = {
     "here": "\033[1;96m",     # bright cyan, bold
-    "open": "\033[1;92m",     # bright green: you may go there now
-    "done": "\033[2;37m",     # dim: already walked
+    "open": "\033[1;92m",     # bright green, marks nodes you may go to now
+    "done": "\033[2;37m",     # dim, marks already-walked nodes
     "far": "\033[2;37m",
     "edge": "\033[2;37m",
     "frame": "\033[2;37m",
@@ -51,7 +51,8 @@ ANSI = {
 def map_view(m: dict[str, Any] | None) -> str:
     """Draws the compact layer-by-layer map.
 
-    In: the `map` dict from a state. Out: the printable map block.
+    This function takes the `map` dict from a state and returns the printable
+    map block.
     """
     if not m:
         return "  (no map)"
@@ -79,7 +80,7 @@ def map_view(m: dict[str, Any] | None) -> str:
 
 
 def _display_width(text: str) -> int:
-    """Counts terminal columns (not characters) for alignment.
+    """Counts terminal display columns for alignment.
 
     An emoji is one character but two columns; padding by `len()` misaligns
     the frame by one per glyph.
@@ -93,7 +94,8 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
                emoji: bool = False) -> str:
     """The map as a boxed graph with the player marked, edges drawn.
 
-    In: the `map` dict, colour flag, emoji flag. Out: the printable graph view.
+    This function takes the `map` dict, a colour flag, and an emoji flag, and
+    returns the printable graph view.
 
     Unlike `map_view`, this aligns nodes by their column position and draws the
     edges between layers, so the reader can see where each choice leads.
@@ -137,8 +139,8 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
             elif n.get("accessible") and not n.get("visited"):
                 cell, kind = f"({g})", "open"
             elif n.get("visited"):
-                # Marked in text (not only colour) so piped-to-file output
-                # still shows the walked path.
+                # Visited nodes are marked in text (not only colour) so piped-to-file
+                # output still shows the walked path.
                 cell, kind = f".{g}.", "done"
             else:
                 cell, kind = f" {g} ", "far"
@@ -161,7 +163,7 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
             if a["layer"] != layer or b["layer"] != layer + 1:
                 continue
             ca, cb = at[a["id"]], at[b["id"]]
-            # Midpoint between the two glyph centres, accounting for glyph width.
+            # This computes the midpoint between the two glyph centres, accounting for glyph width.
             gap[(ca + cb + gw - 1) // 2] = "|" if cb == ca else ("\\" if cb > ca else "/")
             drew = True
         if drew:
@@ -169,9 +171,9 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
 
     inner = max(_display_width(r.rstrip()) for r, _ in rows) + 2
 
-    # No right-hand border: emoji display width varies across terminals and
-    # fonts, so a closed box would not align. Only top, bottom, and left are
-    # framed.
+    # There is no right-hand border because emoji display width varies across
+    # terminals and fonts, so a closed box would not align. Only the top, bottom,
+    # and left sides are framed.
     def framed(text: str, marks) -> str:
         padded = text.rstrip()
         if colour:
@@ -197,8 +199,9 @@ def graph_view(m: dict[str, Any] | None, colour: bool = True,
 def exits_of(state: dict[str, Any], unique: bool = False) -> dict[int, list[str]]:
     """Where each legal map-move option leads on the next layer.
 
-    In: a state, and whether to collapse repeats. Out: {option index: list of
-    node kinds it leads to}. Non-node actions are omitted.
+    This function takes a state and a flag for collapsing repeats, and returns
+    a dict mapping option index to the list of node kinds that option leads to.
+    Non-node actions are omitted.
     """
     # Walk the graph edges to find what kinds of node each choice opens.
     world = state.get("map") or {}
@@ -212,7 +215,7 @@ def exits_of(state: dict[str, Any], unique: bool = False) -> dict[int, list[str]
     exits: dict[int, list[str]] = {}
     for index, option in enumerate(state.get("actions") or []):
         if option.get("kind") != "node":
-            continue                      # a button, not a step on the map
+            continue                      # a UI button, skip it
         kinds = leads_to.get(option.get("id"), [])
         exits[index] = sorted(set(kinds)) if unique else sorted(kinds)
     return exits

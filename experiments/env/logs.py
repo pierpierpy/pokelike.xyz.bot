@@ -1,7 +1,7 @@
-"""Where an experiment writes what it printed.
+"""This module handles writing experiment output to log files.
 
 Every experiment gets its own `logs/` folder and writes there by itself. The
-alternative — remembering to redirect to somewhere in /tmp — loses the log of
+alternative of remembering to redirect to somewhere in /tmp loses the log of
 exactly the run you later want to explain, and puts the interesting ones on a
 disk that gets wiped.
 
@@ -26,7 +26,7 @@ def log_dir(experiment: Path) -> Path:
 
 
 class _Fan:
-    """Writes to the terminal and to the file at once."""
+    """A stream wrapper that writes to the terminal and to the file at once."""
 
     def __init__(self, stream, handle) -> None:
         self._stream, self._handle = stream, handle
@@ -41,8 +41,8 @@ class _Fan:
         self._stream.flush()
 
     def __getattr__(self, name):
-        # isatty(), fileno() and friends: tqdm asks, and the answer has to come
-        # from the real terminal or the bar renders as thousands of lines.
+        # isatty(), fileno() and friends are delegated to the real terminal
+        # because tqdm asks for them and renders as thousands of lines otherwise.
         return getattr(self._stream, name)
 
 

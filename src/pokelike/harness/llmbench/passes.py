@@ -1,8 +1,8 @@
-"""Running a pass: one model over the seed list, sequentially.
+"""Running a pass by playing one model over the seed list sequentially.
 
-Sequential execution is required when the harness carries cross-run memory
-(runs depend on each other). For independent seeds with multiple subprocesses,
-see parallel.py.
+Sequential execution is required when the harness carries cross-run memory,
+because runs depend on each other. For independent seeds with multiple
+subprocesses, see parallel.py.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def play_model(game, version: str, model: str, site: Path,
                attempt: int = 1, conversations: bool = True,
                settings: dict[str, Any] | None = None,
                region: int | str = 1, campaign: bool = False) -> dict[str, Any]:
-    """Plays one sequential pass: this model over the seed list under this harness."""
+    """Plays one sequential pass of this model over the seed list under this harness."""
     from ...bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
@@ -39,7 +39,7 @@ def play_model(game, version: str, model: str, site: Path,
     # The constructor refuses unknown keys by name.
     bot = cls(seed=0, model=model, endpoint=endpoint, token=token,
               **(settings or {}))
-    # Fingerprint taken now, before play starts, not at the end.
+    # The fingerprint is taken here, before play starts.
     stamp = fingerprints(version)
     log = PassLog(version, model, seeds, workers=1, folder=folder,
                   attempt=attempt, memory=cross_run_memory(version),
@@ -50,8 +50,8 @@ def play_model(game, version: str, model: str, site: Path,
         chat.watch(bot)
     last = [time.time()]
 
-    # One bot instance for the whole pass. Notes survive on_start and cross between
-    # runs; the next pass starts naive because nothing survives the bot.
+    # A single bot instance lives for the whole pass. Notes survive on_start and
+    # cross between runs. The next pass starts naive because nothing survives the bot.
     #
     # Token counts reset per run via on_start, so they are read per-run in on_run.
     def on_run(row: dict[str, Any], done: int, total: int) -> None:
@@ -61,7 +61,7 @@ def play_model(game, version: str, model: str, site: Path,
                    calls=n.get("calls", 0), turns=n.get("turns", 0),
                    fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0),
                    secs=round(now - last[0], 1))
-        # Play order within the pass, needed to interpret memory harnesses.
+        # The play order within the pass is needed to interpret memory harnesses.
         row["order"] = done
         if "notebook" in n:
             # The model's notes at this run's end, saved per run to track revision.
@@ -73,7 +73,7 @@ def play_model(game, version: str, model: str, site: Path,
         last[0] = now
         log.run(row)
 
-    # The latest observation, kept for the decided() callback.
+    # The latest observation is kept here for the decided() callback.
     seen: dict[str, Any] = {}
 
     def looked(obs: dict[str, Any], _steps: int) -> None:
@@ -96,7 +96,7 @@ def play_model(game, version: str, model: str, site: Path,
             region=region, campaign=campaign,
         )
     except BaseException as e:
-        # Deliberate stops (SIGTERM, Ctrl-C) are logged as "stopped", not "failed".
+        # Deliberate stops (SIGTERM, Ctrl-C) are logged as "stopped."
         if isinstance(e, KeyboardInterrupt) or (
                 isinstance(e, SystemExit) and e.code in (130, 143)):
             log.stopped(f"{type(e).__name__}: {e.code if isinstance(e, SystemExit) else 'Ctrl-C'}")
@@ -109,7 +109,7 @@ def play_model(game, version: str, model: str, site: Path,
                    result.get("notes") or {}, fingerprint=stamp,
                    region=region_name(normalise_region(region)) if region != 1 else None,
                    settings=settings, site=site)
-    # Stamp recorded explicitly; absolute log paths may not resolve on another host.
+    # The stamp is recorded explicitly because absolute log paths may not resolve on another host.
     one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)

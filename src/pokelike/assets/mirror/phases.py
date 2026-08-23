@@ -1,10 +1,11 @@
-"""The five build phases that produce the offline copy of the game.
+"""This module implements the five build phases that produce the offline copy
+of the game.
 
-1. STATIC: index.html, its CSS/JS, and every path named in the bundle.
-2. NUMBERED: badges and map backgrounds addressed by number.
-3. SLUG: URLs built at runtime as prefix + id + ".png".
-4. PLAYED: plays a few runs, downloading what the game asks for.
-5. VERIFY: replays offline, counts what is missing, repairs, re-checks.
+1. Static: index.html, its CSS/JS, and every path named in the bundle.
+2. Numbered: badges and map backgrounds addressed by number.
+3. Slug: URLs built at runtime as prefix + id + ".png".
+4. Played: plays a few runs, downloading what the game asks for.
+5. Verify: replays offline, counts what is missing, repairs, re-checks.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from .fetch import (
     clean,
 )
 
-# Folders whose URLs the game builds as prefix + slug + ".png".
+# These folders have URLs that the game builds as prefix + slug + ".png".
 # The slugs never appear as a complete path in the bundle, so they must be
 # tried one at a time.
 SLUG_FOLDERS = (
@@ -36,7 +37,7 @@ SLUG_FOLDERS = (
 )
 RE_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
-# Folders whose URLs are prefix + NUMBER + ".png" (badges, map backgrounds).
+# These folders have URLs of the form prefix + number + ".png" (badges, map backgrounds).
 # The slug search only finds word-shaped names, so numbered files need their
 # own pass.
 NUMBERED_FOLDERS = (
@@ -47,7 +48,7 @@ MAX_NUMBER = 60
 
 
 def phase_static(root: Path, log=_log) -> dict[str, int]:
-    """Downloads index.html, what it references, and the assets named in the bundle."""
+    """This phase downloads index.html, what index.html references, and the assets named in the bundle."""
     root.mkdir(parents=True, exist_ok=True)
 
     if not _fetch("index.html", root):
@@ -57,7 +58,7 @@ def phase_static(root: Path, log=_log) -> dict[str, int]:
     paths: set[str] = set(RE_HTML_REF.findall(html))
     paths |= {"favicon.svg", "manifest.webmanifest", "privacy.html"}
 
-    # The bundle filename carries a content hash: it changes with every release.
+    # The bundle filename carries a content hash and changes with every release.
     bundle = next((p for p in paths if p.startswith("js/bundle")), None)
     if bundle is None:
         raise RuntimeError("cannot find the bundle inside index.html")
@@ -90,7 +91,7 @@ def phase_static(root: Path, log=_log) -> dict[str, int]:
 
 
 def phase_numbered(root: Path, log=_log) -> dict[str, int]:
-    """Tries the numbered paths until they run out."""
+    """This phase tries the numbered paths until they run out."""
     found = 0
     for folder in NUMBERED_FOLDERS:
         n = 0
@@ -104,7 +105,7 @@ def phase_numbered(root: Path, log=_log) -> dict[str, int]:
 
 
 def phase_slug(root: Path, log=_log) -> dict[str, int]:
-    """Tries every plausible slug from the bundle in the dynamic-URL folders.
+    """This phase tries every plausible slug from the bundle in the dynamic-URL folders.
 
     Most attempts will 404; that is expected and harmless.
     """
@@ -127,7 +128,7 @@ def phase_slug(root: Path, log=_log) -> dict[str, int]:
     ]
     log(f"  to try: {len(to_try)} (404s are expected and normal)")
 
-    # Low concurrency: with 24 requests in flight the site blocks us.
+    # Concurrency is kept low because with 24 requests in flight the site blocks us.
     found = 0
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {pool.submit(_fetch, p, root): p for p in to_try}
@@ -140,7 +141,7 @@ def phase_slug(root: Path, log=_log) -> dict[str, int]:
 
 
 def phase_repair(root: Path, missing: list[str], log=_log) -> dict[str, int]:
-    """Downloads exactly the files the verification reported as missing.
+    """This phase downloads exactly the files that the verification reported as missing.
 
     The list comes from the game itself, so it is exact. Downloads are
     sequential to avoid being blocked.
@@ -157,7 +158,7 @@ def phase_repair(root: Path, missing: list[str], log=_log) -> dict[str, int]:
 
 
 def phase_played(root: Path, runs: int = 3, port: int = DEFAULT_ASSET_PORT, log=_log) -> dict[str, int]:
-    """Plays with auto-fill on, to capture the URLs built at runtime."""
+    """This phase plays with auto-fill on to capture the URLs built at runtime."""
     from ...core.game import Game
     from ..server import AssetServer
 
@@ -183,7 +184,7 @@ def phase_played(root: Path, runs: int = 3, port: int = DEFAULT_ASSET_PORT, log=
 
 
 def phase_verify(root: Path, runs: int = 2, port: int = 8423, log=_log) -> dict:
-    """Replays with the network closed. Zero missing means the copy is complete."""
+    """This phase replays with the network closed; zero missing files means the copy is complete."""
     from ...core.game import Game
     from ..server import AssetServer
 

@@ -4,35 +4,35 @@
 
     q̂(s, a) = MLP(x(s, a))          against        q̂(s, a) = wᵀ x(s, a)
 
-Trained by `experiments/drrn/`: transitions collected in parallel, then fitted
-Q iteration offline. One variable moved from sarsa-v2 — the shape of q̂ — so
-the difference between their benchmark numbers is the difference between a
+Trained by `experiments/drrn/` through transitions collected in parallel, then
+fitted Q iteration offline. One variable moved from sarsa-v2, the shape of q̂,
+so the difference between their benchmark numbers is the difference between a
 linear model and a network on identical inputs.
 
-WHY IT MIGHT HELP
------------------
+Why the network might help
+--------------------------
 Most of the linear model's learned weight sits on features that read the same
 for every action in a state, so they cancel in the argmax and cannot change a
-choice. Removing them does not help either (measured: 1.36 against 1.38). What
-they are is a term that only means something CROSSED with the action — how much
-a trainer node is worth depends on how small the team is. The linear model can
-only carry such a cross if someone writes it by hand, and three are written by
-hand. A hidden layer builds them from the same inputs without anyone choosing.
+choice. Removing them does not help either (measured, 1.36 against 1.38). Those
+features are terms that only mean something crossed with the action, because how
+much a trainer node is worth depends on how small the team is. The linear model
+can only carry such a cross if someone writes it by hand, and three are written
+by hand. A hidden layer builds them from the same inputs without anyone choosing.
 
-WHY THE FEATURE CODE IS COPIED IN HERE
---------------------------------------
+Why the feature code is copied in here
+---------------------------------------
 A parameter vector means nothing without the exact function that produced the
-vectors it consumes: index 43 is a number, and only `feature_names()` says it
-is `mon_new_type`. If this file imported `experiments/sarsa/features/`, then
-inserting one feature there would shift every index and silently reinterpret
-every policy ever submitted, including ones on the leaderboard.
+vectors it consumes. Index 43 is a number, and only `feature_names()` says the
+number is `mon_new_type`. If this file imported `experiments/sarsa/features/`,
+then inserting one feature there would shift every index and silently reinterpret
+every policy ever submitted, including ones on the standings.
 
-A submission also archives ONE file and hashes it. Split the features into a
-second module and the archive keeps an unrunnable half while the hash stops
-identifying what actually ran.
+A submission also archives one file and hashes it. Splitting the features into a
+second module would leave the archive with an unrunnable half while the hash
+stops identifying what actually ran.
 
 So `FEATURES_VERSION` is frozen next to the weights and `ARCH_VERSION` next to
-the shape; both are checked on load, and a mismatch is an error rather than a
+the shape. Both are checked on load, and a mismatch is an error rather than a
 bot that plays badly for reasons nobody can see.
 """
 
@@ -51,17 +51,18 @@ from pokelike.bot.base import Bot
 # one, a different order, a different scale. Weights carry the version they were
 # trained under, and refusing to load a mismatch is the whole safeguard.
 #
-# 2 added three groups — team order, items, and the move tutor — so a v1 weight
-# vector indexes an entirely different space.
+# Version 2 added three groups (team order, items, and the move tutor) so a v1
+# weight vector indexes an entirely different space.
 FEATURES_VERSION = 2
 
-# Its own folder, and nothing else. A bot is self-contained: the weights sit
-# beside the code that reads them, so moving the folder moves the bot, and there
-# is no lookup that can quietly hand this file somebody else's numbers.
+# Its own folder, and nothing else. The bot is self-contained because the
+# weights sit beside the code that reads them, so moving the folder moves the
+# bot, and there is no lookup that can quietly hand this file somebody else's
+# numbers.
 #
-# While the experiment is running, `output/models/` is where training writes and
-# `artifacts/` is what the benchmark reads, so promoting a candidate is a copy
-# you make on purpose.
+# While the experiment is running, `output/models/` is where training writes
+# and `artifacts/` is what the benchmark reads, so promoting a candidate is a
+# copy you make on purpose.
 HERE = Path(__file__).resolve().parent
 WEIGHTS = HERE / "artifacts" / "weights.json"
 
@@ -73,7 +74,7 @@ def find_weights() -> Path:
 
 # ---------------------------------------------- the frozen feature set, v2
 #
-# Copied MECHANICALLY from experiments/sarsa/features/groups.py, never
+# Copied mechanically from experiments/sarsa/features/groups.py, never
 # transcribed by hand, and pinned to it by a test. Hand-copying is how two
 # feature sets drift apart while both look right.
 
@@ -150,17 +151,17 @@ def _leads_to(state: dict[str, Any], node_id: str) -> list[str]:
 
 
 # The vector, split into named groups so a variant can switch one off and the
-# rest keep their meaning. GROUP ORDER IS THE INDEX ORDER and must not be
-# reshuffled: a weight vector is a plain list, and `w[43]` means `mon_new_type`
-# only because this list says so.
+# rest keep their meaning. The group order is the index order and must not be
+# reshuffled, because a weight vector is a plain list, and `w[43]` means
+# `mon_new_type` only because this list says so.
 #
 # The groups exist because of what the first trained policy turned out to look
-# like. Its heaviest weights were all in `context` — features that depend on the
+# like. Its heaviest weights were all in `context`, features that depend on the
 # state but not on the action, so they shift every option by the same amount and
-# CANCEL in the argmax. They fit the level of the return, not the choice. That is
+# cancel in the argmax. They fit the level of the return, not the choice. That is
 # a hypothesis you can only test by taking them away, which is what this is for.
 GROUPS: dict[str, list[str]] = {
-    # State only. Cannot discriminate between actions, by construction.
+    # State only. These features cannot discriminate between actions, by construction.
     "context": ["bias", "team_size", "min_hp", "mean_hp", "map_index", "depth",
                 "badges", "any_fainted", "n_actions"],
     # Which kind of node this move leads to.
@@ -171,31 +172,31 @@ GROUPS: dict[str, list[str]] = {
     "node_team": [f"node:{k}*small_team" for k in NODE_KINDS],
     # One step of lookahead past the node.
     "lookahead": ["leads_to_heal", "leads_to_catch", "leads_to_boss", "leads_dead_end"],
-    # Which screen the choice is on. State only as well.
+    # Identifies which screen the choice is on. Also state only.
     "screen": [f"screen:{s}" for s in SCREENS],
-    # What is actually on the card: the part the tabular agent could not see.
+    # What is actually on the card, the part the tabular agent could not see.
     "mon": ["mon_new_type", "mon_level_rel", "mon_power", "mon_bulk", "mon_atk",
             "mon_shiny", "mon_best_stats"],
     # Which team member a slot-shaped screen is pointing at.
     "slot": ["equip_on_strongest", "equip_on_weakest", "swap_out_weakest"],
     "button": ["is_skip", "is_cancel", "is_bag"],
-    # Team order. A separate decision, not one of the game's actions: slot 0
-    # leads the next battle but reordering does not consume the turn. The
+    # Team order. A separate decision that is not one of the game's actions.
+    # Slot 0 leads the next battle but reordering does not consume the turn. The
     # options are "leave it" plus "bring slot j to the front".
     #
-    # Every feature here is written as a DIFFERENCE against the current leader,
+    # Every feature here is written as a difference against the current leader,
     # or as an interaction with `noop`. A feature that reads the same for the
     # leave-it option and for every swap would add the same number to all of
-    # them and cancel in the argmax — which is exactly the mistake the ablation
+    # them and cancel in the argmax, which is exactly the mistake the ablation
     # was built to catch.
-    # Items. Until now there were none at all, which is why the item screen
-    # produced three identical q-values: the agent was choosing at random among
-    # a Red Card, a Moon Stone and an Assault Vest.
+    # Items. Before these were added, the item screen produced three identical
+    # q-values because the agent was choosing at random among a Red Card, a
+    # Moon Stone and an Assault Vest.
     #
-    # Effects are not structured data anywhere — an item is {id, name, desc,
+    # Item effects are not structured data anywhere. An item is {id, name, desc,
     # icon} and every magnitude is inline in the battle code, keyed on the
-    # string id. So these read the two things that ARE structured: the id, and
-    # TYPE_ITEM_MAP, the engine's own type -> item table, which collapses
+    # string id. So these features read the two things that are structured: the
+    # id, and TYPE_ITEM_MAP, the engine's own type-to-item table, which collapses
     # eighteen near-identical "+40% X-type damage" items into one question.
     "item": [
         "item:matches_my_type",   # boosts a type someone on my team actually is
@@ -208,8 +209,9 @@ GROUPS: dict[str, list[str]] = {
     ],
     # The move tutor. It offers a replacement move for a specific team member,
     # and the engine can be asked what that member currently uses, with power
-    # and type. Before this the agent saw two names and guessed: on seed 40003
-    # it took SKIP over three offers scoring 68.6 / 65.6 / 68.6 / 70.4.
+    # and type. Before these features were added, the agent saw two names and
+    # guessed. On seed 40003 the agent took SKIP over three offers scoring
+    # 68.6 / 65.6 / 68.6 / 70.4.
     "tutor": [
         "tutor:power_gain",       # offered power minus what they use now
         "tutor:is_upgrade",
@@ -234,10 +236,11 @@ ALL_GROUPS = list(GROUPS)
 def feature_names(groups: list[str] | None = None) -> list[str]:
     """The vector's index order, named.
 
-    Explicit names are most of the point of a linear model: a trained weight
-    vector can be read and argued with. With no argument this is the full set,
-    which must stay byte-identical to what shipped — `bots/sarsa-v2/bot.py` freezes a
-    copy of it, and a test holds the two side by side.
+    Explicit names are most of the point of a linear model, because a trained
+    weight vector can be read and argued with. With no argument this returns the
+    full set, which must stay byte-identical to what shipped. The file
+    `bots/sarsa-v2/bot.py` freezes a copy of it, and a test holds the two side
+    by side.
     """
     for g in (groups or []):
         if g not in GROUPS:
@@ -253,16 +256,16 @@ def features(state: dict[str, Any], action: dict[str, Any],
              index: dict[str, int] | None = None) -> dict[int, float]:
     """Sparse x(s, a): index -> value. Only non-zero entries.
 
-    `index` is a name -> position map, so a variant with some groups switched off
-    computes the same quantities and simply drops the ones it does not carry.
-    The alternative — a separate function per variant — is how two feature sets
-    silently stop meaning the same thing.
+    The `index` parameter is a name-to-position map, so a variant with some
+    groups switched off computes the same quantities and simply drops the ones it
+    does not carry. The alternative, a separate function per variant, is how two
+    feature sets silently stop meaning the same thing.
     """
     names = _NAME_INDEX if index is None else index
     x: dict[int, float] = {}
 
     def put(name: str, value: float = 1.0) -> None:
-        # A name the variant left out is skipped, not an error: that is what
+        # A name the variant left out is skipped rather than treated as an error, because that is what
         # switching a group off means.
         i = names.get(name)
         if value and i is not None:
@@ -366,9 +369,9 @@ def features(state: dict[str, Any], action: dict[str, Any],
             weakest = min(range(len(team)), key=lambda i: (team[i]["level"], hp_of[i]))
             put("equip_on_strongest", 1.0 if idx == strongest else 0.0)
             put("equip_on_weakest", 1.0 if idx == weakest else 0.0)
-            # On the swap screen the listed Pokemon is the one RELEASED, so
+            # On the swap screen the listed Pokemon is the one released, so
             # releasing the weakest is the good move and releasing the best is
-            # the mistake. Same list, opposite meaning: see state["prompt"].
+            # the mistake. The same list has the opposite meaning (see state["prompt"]).
             if screen == "swap-screen":
                 put("swap_out_weakest", 1.0 if idx == weakest else 0.0)
     return x
@@ -378,10 +381,10 @@ _NAME_INDEX = {n: i for i, n in enumerate(feature_names())}
 
 
 class FeatureSet:
-    """One variant of the vector: which groups are in, and their index order.
+    """One variant of the vector, specifying which groups are in and their index order.
 
     Carrying the group list around with the weights is what keeps an ablation
-    honest. Weights are saved by NAME, so loading them into a different set would
+    honest. Weights are saved by name, so loading them into a different set would
     otherwise zero-fill the missing ones and quietly produce a policy nobody
     trained.
     """
@@ -403,13 +406,14 @@ class FeatureSet:
 def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
     """The team-order decision, as a list of actions scored like any other.
 
-    Always leads with the leave-it option, so "do nothing" competes on the same
-    footing instead of being a special case in the caller. Empty when there is
-    nothing to decide, which the caller reads as "skip this decision point".
+    The list always leads with the leave-it option, so "do nothing" competes on
+    the same footing instead of being a special case in the caller. The list is
+    empty when there is nothing to decide, which the caller reads as "skip this
+    decision point".
 
-    Only slot 0 is a target: what matters is who LEADS, and offering all fifteen
-    pairs of a full team would spend the sample budget on distinctions that do
-    not pay.
+    Only slot 0 is a target, because what matters is who leads, and offering all
+    fifteen pairs of a full team would spend the sample budget on distinctions
+    that do not pay.
     """
     team = state.get("team") or []
     if not state.get("can_reorder") or len(team) < 2:
@@ -420,10 +424,11 @@ def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # Effect kinds, keyed on the item id, because the engine keeps no structured
-# effect field: an item is {id, name, desc, icon} and the numbers live inline in
-# the battle code. Only the COARSE kind is encoded here, never a magnitude — a
-# magnitude table would have to be copied out of the bundle and would keep
-# reporting the old value after any upstream rebalance, silently. See TODO.md.
+# effect field. An item is {id, name, desc, icon} and the numbers live inline in
+# the battle code. Only the coarse kind is encoded here, never a magnitude,
+# because a magnitude table would have to be copied out of the bundle and would
+# keep reporting the old value after any upstream rebalance, silently.
+# See TODO.md.
 EVOLUTION_ITEMS = {"moon_stone", "fire_stone", "water_stone", "thunder_stone",
                    "leaf_stone", "sun_stone", "dusk_stone", "shiny_stone",
                    "dawn_stone", "ice_stone", "rare_candy"}
@@ -452,8 +457,8 @@ def _item_features(put, state: dict[str, Any], action: dict[str, Any]) -> None:
     item = _item_id(action)
     team = state.get("team") or []
     type_items = state.get("type_items") or {}
-    # TYPE_ITEM_MAP is Pokemon type -> item id, so invert it: this item boosts
-    # this type. The single structured item fact the engine gives away.
+    # TYPE_ITEM_MAP is Pokemon type -> item id, so the inverted mapping shows which item boosts
+    # which type. The single structured item fact the engine gives away.
     boosts = {v: k.upper() for k, v in type_items.items()}
     boosted = boosts.get(item)
 
@@ -478,11 +483,12 @@ def _tutor_features(put, state: dict[str, Any], action: dict[str, Any],
                     label: str) -> None:
     """Judge the offer instead of guessing at its name.
 
-    The label carries the offered move and who receives it. What it does NOT
-    carry is power or type — and the agent used to have no way to tell a 130-power
-    upgrade from a sidegrade, which is how it learned to take SKIP. `move` on each
-    team member is the engine's own answer for what they use now, so the offer can
-    be compared against it.
+    The label carries the offered move and who receives the move. The label does
+    not carry power or type, and without those the agent had no way to tell a
+    130-power upgrade from a sidegrade, which is how the agent learned to take
+    SKIP. The `move` field on each team member is the engine's own answer for
+    what the member currently uses, so the offer can be compared against the
+    current move.
     """
     team = state.get("team") or []
     if not team:
@@ -523,8 +529,8 @@ class DrrnBot(Bot):
 
     The forward pass is written out in plain Python on purpose. The net is
     trained with numpy in `experiments/drrn/`, but a bot has to load in any
-    checkout with the package's two dependencies installed — so what ships is a
-    JSON of matrices and thirty lines of arithmetic, not a dependency.
+    checkout with the package's two dependencies installed, so what ships is a
+    JSON of matrices and thirty lines of arithmetic rather than a dependency.
     """
 
     name = "drrn"
@@ -553,8 +559,9 @@ class DrrnBot(Bot):
                 f"v{data.get('arch_version')} and this bot is v{ARCH_VERSION}. A "
                 f"matrix is only a policy under the shape that produced it."
             )
-        # Transposed once, here: the forward pass walks columns, and doing it
-        # per decision would repeat the same work a few hundred times a run.
+        # Transposed once at load time because the forward pass walks columns,
+        # and doing the transpose per decision would repeat the work a few
+        # hundred times a run.
         self.W = [[[float(v) for v in row] for row in layer] for layer in data["W"]]
         self.b = [[float(v) for v in layer] for layer in data["b"]]
         self.n_in = int(data["n_in"])
@@ -570,16 +577,16 @@ class DrrnBot(Bot):
     def q(self, x: dict[int, float]) -> float:
         """One forward pass. ReLU everywhere but the last layer, which is linear.
 
-        The input is sparse — about nine of a hundred features are non-zero at
-        any decision — so the first layer is computed from the non-zero entries
+        The input is sparse (about nine of a hundred features are non-zero at
+        any decision) so the first layer is computed from the non-zero entries
         rather than from a dense vector of mostly noughts.
 
-        `len(self.W) > 1` is not defensive: with no hidden layer at all the first
-        layer IS the last, and rectifying it would clamp every negative q-value
-        to zero while the numpy side returned wᵀx. That net is the linear control
-        arm — the same fitted Q iteration on the same data with the shape of q̂
-        put back — so the arm that exists to isolate capacity is exactly the one
-        the two implementations disagreed on.
+        The `len(self.W) > 1` guard matters because, with no hidden layer at all,
+        the first layer is the last, and rectifying it would clamp every negative
+        q-value to zero while the numpy side returned wᵀx. That net is the
+        linear control arm (the same fitted Q iteration on the same data with the
+        shape of q̂ put back), so the arm that exists to isolate capacity is
+        exactly the one the two implementations disagreed on.
         """
         h = list(self.b[0])
         W0 = self.W[0]
@@ -603,11 +610,11 @@ class DrrnBot(Bot):
         return h[0]
 
     def act(self, state: dict[str, Any]) -> int:
-        """Greedy over q̂(s, a, w). Ties broken at random, seeded.
+        """Greedy over q̂(s, a, w), with ties broken at random (seeded).
 
-        There is no unseen-state fallback and none is needed: unlike a table,
-        a linear model returns a value for every action it has never met, which
-        is the reason for using one on a sample budget this small.
+        No unseen-state fallback is needed because, unlike a table, a linear
+        model returns a value for every action it has never met, which is the
+        reason for using one on a sample budget this small.
         """
         self.decisions += 1
         actions = state["actions"]
@@ -628,10 +635,10 @@ class DrrnBot(Bot):
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Who should lead the next battle, scored by the same weights.
 
-        Team order is a decision the game does not put in `state["actions"]`,
-        because taking it costs no turn. It is trained as an extra state in the
-        MDP with reward 0, so the very same q-hat ranks "leave it" against each
-        candidate — no second model, no separate rule.
+        Team order is a decision the game does not put in `state["actions"]`
+        because taking it costs no turn. The decision is trained as an extra
+        state in the MDP with reward 0, so the very same q-hat ranks "leave it"
+        against each candidate without a second model or a separate rule.
         """
         options = reorder_options(state)
         if not options:
@@ -651,7 +658,7 @@ class DrrnBot(Bot):
         return self._last_why
 
     def metadata(self) -> dict[str, Any]:
-        """Goes into the run registry and the benchmark result."""
+        """Included in the run registry and the benchmark result."""
         return {
             "weights": self.weights_path.name,
             "features_version": FEATURES_VERSION,
@@ -665,9 +672,9 @@ class DrrnBot(Bot):
     def artifacts(self) -> list:
         """What a submission of this bot must carry with it.
 
-        The weights alone are not enough to understand a result: the feature
-        version says what the numbers index, and without the training config the
-        score is something nobody can reproduce or improve on.
+        The weights alone are not enough to understand a result because the
+        feature version says what the numbers index, and without the training
+        config the score is something nobody can reproduce or improve on.
         """
         from pokelike.arena.leaderboard import Artifact
 

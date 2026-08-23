@@ -1,4 +1,4 @@
-"""The standard benchmark: plays the fixed 50-seed list and records the result.
+"""The standard benchmark, which plays the fixed 50-seed list and records the result.
 
 Comparability requires two things: the same seeds (so luck cancels out) and the
 same game bundle (so an upstream update does not silently mix different games).

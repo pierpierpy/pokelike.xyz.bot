@@ -1,8 +1,8 @@
 """The regression net: recorded runs must replay identically.
 
 If any of these fail after a refactor, behaviour changed. The fingerprint holds
-only engine data, so renaming or translating our own strings cannot make it
-fail — only a real change in how the game is played.
+only engine data, so renaming or translating our own strings cannot make the test
+fail. Only a real change in how the game is played can.
 """
 
 from __future__ import annotations

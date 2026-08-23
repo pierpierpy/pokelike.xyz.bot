@@ -1,4 +1,4 @@
-"""Model benchmark commands: bench, board, watch.
+"""Model benchmark commands (bench, board, watch).
 
 Re-exports and argument registration for the `pokelike model` family.
 """
@@ -28,8 +28,8 @@ __all__ = [
 
 def model_bench_args(s) -> None:
     """Registers the arguments for `pokelike model bench`."""
-    # No default: a version is the question a row answers, so omitting it is
-    # checked in cmd_llm_bench rather than being set here.
+    # There is no default because a version is the question a row answers, so
+    # omitting it is checked in cmd_llm_bench rather than being set here.
     from ....harness import llmbench as _lbv
     s.add_argument("--harness", default=None,
                    help="harness version, one of: "

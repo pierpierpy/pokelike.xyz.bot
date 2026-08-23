@@ -1,6 +1,7 @@
-"""HTTP transport: the single model call with retries and token accounting.
+"""HTTP transport for the single model call, with retries and token accounting.
 
-Uses urllib with the OpenAI-compatible wire format. No client library dependency.
+This module uses urllib with the OpenAI-compatible wire format and has no client
+library dependency.
 """
 
 from __future__ import annotations
@@ -48,7 +49,8 @@ def call_model_http(
         "tool_choice": "auto",
         "max_tokens": max_tokens,
         "temperature": temperature,
-        # Best effort: most providers ignore it, none promise determinism.
+        # Best effort because most providers ignore seed and none promise
+        # determinism.
         "seed": seed,
     }
     if reasoning_effort is not None:
@@ -63,8 +65,9 @@ def call_model_http(
             "Content-Type": "application/json",
         },
     )
-    # Retries with backoff for transient failures (rate limits, 5xx).
-    # Auth and model-not-found are not retried because they fail identically forever.
+    # The loop retries with backoff for transient failures (rate limits, 5xx).
+    # Auth and model-not-found errors are not retried because they fail
+    # identically on every attempt.
     answer: dict[str, Any] | None = None
     retry_count = 0
     for attempt in range(retries + 1):

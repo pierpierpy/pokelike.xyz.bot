@@ -1,17 +1,17 @@
-"""Help text: the three boxed command families and the epilog builder."""
+"""Help text for the three boxed command families and the epilog builder."""
 
 from __future__ import annotations
 
 import argparse
 
-# rich when installed, plain argparse when not.
+# This uses rich when installed and plain argparse otherwise.
 try:
     from rich_argparse import RawDescriptionRichHelpFormatter as _FORMATTER
 except ImportError:  # pragma: no cover
     _FORMATTER = argparse.RawDescriptionHelpFormatter
 
 
-# Three boxes, one per thing this repo does.
+# The CLI groups its commands into three boxes, one per thing this repo does.
 FAMILIES = (
     ("the game", (
         ("setup", "browser plus an offline copy of the game. Once"),

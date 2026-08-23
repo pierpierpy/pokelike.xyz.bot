@@ -12,9 +12,9 @@
     play(create("sarsa-v2"), seed=42)             # one run, with its trace
     compare({"mine": create("mine")}, seeds=range(20))   # against random, paired
 
-`create` takes the name of a folder under `bots/`, the same name `--bot` takes.
-There is no module to import and nothing to register: a bot exists because its
-directory does.
+The `create` function takes the name of a folder under `bots/`, the same name
+`--bot` takes. There is no module to import and nothing to register because a bot
+exists by virtue of its directory existing.
 
 See `interfaces/python/example.ipynb` for the cell-by-cell walkthrough.
 """

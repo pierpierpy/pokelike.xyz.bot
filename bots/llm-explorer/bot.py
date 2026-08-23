@@ -1,8 +1,8 @@
-"""llm-explorer: push down the map.
+"""The llm-explorer bot prioritizes pushing down the map.
 
-This bot makes the opposite bet to llm-survivor: badges only come from going
-further, and a team kept perfectly healthy on safe nodes scores exactly zero.
-Having both measured rather than argued about is the reason both exist.
+Badges only come from going further, and a team kept perfectly healthy on safe
+nodes scores exactly zero. Having both this bot and llm-survivor measured rather
+than argued about is the reason both exist.
 
 Credentials come from `.env` at the repository root.
 

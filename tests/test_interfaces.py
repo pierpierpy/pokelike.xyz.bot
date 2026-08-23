@@ -28,10 +28,8 @@ VERBS = (("bot", "new"), ("bot", "run"), ("bot", "bench"), ("bot", "board"),
 
 
 def test_help_lists_every_command():
-    """argparse's own subcommand listing is suppressed, so this is the only listing.
-
-    The three boxes in the epilog are written by hand, which means a command added
-    to the parser and forgotten there would be invisible. This is what notices.
+    """The three boxes in the epilog are written by hand, which means a command added
+    to the parser and forgotten there would be invisible. This test is what notices.
     """
     code, text = _cli("--help")
     assert code == 0
@@ -74,10 +72,9 @@ def test_a_family_needs_a_verb(family):
 
 
 def test_model_board_prints_a_table():
-    """It shares a function with `bench`, and shared functions read shared flags.
-
-    `board` reached `args.notes`, which only `bench` defines, and died with an
-    AttributeError while doing nothing but printing a table.
+    """The `board` verb shares a function with `bench`, and shared functions read
+    shared flags. The `board` command reached `args.notes`, which only `bench` defines,
+    and died with an AttributeError while doing nothing but printing a table.
     """
     code, text = _cli("model", "board", "--harness", "v0")
     assert code == 0, text
@@ -85,10 +82,10 @@ def test_model_board_prints_a_table():
 
 
 def test_model_watch_says_so_when_there_is_nothing_to_watch():
-    """Exit 1 with a sentence, not a traceback.
+    """The command should exit 1 with a sentence, not a traceback.
 
     The logs are gitignored, so a fresh checkout has no trace at all and this is the
-    path CI takes. Anything about the drawing itself is tested in test_watch.py, in
+    path CI takes. Everything about the drawing itself is tested in test_watch.py, in
     process, against a trace built in a tmp directory.
     """
     code, text = _cli("model", "watch", "--harness", "v0", "--once")
@@ -109,16 +106,16 @@ def test_unknown_bot_exits_with_a_readable_error():
 
 
 def test_main_is_callable_from_python():
-    """`main` must not assume it owns the process."""
+    """The `main` function must not assume it owns the process."""
     with pytest.raises(SystemExit):
         main(["--help"])
 
 
 # --------------------------------------------------------------------- API
 #
-# The server runs on the MAIN thread and the requests come from a worker, not
-# the other way round: Playwright's sync API is bound to the thread that created
-# the game, so the handlers have to run there.
+# The server runs on the main thread and the requests come from a worker, not the
+# other way round. Playwright's sync API is bound to the thread that created the
+# game, so the handlers have to run there.
 
 
 def _api_client(port, steps, results):
@@ -154,11 +151,11 @@ def _api_client(port, steps, results):
 
 
 def _with_api(game, seed, steps, port=8553):
-    """Serves the given game over HTTP, lets the client drive, returns results.
+    """Serve the given game over HTTP, let the client drive, and return results.
 
-    It reuses the session-wide game on purpose: two Playwright sync instances
-    cannot live in the same thread, so opening a second browser here would fail
-    as soon as any other test has already started one.
+    The function reuses the session-wide game on purpose. Two Playwright sync
+    instances cannot live in the same thread, so opening a second browser here
+    would fail as soon as any other test has already started one.
     """
     import threading
 
@@ -180,7 +177,7 @@ def _with_api(game, seed, steps, port=8553):
 
 @pytest.mark.slow
 def test_api_exposes_the_full_loop(game):
-    """Start, read, act, score — all over HTTP."""
+    """Start, read, act, and score, all over HTTP."""
 
     def steps(get, post):
         state = post("/new", {"seed": 21})
@@ -225,14 +222,14 @@ def test_the_node_tooltips_reach_every_interface(game):
     """What the game says a node is, over HTTP as well as in Python and the CLI.
 
     The text the browser shows on hover carries the trainer's archetype and which
-    types they use, a gym leader's roster with levels, what a trade does. None of
-    it was in the state, so a headless run saw LESS than a person rather than the
-    same thing. Added in the bridge, which is the only place that can: no view()
-    and no tool can invent data the bridge never read.
+    types they use, a gym leader's roster with levels, and what a trade does. This
+    data was not in the state, so a headless run saw less than a person rather than
+    the same thing. The data is added in the bridge, which is the only place that
+    can add it, because no view() and no tool can invent data the bridge never read.
 
-    Checked on all three faces together because they are one decision. Putting it
-    in the state and rendering it for only one of them is the shape of bug that
-    goes unnoticed for months.
+    Checked on all three faces together because they are one decision. Putting the
+    data in the state and rendering it for only one of the faces is the shape of bug
+    that goes unnoticed for months.
     """
 
     def steps(get, post):

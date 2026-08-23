@@ -1,7 +1,8 @@
-"""The command line: the parser, and nothing else.
+"""The command line, containing only the parser.
 
-A thin face over `core.game.Game`. No game logic lives here; command bodies
-are in `commands/`, shared flags in `shared.py`, and help text in `help.py`.
+This module is a thin face over `core.game.Game`. No game logic lives here;
+command bodies are in `commands/`, shared flags in `shared.py`, and help text
+in `help.py`.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
         add_help=False,
     )
     p.add_argument("--port", type=int, default=DEFAULT_ASSET_PORT, help="port of the game-file server")
-    # -h/--help still works, it is just not listed: only --port is worth showing.
+    # -h/--help still works but is not listed, because only --port is worth showing.
     p.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
     # The grouped listing lives in the epilog, so argparse's own is suppressed.
     sub = p.add_subparsers(dest="command", required=False, metavar="<command>",
@@ -59,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--seed", type=seed_arg, default=1, help="seed of the initial run")
     s.set_defaults(func=cmd_api)
 
-    # ---- the competition: your code is the entry -------------------------------
+    # ---- the bot competition, where your code is the entry ----------------------
     fam = sub.add_parser(
         "bot", usage=argparse.SUPPRESS, add_help=False, formatter_class=_FORMATTER,
         epilog=_boxes([("pokelike bot", _FAMILY["pokelike bot"])]),
@@ -77,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     ))
     bots.add_parser("board", help="the standings").set_defaults(func=cmd_leaderboard)
 
-    # ---- the model benchmark: the model is the entry ---------------------------
+    # ---- the model benchmark, where the model is the entry ----------------------
     fam = sub.add_parser(
         "model", usage=argparse.SUPPRESS, add_help=False, formatter_class=_FORMATTER,
         epilog=_boxes([("pokelike model", _FAMILY["pokelike model"])]),
@@ -109,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="regenerate the state reference inside STATE.md")
     s.set_defaults(func=cmd_schema)
 
-    # `history`: what you played on this machine.
+    # The `history` command shows what you played on this machine.
     s = sub.add_parser("history")
     s.add_argument("-d", "--explain", action="store_true",
                    help="explain what each column means")
@@ -130,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # SIGTERM becomes SystemExit so it unwinds through context managers that
-    # close the browser. Ctrl-C prints one line rather than a traceback.
+    # close the browser. Ctrl-C prints one line instead of a traceback.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         return args.func(args)

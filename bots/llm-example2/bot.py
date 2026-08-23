@@ -6,9 +6,9 @@ setting at a time.
 Credentials come from `.env` at the repository root, so nothing goes on the
 command line.
 
-This bot is a reference, not a contender. It turns on every optional feature at
-once so each one is easy to see, which is a bad setup for an actual run. It is
-not benchmarked. Copy the parts you want.
+This bot is a reference. It turns on every optional feature at once so each one
+is easy to see, which is a bad setup for an actual run. It is not benchmarked.
+Copy the parts you want.
 
 What one turn looks like:
 
@@ -37,8 +37,8 @@ class Example2Bot(LLMBot):
     name = "llm-example2"
 
     # ---------------------------------------------------------------- 1. the prompt
-    # The GAME_RULES constant is the factual half. This prompt adds instructions for
-    # using the notebook and plan.
+    # The GAME_RULES constant provides the factual half. This prompt adds instructions
+    # for using the notebook and plan.
 
     PROMPT = GAME_RULES + """
 YOUR MEMORY IS PART OF PLAYING
@@ -68,13 +68,13 @@ The turn ENDS at `play`, so anything called after it is thrown away. Call `plan`
 Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------------- 2. its own tools
-    # The @tool decorator is the whole declaration: the name comes from the method,
-    # the parameters from the signature. The description is prompt text, so state
-    # when not to call the tool as well.
+    # The @tool decorator handles the whole declaration. The name comes from the
+    # method, and the parameters come from the signature. The description is prompt
+    # text, so state when not to call the tool as well.
 
     @tool("Whether your team is healthy enough for a fight, and whether a pokecenter is reachable. One line. Call it before a battle, not on every screen.")
     def risk_check(self, state: dict[str, Any]) -> str:
-        """In: the state. Out: one line about the team's health."""
+        """Return one line about the team's health given the current state."""
         team = state.get("team") or []
         if not team:
             return "no team yet."
@@ -89,7 +89,7 @@ Think briefly, then call `play`. Always call `play`."""
 
     @tool("Which of YOUR move types are super effective against a type you name, so you can pick a lead. Only useful once a tooltip told you what you face.", against="the defending type, one word")
     def beats(self, state: dict[str, Any], against: str) -> str:
-        """In: the state and a type name. Out: which slots answer it."""
+        """Return which team slots have a super-effective move against the named type."""
         want = against.strip().lower()
         if want not in self.STRONG_AGAINST:
             return f"'{against}' is not a type. Try: {', '.join(sorted(self.STRONG_AGAINST))}."
@@ -102,7 +102,7 @@ Think briefly, then call `play`. Always call `play`."""
         return (f"super effective against {want}: {', '.join(good)}. "
                 f"`set_lead` is free, so put one in slot 0 first.")
 
-    # A bot may carry its own knowledge; the state does not contain this table.
+    # A bot may carry its own knowledge. The state does not contain this table.
     STRONG_AGAINST = {
         "normal": set(), "fire": {"grass", "bug", "ice", "steel"},
         "water": {"fire", "ground", "rock"}, "grass": {"water", "ground", "rock"},
@@ -118,35 +118,35 @@ Think briefly, then call `play`. Always call `play`."""
     }
 
     # ------------------------------------------------------------------ 3. the knobs
-    # A generation-2 bot is mostly this block; none of these settings need code.
+    # A generation-2 bot is mostly this block. None of these settings need code.
 
     config = LLMConfig(
         prompt=PROMPT,
 
         temperature=0.3,        # low but not zero, because zero is not reproducible
-        reasoning_effort="low", # the model reasons before answering; None turns it off
+        reasoning_effort="low", # the model reasons before answering, and None turns reasoning off
         max_tokens=1200,        # a paragraph, a plan, and a play call
         max_rounds=6,           # this prompt asks for two or three tools before play
         retries=5,              # a 429 is not the model's fault, so try again
-        token_budget=1_000_000_000,    # about 3x a normal run; hitting the budget ends
+        token_budget=1_000_000_000,    # about 3x a normal run, and hitting the budget ends
                                 # the run on purpose to stop runaway loops
 
-        # state_view="screen",    # ignored here: section 4 replaces render_state, which
-        #                         # is the only thing that reads this. "json" is 6x the tokens
+        # state_view="screen",    # ignored here because section 4 replaces render_state, which
+        #                         # is the only thing that reads this setting. "json" is 6x the tokens
 
-        memory=12,              # journal lines; -1 keeps every turn
-        scratch_turns=3,        # whole turns kept; -1 keeps all, costs about 5x
-        # scratch_state="brief",  # ignored here: section 5 replaces render_scratch.
-        #                         # line (a marker), brief (facts), full (the old screen)
-        notes_cap=10000,           # max note storage; 0 turns the notebook off
-        note_chars=100000,         # longer notes are cut, not refused
-        cross_run_memory=True,  # notes outlive the run
-        keep_across_regions=("notes",),   # what crosses into the next region; the plan
-                                          # and kept turns are about a map that will not
-                                          # exist there, but a general lesson might hold
-        plan_chars=1000000,         # room for a route that names its nodes
+        memory=12,              # journal lines, and -1 keeps every turn
+        scratch_turns=3,        # whole turns kept, and -1 keeps all at about 5x the cost
+        # scratch_state="brief",  # ignored here because section 5 replaces render_scratch.
+        #                         # Options are line (a marker), brief (facts), full (the old screen)
+        notes_cap=10000,           # max note storage, and 0 turns the notebook off
+        note_chars=100000,         # longer notes are truncated silently
+        cross_run_memory=True,  # notes outlive the run when this is True
+        keep_across_regions=("notes",),   # what crosses into the next region. The plan
+                                          # and kept turns describe a map that will not
+                                          # exist there, but a general lesson might hold.
+        plan_chars=1000000,         # this gives room for a route that names its nodes
 
-        bag_tool=True,          # a shared tool, no code needed
+        bag_tool=True,          # this enables a shared tool that needs no code
         # The `what_lies_ahead` tool reports where each option leads. Section 4 already
         # prints that in the view every turn for free, so the tool would just be a
         # redundant round trip.
@@ -155,8 +155,8 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
-        """In: the state. Out: the text of this turn's user message."""
-        # Replaces the built-in view, so `state_view` above has no effect.
+        """Return the text that forms this turn's user message from the given state."""
+        # This method replaces the built-in view, so `state_view` above has no effect.
         # HP as a percentage, exits inline to avoid a tool round trip.
         run = state.get("run") or {}
         team = state.get("team") or []
@@ -191,9 +191,9 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------- 5. a kept turn's slot
     def render_scratch(self, state: dict[str, Any]) -> str:
-        """In: the state of a turn being kept. Out: the one line it shows."""
-        # Replaces the built-in render, so `scratch_state` above has no effect.
-        # Only what changed is worth a line; the current screen is in the fresh message.
+        """Return the one-line summary shown for a kept turn's state."""
+        # This method replaces the built-in render, so `scratch_state` above has no effect.
+        # Only what changed is worth a line, because the current screen is in the fresh message.
         run = state.get("run") or {}
         team = state.get("team") or []
         low = min((p["hp"] / p["max_hp"] for p in team if p.get("max_hp")), default=1.0)
@@ -203,9 +203,10 @@ Think briefly, then call `play`. Always call `play`."""
 
     # ----------------------------------------------------------- 6. between regions
     def region_cleared(self, done: dict[str, Any]) -> str | None:
-        """In: the region result. Out: what the next region opens with."""
-        # Called with the memory still intact, so the model can read its own journal
-        # and write the summary itself. The forgetting happens after this returns.
+        """Return a summary for the next region to open with, based on the completed region's result."""
+        # The runner calls this method with the memory still intact, so the model
+        # can read its own journal and write the summary itself. The forgetting
+        # happens after this method returns.
         try:
             reply = self.call_model([
                 {"role": "system", "content":
@@ -225,7 +226,7 @@ Think briefly, then call `play`. Always call `play`."""
 
     # -------------------------------------------------------------- 7. what is filed
     def add_metadata(self) -> dict[str, Any]:
-        """In: nothing. Out: my own facts, written beside the score."""
-        # Only what nothing else could know; model, harness generation, view, and
-        # stock-tools flag are already recorded elsewhere.
+        """Return bot-specific metadata to record beside the score."""
+        # This records only what nothing else could know. The model, harness
+        # generation, view, and stock-tools flag are already recorded elsewhere.
         return {"tuned_for": "gemini-class models", "notes_policy": "one per run"}

@@ -35,7 +35,7 @@ def folder(name: str, root: Path | None = None) -> Path:
 
 
 def available(root: Path | None = None) -> list[str]:
-    """Every bot folder on disk, by name."""
+    """Return every bot folder on disk, by name."""
     base = Path(root) if root else BOTS
     if not base.is_dir():
         return []
@@ -44,7 +44,7 @@ def available(root: Path | None = None) -> list[str]:
 
 
 def load_class(path: Path) -> type[Bot]:
-    """The one Bot subclass defined in `bot.py`.
+    """Return the one Bot subclass defined in `bot.py`.
 
     Each bot gets a unique module name so two bots can define a class called
     `MyBot` without one shadowing the other.
@@ -65,7 +65,7 @@ def load_class(path: Path) -> type[Bot]:
         sys.modules.pop(modname, None)
         raise
 
-    # Only classes defined in this module, not merely imported ones.
+    # Only classes that are defined in this module and inherit from Bot.
     found = [
         obj for obj in vars(module).values()
         if inspect.isclass(obj) and issubclass(obj, Bot) and obj is not Bot
@@ -90,10 +90,10 @@ def load_class(path: Path) -> type[Bot]:
 
 def load(name: str, seed: int = 0, root: Path | None = None,
          **settings: Any) -> Bot:
-    """Builds the bot in `bots/<name>/`.
+    """Build the bot in `bots/<name>/`.
 
-    `settings` reach the constructor, which is how a model id, an endpoint and a
-    key can come from the command line instead of the environment.
+    The `settings` dict reaches the constructor, which is how a model id, an
+    endpoint, and a key can come from the command line instead of the environment.
     """
     from . import build
 
@@ -107,7 +107,7 @@ def load(name: str, seed: int = 0, root: Path | None = None,
 
 
 def result(name: str, root: Path | None = None) -> dict[str, Any] | None:
-    """What the benchmark last measured for this bot, if it has been measured."""
+    """Return what the benchmark last measured for this bot, if the bot has been measured."""
     f = folder(name, root) / "result.json"
     if not f.is_file():
         return None

@@ -1,24 +1,26 @@
-"""Play the official 50 seeds and KEEP the per-seed rows.
+"""Play the official 50 seeds and keep the per-seed rows.
 
     uv run python -m experiments.drrn.measure --bot experiments/drrn --tag drrn
 
-This is not a second protocol, and the distinction is the whole reason it is
-allowed to exist. `STANDARD_SEEDS` and `run_benchmark` are imported from the
-package, so the seeds, the run loop, the step cap and the score are the official
-ones to the letter. Nothing here chooses a seed.
+This module uses the same protocol as `pokelike bot bench`, and the distinction
+is the whole reason it is allowed to exist. `STANDARD_SEEDS` and `run_benchmark`
+are imported from the package, so the seeds, the run loop, the step cap and the
+score are the official ones to the letter. Nothing here chooses a seed.
 
-What it adds is that the rows survive. `pokelike bot bench --bot experiments/drrn`
-prints the aggregate and records nothing, which is right — a candidate measured
-by path is not a submission — but it means the fifty per-seed results are
-computed and thrown away. Those rows are what makes the comparison paired, and
-paired is not a nicety at this budget: badges have a standard deviation near 0.7,
-so two means over 50 seeds cannot resolve less than about 0.39 badges, while the
-same runs compared seed by seed cut that to roughly 0.25-0.3. Seed difficulty is
-a large shared term, and throwing it away costs exactly the effect size this
-experiment is trying to detect.
+What the module adds is that the rows survive. The command
+`pokelike bot bench --bot experiments/drrn` prints the aggregate and records
+nothing, which is right because a candidate measured by path is not a submission,
+but that means the fifty per-seed results are computed and thrown away. Those rows
+are what makes the comparison paired, and a paired test matters at this budget
+because badges have a standard deviation near 0.7, so two means over 50 seeds
+cannot resolve less than about 0.39 badges, while the same runs compared seed by
+seed cut that to roughly 0.25-0.3. Seed difficulty is a large shared term, and
+throwing the per-seed rows away costs exactly the effect size this experiment is
+trying to detect.
 
-It writes into `output/runs/`, which is gitignored, and it can never file a
-leaderboard entry: only `pokelike bot bench` on a folder under `bots/` does that.
+The output goes into `output/runs/`, which is gitignored. The module can never
+file a standings entry because only `pokelike bot bench` on a folder under
+`bots/` does that.
 """
 
 from __future__ import annotations

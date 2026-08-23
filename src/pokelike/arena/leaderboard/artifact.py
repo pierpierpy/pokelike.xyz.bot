@@ -1,8 +1,8 @@
-"""The Artifact dataclass and the fingerprint that ties a result to its code.
+"""This module defines the Artifact dataclass and the fingerprint that ties a result to its code.
 
-The fingerprint is a sha256 over `bot.py` and every file in `artifacts/`. The
-`pokelike bot board` command compares the current hash against the recorded one
-and marks stale rows.
+The fingerprint is a sha256 over ``bot.py`` and every file in ``artifacts/``.
+The ``pokelike bot board`` command compares the current hash against the recorded
+one and marks stale rows.
 """
 
 from __future__ import annotations
@@ -26,11 +26,11 @@ KINDS = {
 
 @dataclass
 class Artifact:
-    """Something a bot needs, archived beside it.
+    """An Artifact represents something a bot needs, archived beside the bot.
 
-    Provide `path` to copy a file, `data` to write JSON, or `text` to write
-    prose (such as a prompt). A bot declares these from `artifacts()`, and the
-    benchmark stores them.
+    Provide ``path`` to copy a file, ``data`` to write JSON, or ``text`` to
+    write prose (such as a prompt). A bot declares these from ``artifacts()``,
+    and the benchmark stores them.
     """
 
     name: str
@@ -84,9 +84,9 @@ def fingerprint(bot_dir: Path) -> str:
     """Returns a single hash over bot.py and every file in artifacts/.
 
     Each file is hashed together with its relative path, so renaming a file
-    changes the fingerprint. Defined in `pokelike.shared.fingerprint` as
-    `code_fingerprint`, the one place this logic lives; `utils/refingerprint.py`
-    imports it from there too.
+    changes the fingerprint. The actual logic lives in
+    ``pokelike.shared.fingerprint.code_fingerprint``, and
+    ``utils/refingerprint.py`` imports it from there as well.
     """
     from ...shared.fingerprint import code_fingerprint
     return code_fingerprint(bot_dir)

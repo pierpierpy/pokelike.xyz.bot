@@ -1,4 +1,4 @@
-"""Low-level download and cleanup helpers for the offline copy."""
+"""This module provides low-level download and cleanup helpers for the offline copy."""
 
 from __future__ import annotations
 
@@ -10,20 +10,20 @@ from .signatures import SIGNATURES, _valid_content
 
 UPSTREAM = "https://pokelike.xyz"
 
-# File paths contain no spaces, so they can be found with a regex over the raw
-# bundle: nothing needs de-obfuscating for this.
+# File paths contain no spaces, so a regex over the raw bundle finds them
+# without needing to de-obfuscate anything.
 RE_ASSET = re.compile(r"""["'](/?(?:img|audio|style|js|fonts?)/[\w\-./]+?\.\w{2,5})["']""")
 RE_HTML_REF = re.compile(r"""(?:src|href)=["']([^"'#?]+\.(?:js|css|png|svg|ico|webmanifest))["']""")
 RE_CSS_URL = re.compile(r"""url\(["']?([^"')]+?\.\w{2,5})["']?\)""")
 
 
 def _log(*a) -> None:
-    """Print with flush so progress is visible when output is redirected."""
+    """This function prints with flush so progress is visible when output is redirected."""
     print(*a, flush=True)
 
 
 def _fetch(path: str, root: Path) -> bool:
-    """Downloads a relative path into the root. Returns True if the file exists and is valid."""
+    """This function downloads a relative path into the root and returns True if the file exists and is valid."""
     rel = path.lstrip("/")
     dest = root / rel
     if dest.is_file() and dest.stat().st_size > 0:
@@ -46,7 +46,7 @@ def _fetch(path: str, root: Path) -> bool:
 
 
 def clean(root: Path, log=_log) -> int:
-    """Deletes files whose content does not match their extension. Returns the count removed."""
+    """This function deletes files whose content does not match their extension and returns the count removed."""
     removed = 0
     for p in root.rglob("*"):
         if not p.is_file():

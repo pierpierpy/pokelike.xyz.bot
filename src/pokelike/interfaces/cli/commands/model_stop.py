@@ -1,8 +1,13 @@
-"""Stopping a running pass: `pokelike model stop <stamp>`.
+"""Stopping a running pass via `pokelike model stop <stamp>`.
 
-Sends SIGTERM so the pass shuts down cleanly: the browser closes, the log flushes,
-and the heartbeat file is removed. Nothing is deleted; logs, traces, and the
-notebook stay in place, and seeds already played keep their rows.
+Sends SIGTERM so the pass shuts down cleanly, which means:
+
+- the browser closes
+- the log flushes
+- the heartbeat file is removed
+
+Nothing is deleted; logs, traces, and the notebook stay in place, and seeds
+already played keep their rows.
 
 The process to signal is found from the heartbeat file's `pid=... host=...` line.
 When the heartbeat predates that field, the pass is matched by harness version and
@@ -166,7 +171,7 @@ def _processes_playing(version: str, model: str) -> list[int]:
         line = _cmdline(int(entry.name))
         if "model bench" not in line or version not in line or model not in line:
             continue
-        # Skip workers (belong to their parent) and the uv wrapper.
+        # This skips workers (they belong to their parent) and the uv wrapper.
         if "--worker" in line or "/bin/uv " in line or line.startswith("uv "):
             continue
         found.append(int(entry.name))

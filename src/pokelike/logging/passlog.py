@@ -1,4 +1,4 @@
-"""Progress logging for a running pass: one line per finished run, flushed live.
+"""Progress logging for a running pass, writing one line per finished run and flushing live.
 
 The log is a readable text file with aligned columns, suitable for `tail -f`.
 Full structured data lives in the result; this file is the human-readable view.
@@ -14,19 +14,19 @@ from typing import Any
 
 from .heartbeat import HeartbeatThread
 
-# Number of runs at each end of a pass used for the learning comparison.
+# LEARN_K is the number of runs at each end of a pass used for the learning comparison.
 LEARN_K = 10
 
 
 class PassLog:
-    """One line per finished run, flushed as it happens.
+    """Writes one line per finished run, flushed as each run completes.
 
-    Accepts both the generalised form (folder, stem, seeds, workers,
-    header_lines, memory) and the legacy positional form (version, model,
-    seeds, workers) used by the model benchmark.
+    This class accepts both the generalised form (folder, stem, seeds, workers,
+    header_lines, memory) and the legacy positional form (version, model, seeds,
+    workers) used by the model benchmark.
     """
-    # Flushed per line: a buffered log is useless for in-progress monitoring
-    # and loses the ending if the process dies.
+    # Each line is flushed immediately because a buffered log is useless for
+    # in-progress monitoring and loses the ending if the process dies.
 
     COLUMNS = ("  seed  badges   score  steps        in       out  fell  retry     secs")
     COLUMNS_MEMORY = COLUMNS + "  notes"
@@ -36,7 +36,7 @@ class PassLog:
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
                  memory: bool = False, folder: Path | None = None,
                  attempt: int = 1,
-                 # Generalised parameters: when given, the caller owns the
+                 # When the generalised parameters are given, the caller owns the
                  # vocabulary. Otherwise legacy model-benchmark defaults apply.
                  stem: str | None = None,
                  header_lines: list[str] | None = None,
@@ -44,12 +44,12 @@ class PassLog:
                  notebook_header: str | None = None,
                  plan_header: str | None = None,
                  region: str | None = None) -> None:
-        # Legacy default: use the model benchmark's session directory.
+        # The legacy default uses the model benchmark's session directory.
         if folder is None:
             from ..harness.llmbench.command import session_dir
             folder = session_dir(version)
 
-        # Stem: provided explicitly, or built from the model slug + attempt.
+        # The stem is provided explicitly, or built from the model slug + attempt.
         if stem is None:
             from ..harness.llmbench.versions import slug
             stem = f"{slug(model)}-pass{attempt}"
@@ -61,19 +61,19 @@ class PassLog:
         self.total = len(seeds)
         self.badges: list[int] = []
         self.memory = memory
-        # Region column: shown only when the pass is not Kanto.
+        # The region column is shown only when the pass is not Kanto.
         self.region = region
         self.model = model
         self.book: list[str] = []
         self.spent: dict[int, tuple[int, int]] = {}
         self.fh = self.path.open("w", encoding="utf-8", buffering=1)
-        # Per-decision JSONL trace.
+        # This is the per-decision JSONL trace.
         self.trace_path = self.path.with_suffix(".jsonl")
         self.tf = self.trace_path.open("w", encoding="utf-8", buffering=1)
-        # Notebook and plan files, opened on demand.
+        # The notebook and plan files are opened on demand.
         self.book_path = self.path.with_name(self.path.stem + "-notebook.log")
         self.plan_path = self.path.with_name(self.path.stem + "-plan.log")
-        # Per-run JSON lines (score, badges, etc.).
+        # These are per-run JSON lines (score, badges, etc.).
         self.runs_path = self.path.with_name(self.path.stem + "-runs.jsonl")
         self.bf: Any = None
         self.pf: Any = None
@@ -84,7 +84,7 @@ class PassLog:
         self._plan_header = plan_header
         self._done_summary = done_summary
 
-        # Header: use caller-provided lines, or the legacy model-benchmark default.
+        # The header uses caller-provided lines, or the legacy model-benchmark default.
         if header_lines is not None:
             for line in header_lines:
                 self._say(line)
@@ -97,21 +97,21 @@ class PassLog:
                           "logged as they change.")
         self._say(self._columns_header())
 
-        # Liveness heartbeat.
+        # The liveness heartbeat keeps the .alive file fresh for watchers.
         self.alive_path = self.trace_path.with_suffix(".alive")
         self._heartbeat = HeartbeatThread(self.alive_path)
         self._heartbeat.start()
 
     @property
     def stamp(self) -> str:
-        """The pass's directory name, used as its identifier."""
+        """Returns the pass's directory name, used as its identifier."""
         return self.path.parent.name
 
     def _say(self, line: str) -> None:
         self.fh.write(line + "\n")
 
     def _columns_header(self) -> str:
-        """Returns the column header, including the region column when not Kanto."""
+        """Returns the column header, including the region column when the pass is not Kanto."""
         if self.region and self.region != "kanto":
             return self.COLUMNS_REGION_MEMORY if self.memory else self.COLUMNS_REGION
         return self.COLUMNS_MEMORY if self.memory else self.COLUMNS
@@ -122,7 +122,7 @@ class PassLog:
         self.badges.append(row.get("badges") or 0)
         self.spent[row.get("seed")] = (row.get("tokens_in") or 0,
                                        row.get("tokens_out") or 0)
-        # Region column: shown only when the pass is not Kanto.
+        # The region column is shown only when the pass is not Kanto.
         region_cell = ""
         if self.region and self.region != "kanto":
             region_cell = f"{(row.get('region') or self.region)[:7]:>9}"
@@ -164,7 +164,7 @@ class PassLog:
             self._done_summary(self, one_pass)
             return
 
-        # Legacy model-benchmark summary.
+        # This writes the legacy model-benchmark summary.
         from ..harness.llmbench.results import learning
 
         s = one_pass.get("summary") or {}
@@ -191,7 +191,7 @@ class PassLog:
                 self._say(f"  [{i}] {note}")
 
     def _write_run_row(self, row: dict[str, Any]) -> None:
-        """Appends one JSON line per finished run to `<pass>-runs.jsonl`."""
+        """Appends one JSON line per finished run to the `<pass>-runs.jsonl` file."""
         if self.rf is None:
             self.rf = self.runs_path.open("w", encoding="utf-8", buffering=1)
         self.rf.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -260,7 +260,7 @@ class PassLog:
             "swapped": e.get("swapped"),
             "why": e.get("why"),
             "team": e.get("team"),
-            # Optional fields: included only when the enrichment provides them.
+            # Optional fields are included only when the enrichment provides them.
             **({"region": e["region"]} if e.get("region") else {}),
             **({"tools": e["tools"]} if e.get("tools") else {}),
             **({"map_view": e["map_view"]} if e.get("map_view") else {}),

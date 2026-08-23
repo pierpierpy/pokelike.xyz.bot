@@ -11,7 +11,8 @@ from typing import Any
 def actions_view(actions: list[dict]) -> str:
     """Formats the numbered action list for a turn.
 
-    In: the `actions` list from a state. Out: the printable block, one per option.
+    This function takes the `actions` list from a state and returns the
+    printable block with one line per option.
 
     The `tooltip` field carries the hover text the game shows for a map node
     (trainer archetype, gym roster, trade details). It is absent on non-node
@@ -32,7 +33,8 @@ def actions_view(actions: list[dict]) -> str:
 def tutor_view(obs: dict[str, Any]) -> str:
     """Renders the move tutor offer against what each Pokemon already has.
 
-    In: the full observation dict. Out: comparison table (empty if no offers).
+    This function takes the full observation dict and returns a comparison table
+    (empty string if no offers are available).
 
     The tutor buttons carry only species and level, not power or type, so this
     function builds the comparison from `team[i].move` and `offered_moves[i]`.

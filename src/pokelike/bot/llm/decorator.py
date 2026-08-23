@@ -1,4 +1,4 @@
-"""The @tool decorator: one definition for name, schema, and dispatch.
+"""The @tool decorator provides one definition for name, schema, and dispatch.
 
     from pokelike.bot.llm import LLMBot, tool
 
@@ -48,14 +48,14 @@ def tool(description: str, **param_docs: str) -> Callable:
 
         for name in tool_params:
             p = sig.parameters[name]
-            # JSON type from annotation.
+            # Derive the JSON type from the Python annotation.
             ann = p.annotation
             json_type = _TYPE_MAP.get(ann, "string") if ann is not inspect.Parameter.empty else "string"
             prop: dict[str, str] = {"type": json_type}
             if name in param_docs:
                 prop["description"] = param_docs[name]
             properties[name] = prop
-            # Required if no default.
+            # A parameter is required if it has no default value.
             if p.default is inspect.Parameter.empty:
                 required.append(name)
 

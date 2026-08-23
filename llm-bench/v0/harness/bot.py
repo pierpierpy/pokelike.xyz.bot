@@ -5,7 +5,8 @@ under v0 ran against exactly this code. Do not edit once results exist beside it
 an improvement belongs in a new version directory.
 
 The renderer (render.py beside this file) is not frozen here. Each result records
-a sha256 of both this file and the renderer it ran against, so drift is detected.
+a sha256 of both this file and the renderer it ran against, so drift between them
+is detected.
 """
 
 from __future__ import annotations
@@ -23,9 +24,9 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# The renderer beside this file, loaded by path. Relative imports do not work
-# here (no parent package), and all harness directories share the name `harness`,
-# so a plain import would collide in sys.modules.
+# The renderer beside this file is loaded by path because relative imports have
+# no parent package here, and all harness directories share the name `harness`,
+# which means a plain import would collide in sys.modules.
 _HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location(
     f"pokelike_harness_{_HERE.parent.name}_render", _HERE / "render.py"
@@ -34,8 +35,8 @@ render = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = render
 _spec.loader.exec_module(render)
 
-# Decision method identifier. Written into every result; rows measured under a
-# different number are marked as incomparable.
+# Decision method identifier. This value is written into every result; rows
+# measured under a different number are marked as incomparable.
 #
 #   1  agentic loop with team_details / what_lies_ahead / set_lead / play,
 #      situation rendered by core.render.screen, prose index as a last resort
@@ -79,9 +80,9 @@ CLOSING = "\nThink briefly, then call `play` with your chosen index. Always call
 
 # ---------------------------------------------------------------------- tools
 #
-# Shared by default so the comparison is fair. A bot may add its own or replace
-# these (see `tools()` and `answer_tool()` on HarnessV0), and that fact is
-# recorded in the result.
+# These tools are shared by default so the comparison is fair. A bot may add its
+# own or replace them (see `tools()` and `answer_tool()` on HarnessV0), and that
+# fact is recorded in the result.
 
 TOOLS = [
     {
@@ -144,22 +145,27 @@ _STOCK_TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
 
 
 class LLMError(RuntimeError):
-    """Something went wrong on one call. Recoverable: fall back and play on."""
+    """Something went wrong on one call, so the harness falls back and plays on."""
 
 
 class LLMConfigError(LLMError):
     """The setup is wrong and every call will fail the same way.
 
-    Examples: bad token, unknown model name, non-OpenAI-compatible URL.
+    Covers situations such as:
+
+    - bad token
+    - unknown model name
+    - non-OpenAI-compatible URL
+
     Falling back on these would play the whole run on the backup heuristic
-    and file it as an LLM result, so these stop the run instead.
+    and file the result as an LLM entry, so these stop the run instead.
     """
 
 
 class LLMBudgetError(LLMError):
     """The run asked for more tokens than the bot allowed itself.
 
-    Only raised when a bot sets `TOKEN_BUDGET`.
+    The harness only raises this error when a bot sets `TOKEN_BUDGET`.
     """
 
 
@@ -169,7 +175,7 @@ class LLMBudgetError(LLMError):
 class HarnessV0(Bot):
     """A bot that asks a model what to do, one call per turn.
 
-    Subclass and set `PROMPT`. Everything else has a working default.
+    Subclass this and set `PROMPT`. Everything else has a working default.
 
     | attribute      | what it decides                                |
     |----------------|------------------------------------------------|
@@ -199,8 +205,8 @@ class HarnessV0(Bot):
     `answer_tool`. To replace the shared set entirely, override `tools()`.
     Both are recorded in the result.
 
-    The `MODEL` attribute: pin it in the bot file for a fixed leaderboard row.
-    Leave it None to play whatever `$MODEL_ID` names.
+    Pin `MODEL` in the bot file for a fixed standings row. Leave it None to
+    play whatever `$MODEL_ID` names.
     """
 
     name = "llm-bench-v0"
@@ -213,7 +219,7 @@ class HarnessV0(Bot):
     MAX_ROUNDS = 4
     MEMORY = 6
     TOKEN_BUDGET = 0
-    # Retry attempts after the first, for rate limits and 5xx errors.
+    # The number of additional retry attempts for rate limits and 5xx errors.
     RETRIES = 4
     EXTRA_TOOLS: list[dict[str, Any]] = []
     STATE_VIEW: Any = "screen"
@@ -245,16 +251,16 @@ class HarnessV0(Bot):
         self.max_rounds = overrides.pop("max_rounds", self.MAX_ROUNDS)
         self.memory = overrides.pop("memory", self.MEMORY)
         # Also settable at instantiation for experiments without separate bot
-        # folders. A submission should declare it on the class so the fingerprint
-        # captures it.
+        # folders. A submission should declare the value on the class so the
+        # fingerprint captures the setting.
         self.state_view = overrides.pop("view", None) or self.STATE_VIEW
         self.token_budget = overrides.pop("token_budget", self.TOKEN_BUDGET)
         if overrides:
             raise TypeError(f"unknown settings: {', '.join(sorted(overrides))}")
         self.verbose = verbose or bool(os.environ.get("POKELIKE_VERBOSE"))
 
-        # Checked once here: without `play` the model cannot end a turn, so
-        # every turn would exhaust its rounds and fall back silently.
+        # Checked once here because without `play` the model cannot end a turn,
+        # so every turn would exhaust its rounds and fall back silently.
         names = self.tool_names()
         if "play" not in names:
             raise LLMConfigError(
@@ -278,11 +284,11 @@ class HarnessV0(Bot):
         self.fallbacks = 0
         self.journal: list[str] = []
         # Tool calls since the last decision was logged, drained by
-        # `tool_calls_made`. Includes calls from `rearrange` (which runs before
-        # `choose`).
+        # `tool_calls_made`. Includes calls from `reorder` (which runs before
+        # `act`).
         self.tool_log: list[dict[str, Any]] = []
         self._last_why = ""
-        # The turn decided in `rearrange`, waiting for `choose` to collect it.
+        # The turn decided in `reorder`, waiting for `act` to collect it.
         self._pending: tuple[int | None, int | None, str] | None = None
 
     # ------------------------------------------------------------------ hooks
@@ -296,7 +302,7 @@ class HarnessV0(Bot):
         self._last_why = ""
 
     def metadata(self) -> dict[str, Any]:
-        """Written into the run registry and the benchmark result."""
+        """Returns data written into the run registry and the benchmark result."""
         return {
             "model": self.model,
             "harness": self.HARNESS,
@@ -306,7 +312,7 @@ class HarnessV0(Bot):
             "tokens": self.tokens_used,
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
-            # Transient failures retried rather than counted against the model.
+            # These are transient failures retried rather than counted against the model.
             "retries": self.retries,
             "fallbacks": self.fallbacks,
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
@@ -314,7 +320,7 @@ class HarnessV0(Bot):
             # False means this bot had non-standard tools, so the row answers
             # a different question.
             "stock_tools": self.tool_names() == _STOCK_TOOL_NAMES,
-            # What the model saw each turn. Different views are not comparable.
+            # Records what the model saw each turn. Different views are not comparable.
             "state_view": self.view_name(),
             "reproducible": False,
         }
@@ -329,7 +335,7 @@ class HarnessV0(Bot):
         self.tool_log.append(entry)
 
     def tool_calls_made(self) -> list[dict[str, Any]]:
-        """Return and clear all calls since last asked. Drained per decision."""
+        """Return and clear all calls since last asked, draining per decision."""
         out, self.tool_log = self.tool_log, []
         return out
 
@@ -337,7 +343,7 @@ class HarnessV0(Bot):
         return [t["function"]["name"] for t in self.tools()]
 
     def artifacts(self) -> list:
-        """The prompt and model reference recorded with a submission."""
+        """Returns the prompt and model reference recorded with a submission."""
         from pokelike.arena.leaderboard import Artifact
 
         return [
@@ -380,10 +386,11 @@ class HarnessV0(Bot):
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Decide team lead in the same model call as the move.
 
-        Called before `act`. The agentic loop runs here, the result is cached,
-        and `act` returns it without a second request. Only offered on the map
-        screen, because elsewhere the options are the team itself and reordering
-        would change what an index means.
+        The run loop calls this before `act`. The agentic loop runs here and
+        caches the result, so `act` returns the cached answer without a second
+        request. The lead swap is only offered on the map screen, because
+        elsewhere the options are the team itself and reordering would change
+        what an index means.
         """
         self._pending = None
         if state.get("screen") != "map-screen" or not state.get("can_reorder"):
@@ -392,7 +399,7 @@ class HarnessV0(Bot):
             index, why, lead = self._agentic_round(state, allow_lead=True)
         except LLMConfigError:
             raise
-        except Exception:  # noqa: BLE001 - handled again, and counted, in choose
+        except Exception:  # noqa: BLE001 - handled again, and counted, in act
             return None
         team = state.get("team") or []
         if lead is None or not 0 < lead < len(team):
@@ -406,8 +413,8 @@ class HarnessV0(Bot):
     def act(self, state: dict[str, Any]) -> int:
         self.turns += 1
         n = len(state["actions"])
-        # Already decided in reorder(), guarded by `steps` to prevent replaying
-        # against a different turn.
+        # The action was already decided in reorder(), guarded by `steps` to
+        # prevent replaying against a different turn.
         if self._pending and self._pending[0] == state.get("steps"):
             _, index, why = self._pending
             self._pending = None
@@ -416,7 +423,8 @@ class HarnessV0(Bot):
         try:
             index, why, _ = self._agentic_round(state)
         except (LLMConfigError, LLMBudgetError):
-            # Not recoverable: reruns fail identically or the budget is spent.
+            # These errors are not recoverable because reruns fail identically or
+            # the budget is spent.
             raise
         except Exception as e:  # noqa: BLE001 - transient failure must not end the run
             return self._run_fallback(state, f"{type(e).__name__}: {e}"[:80])
@@ -443,7 +451,7 @@ class HarnessV0(Bot):
     def fallback_move(self, state: dict[str, Any]) -> int:
         """Backup choice when the model fails to answer or returns out-of-range.
 
-        Prefers healing when hurt, otherwise widens the team.
+        The heuristic prefers healing when hurt, and otherwise widens the team.
         """
         actions = state["actions"]
         team = state.get("team") or []
@@ -471,7 +479,7 @@ class HarnessV0(Bot):
             msg = self.call_model(messages)
             calls = msg.get("tool_calls") or []
             if not calls:
-                # No tool: maybe it wrote the index out in prose.
+                # The model called no tool, so try to extract an index from prose.
                 index = self._index_from_text(msg.get("content") or "", len(state["actions"]))
                 if index is not None:
                     return index, "(read from prose)", lead
@@ -495,7 +503,7 @@ class HarnessV0(Bot):
                     return args.get("index"), str(args.get("why", "")), lead
 
                 if name == "set_lead":
-                    # Recorded but not applied here; the run loop performs the swap.
+                    # The request is recorded but not applied here; the run loop performs the swap.
                     want = args.get("index")
                     if allow_lead and isinstance(want, int):
                         lead = want
@@ -522,13 +530,13 @@ class HarnessV0(Bot):
     def tools(self) -> list[dict[str, Any]]:
         """The tools offered to the model, in OpenAI function-calling form.
 
-        The shared four plus `EXTRA_TOOLS`. Override to replace them, but `play`
-        must survive or every turn falls back.
+        Returns the shared four plus `EXTRA_TOOLS`. Override to replace them,
+        but `play` must survive or every turn falls back.
         """
         return [*TOOLS, *self.EXTRA_TOOLS]
 
     def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
-        """Answer one tool call. Override for custom tools, call `super()` for
+        """Answer one tool call. Override for custom tools and call `super()` for
         the shared ones. An unknown name returns a message rather than raising.
         """
         if name == "team_details":
@@ -542,8 +550,8 @@ class HarnessV0(Bot):
     def render_state(self, state: dict[str, Any]) -> str:
         """What the model reads each turn. Override for custom views.
 
-        Reads `STATE_VIEW`. The harness wraps the result with the journal and
-        instruction line, so replacing this method cannot break those.
+        The method reads `STATE_VIEW`. The harness wraps the result with the
+        journal and instruction line, so replacing this method cannot break those.
         """
         spec = self.state_view
         if isinstance(spec, str) and spec == "screen":
@@ -567,14 +575,14 @@ class HarnessV0(Bot):
         )
 
     def view_name(self) -> str:
-        """What to record: the setting, or 'custom' if `view` was replaced."""
+        """Returns the setting name, or 'custom' if `render_state` was overridden."""
         if type(self).render_state is not HarnessV0.render_state:
             return "custom"
         return self.state_view if isinstance(self.state_view, str) else \
             "keys:" + ",".join(self.state_view)
 
     def _situation(self, state: dict[str, Any]) -> str:
-        """Build the full user message: view + journal + instruction line."""
+        """Build the full user message from the view, journal, and instruction line."""
         parts = [self.render_state(state)]
         if self.journal:
             parts += ["", "YOUR RECENT MOVES:", *(f"  {r}" for r in self.journal)]
@@ -614,7 +622,7 @@ class HarnessV0(Bot):
             "tool_choice": "auto",
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
-            # Best-effort reproducibility; most providers ignore this.
+            # Passed for best-effort reproducibility, but most providers ignore it.
             "seed": self.seed,
         }).encode("utf-8")
 
@@ -679,7 +687,7 @@ class HarnessV0(Bot):
 
     @staticmethod
     def _index_from_text(text: str, n: int) -> int | None:
-        """Last resort: fish a valid index out of a prose answer."""
+        """Attempts to fish a valid index out of a prose answer as a last resort."""
         import re
 
         for m in re.finditer(r"\[?(\d+)\]?", text):

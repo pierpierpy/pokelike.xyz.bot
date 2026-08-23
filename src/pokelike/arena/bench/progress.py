@@ -1,4 +1,4 @@
-"""Progress display and live fields for a running benchmark."""
+"""This module provides the progress display and live fields for a running benchmark."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ def progress_bar(**kw: Any) -> Any:
 
     When attached to a terminal, a normal tqdm bar redraws in place. When
     detached (docker compose run -d, a pipe, nohup), each frame becomes a whole
-    line with no postfix, ten seconds apart, so `docker logs` works.
+    line with no postfix, ten seconds apart, so ``docker logs`` works.
 
-    The POKELIKE_PLAIN_BAR env var forces the line-based mode, because
-    `docker compose run` allocates a pseudo-tty even with `-d`, making
-    `isatty()` unreliable inside a container.
+    The ``POKELIKE_PLAIN_BAR`` environment variable forces the line-based mode
+    because ``docker compose run`` allocates a pseudo-tty even with ``-d``,
+    making ``isatty()`` unreliable inside a container.
     """
     from tqdm import tqdm
 
@@ -26,7 +26,7 @@ def progress_bar(**kw: Any) -> Any:
         return tqdm(**kw)
 
     class Lines(tqdm):
-        """Line-based tqdm: one line per frame, no postfix."""
+        """Line-based tqdm variant that emits one line per frame without postfix."""
 
         @staticmethod
         def _to_stderr(data: str) -> None:
@@ -52,8 +52,8 @@ def live_fields(obs: dict[str, Any], bot: Any = None,
     """Returns progress-bar fields for the current state of a running benchmark.
 
     Depth is computed from node layers because the engine has no explicit
-    map-length field. `so_far` is the cumulative token spend from finished runs,
-    so the bar shows both per-run and per-pass totals.
+    map-length field. The ``so_far`` parameter is the cumulative token spend
+    from finished runs, so the bar shows both per-run and per-pass totals.
     """
     run = obs.get("run") or {}
     m = obs.get("map") or {}
@@ -67,11 +67,11 @@ def live_fields(obs: dict[str, Any], bot: Any = None,
     if layers and here is not None and isinstance(here.get("layer"), int):
         out["layer"] = f"{here['layer']}/{max(layers)}"
     elif layers:
-        # Between maps or on a non-board screen: show depth without position.
+        # Between maps or on a non-board screen, so show depth without position.
         out["layer"] = f"?/{max(layers)}"
 
     if bot is not None:
-        # Token counts are per-run; on_start resets them.
+        # Token counts are per-run; the on_start hook resets them.
         ti = getattr(bot, "tokens_in", 0) or 0
         to = getattr(bot, "tokens_out", 0) or 0
         if ti or to:

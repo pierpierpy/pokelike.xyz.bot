@@ -1,4 +1,4 @@
-"""Tool declarations and shared game rules for the LLM harness.
+"""This module provides tool declarations and shared game rules for the LLM harness.
 
 The rules are shared across all LLM bots because they are facts about the game.
 A benchmark where each bot restates them would measure who copied them correctly
@@ -46,9 +46,10 @@ CLOSING = "\nThink briefly, then call `play` with your chosen index. Always call
 
 # ---------------------------------------------------------------------- tools
 #
-# Shared by default. A bot may add its own or replace these (see `tools()` and
-# `answer_tool()` on LLMBot). The tool names go into every result, and a bot
-# whose set differs from the shared one is marked in the standings.
+# These tools are shared by default. A bot may add its own or replace these
+# through `tools()` and `answer_tool()` on LLMBot. The tool names go into every
+# result, and a bot whose set differs from the shared one is marked in the
+# standings.
 
 TOOLS = [
     {
@@ -112,9 +113,9 @@ _STOCK_TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
 
 # ----------------------------------------------------------------- opt-in tools
 #
-# Not in the default TOOLS list. Added only when the config enables them:
-# notes_cap > 0 adds the three memory tools, plan_chars > 0 adds plan,
-# bag_tool adds bag.
+# These tools are not in the default TOOLS list. They are added only when the
+# config enables them: notes_cap > 0 adds the three memory tools, plan_chars > 0
+# adds the plan tool, and bag_tool adds the bag tool.
 
 REMEMBER_TOOL = {
     "type": "function",
@@ -223,7 +224,7 @@ def build_tools(
 ) -> list[dict[str, Any]]:
     """Assembles the full tool list from the config flags, deduplicating by name.
 
-    Precedence when two share a name: decorated > extra_tools > shared.
+    When two tools share a name, precedence is decorated over extra_tools over shared.
     """
     result = list(TOOLS)
     if notes_cap > 0:
@@ -236,7 +237,7 @@ def build_tools(
         result.extend(extra_tools)
     if decorated_tools:
         result.extend(decorated_tools)
-    # Deduplicate: keep the last occurrence of each name (highest precedence).
+    # Deduplication keeps the last occurrence of each name (highest precedence).
     seen: dict[str, int] = {}
     for i, t in enumerate(result):
         seen[t["function"]["name"]] = i

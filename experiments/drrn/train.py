@@ -1,10 +1,10 @@
-"""Fit the network to a collected dataset. No browser, no episodes, just data.
+"""Fit the network to a collected dataset. Runs on the dataset alone: no browser, no episodes.
 
     uv run --with numpy python -m experiments.drrn.train --data mixed --iters 30
 
 Fitted Q iteration (Ernst, Geurts & Wehenkel, JMLR 2005): treat improving the
 policy as a sequence of ordinary regressions. Round k builds a target for every
-transition out of the PREVIOUS round's network,
+transition out of the previous round's network,
 
     y = r + γ · max_a' Q_{k-1}(x')
 
@@ -12,16 +12,16 @@ and fits Q_k to it. The max is over the actions that were actually available at
 the next decision point, which is why collection records all of them.
 
 Why this rather than online SARSA with a browser attached: the data is the
-expensive part and it is already on disk, so a round is arithmetic over a fixed
-array and takes seconds. Twenty rounds of policy improvement cost less than one
-episode of play. It also removes the step-size tuning that a bootstrapped online
-method needs — each round is a supervised fit, which either converges or does
-not, visibly.
+expensive part and the data is already on disk, so a round is arithmetic over a
+fixed array and takes seconds. Twenty rounds of policy improvement cost less than
+one episode of play. The approach also removes the step-size tuning that a
+bootstrapped online method needs, because each round is a supervised fit, which
+either converges or does not, visibly.
 
-THE NETWORK IS RE-INITIALISED EVERY FEW ROUNDS
+The network is re-initialised every few rounds.
 Reusing one dataset for many rounds overfits the network to what it saw first,
-and more reuse makes it worse rather than better — the primacy bias
-(Nikishin et al., arXiv:2205.07802). Throwing the weights away while keeping the
+and more reuse makes the result worse rather than better (the primacy bias,
+Nikishin et al., arXiv:2205.07802). Throwing the weights away while keeping the
 data is what makes the reuse safe. The targets survive a reset because they live
 in the dataset, not in the weights.
 """
@@ -104,9 +104,9 @@ def max_next(net: QNet, Xn: np.ndarray, offsets: np.ndarray,
     if len(Xn) == 0:
         return out
     q = net.forward(Xn.astype(np.float64)).astype(np.float32)
-    # np.maximum.reduceat over the slices, skipping the empty ones: reduceat
-    # given an empty slice returns the element at the offset, which would be
-    # another transition's value.
+    # np.maximum.reduceat over the slices, skipping the empty ones because
+    # reduceat given an empty slice returns the element at the offset, which
+    # would be another transition's value.
     live = counts > 0
     starts = offsets[:-1][live]
     out[live] = np.maximum.reduceat(q, starts)
@@ -133,8 +133,9 @@ def train(tag: str = "mixed", iters: int = 30, gamma: float = 0.98,
     started = time.monotonic()
 
     for k in range(iters):
-        # Targets from the PREVIOUS round's network, before any reset: they are
-        # what carries the policy improvement forward, not the weights.
+        # Targets from the previous round's network, before any reset. The
+        # targets are what carries the policy improvement forward, not the
+        # weights.
         y = r + gamma * max_next(net, d["Xn"], d["offsets"], d["counts"])
         if reset_every and k and k % reset_every == 0:
             net.reinit(seed_offset=k)
@@ -175,11 +176,12 @@ def train(tag: str = "mixed", iters: int = 30, gamma: float = 0.98,
 def parse_hidden(spec: str) -> tuple[int, ...]:
     """Layer sizes, or `()` for no hidden layer at all.
 
-    The empty case is the control arm and the reason this is a function. Fitting
-    q̂ = wᵀx by the SAME fitted Q iteration on the SAME shards is what separates
-    the three things that otherwise move together here: the shape of q̂, the
-    algorithm, and the data distribution. Compared only against the online
-    SARSA(λ) number, a result cannot say which of them it is about.
+    The empty case is the control arm and the reason this function exists.
+    Fitting q̂ = wᵀx by the same fitted Q iteration on the same shards is what
+    separates the three things that otherwise move together, namely the shape of
+    q̂, the algorithm, and the data distribution. Compared only against the
+    online SARSA(λ) number, a result cannot say which of them the result is
+    about.
     """
     spec = (spec or "").strip().lower()
     if spec in ("", "none", "linear"):

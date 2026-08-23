@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
 """Re-stamp fingerprints in recorded results after a shared-file change.
 
-WHEN TO RUN THIS: after changing core/game.py, core/browser.py or core/runner.py
-in a way that does NOT affect what a recorded run measured (the run played under
-the old code and got the score it got), but DOES change the hash the standings
-would recompute today. The typical case is adding a feature (like regions) to the
-shared driver that no harness version uses yet: the old results are correct, but
-every one that fingerprinted the shared files will show as stale because the files
-now hash differently.
+Run this after changing core/game.py, core/browser.py, or core/runner.py in a way
+that does not affect what a recorded run measured (the run played under the old code
+and got the score it got), but does change the hash the standings would recompute
+today. The typical case is adding a feature (like regions) to the shared driver that
+no harness version uses yet. The old results are correct, but every one that
+fingerprinted the shared files will show as stale because the files now hash
+differently.
 
-WHEN NOT TO RUN THIS: if the change actually affects what a run would do. If a
-future run under the same seed would get a different score, that is real drift and
-the old row should stay stale until someone replays it. The tool cannot tell the
-difference; that is a human judgment, and the `--reason` text is the record of it.
+Do not run this if the change actually affects what a run would do. If a future run
+under the same seed would get a different score, that is real drift and the old row
+should stay stale until someone replays it. The tool cannot tell the difference;
+that is a human judgment, and the `--reason` text is the record of it.
 
-WHAT THIS DOES NOT DO: it does not make an old row comparable with a new one. The
-row measured what it measured under the code of its day; re-stamping only stops the
-standings shouting "stale" at rows for a change that cannot affect them, and the
+This script does not make an old row comparable with a new one. The row measured
+what it measured under the code of its day. Re-stamping only stops the standings
+shouting "stale" at rows for a change that cannot affect them, and the
 `refingerprinted` entry is what keeps that honest.
 
-It handles two kinds of result:
-- bots/*/result.json: a single `fingerprint` hex string over bot.py + artifacts/
-- llm-bench/*/results/*.json: a per-pass dict with 4-7 keys (frozen + shared)
+The script handles two kinds of result:
+
+- bots/*/result.json, a single `fingerprint` hex string over bot.py + artifacts/
+- llm-bench/*/results/*.json, a per-pass dict with 4-7 keys (frozen + shared)
 
 Usage:
     python utils/refingerprint.py [--reason TEXT] [--write] [--force]
@@ -50,15 +51,11 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _write(path: Path, doc: dict) -> None:
-    """Replaces a result file atomically.
-
-    In: the path and the document. Out: nothing; the file is replaced.
-    """
-    # Through a temp file in the same directory and os.replace, for two reasons.
-    # A reader (the standings, another process) never sees a half-written result.
-    # And replacing needs write permission on the DIRECTORY, not on the file, which
-    # is what lets this re-stamp a result written by a container running as root
-    # before the compose file learned to run as the calling user.
+    """Replace a result file atomically."""
+    # The write goes through a temp file in the same directory so that a reader
+    # (the standings, another process) never sees a half-written result.
+    # os.replace also needs write permission on the directory rather than on the
+    # file, which lets this re-stamp a result written by a container running as root.
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
     os.replace(tmp, path)
@@ -77,17 +74,18 @@ def _tree_dirty() -> bool:
 
 
 def _bot_behaviour(bot_dir: Path) -> str | None:
-    """This bot's behaviour hash: does the engine it plays through still decide
+    """Return this bot's behaviour hash, or None if the replay cannot be played.
 
-    the same thing? Plays the short deterministic replay defined in
-    `pokelike.shared.fingerprint` through the same bridge.js this bot actually
-    uses when it runs: its own `artifacts/bridge.js` if it carries one, the
-    shared live one otherwise. `init.js` is never a bot's to override (it pins
-    the seeded clock the standard seeds depend on), so it is always the shared
-    one. Returns None rather than raising when the replay cannot be played
-    (missing `site/`, browser not installed), since a re-fingerprint should
-    still be possible with the plain, provenance-only check when this optional
-    part fails.
+    The behaviour hash answers whether the engine this bot plays through still
+    decides the same thing. The function plays the short deterministic replay
+    defined in `pokelike.shared.fingerprint` through the same bridge.js the bot
+    actually uses when it runs (its own `artifacts/bridge.js` if it carries one,
+    the shared live one otherwise). The init.js file is never a bot's to override
+    because it pins the seeded clock the standard seeds depend on, so the shared
+    one is always used. Returns None rather than raising when the replay cannot
+    be played (missing `site/`, browser not installed), since a re-fingerprint
+    should still be possible with the plain, provenance-only check when this
+    optional part fails.
     """
     try:
         from pokelike.shared.fingerprint import behaviour_hash_for
@@ -102,13 +100,11 @@ def _bot_behaviour(bot_dir: Path) -> str | None:
 def _scan_bots() -> list[dict]:
     """Find bot results and check whether they need re-stamping.
 
-    A code fingerprint mismatch alone is not drift: a comment or a rename
-    changes it without moving a single decision. When a bot's result carries a
-    `behaviour` hash, a mismatched code fingerprint is only reported as real
-    drift if the behaviour hash disagrees too; a result recorded before this
-    field existed falls back to the plain code-only check, exactly as before.
-
-    Out: list of dicts with path, kind, current fingerprint, and drift info.
+    A code fingerprint mismatch alone is not drift because a comment or a rename
+    changes the hash without moving a single decision. When a bot's result carries
+    a `behaviour` hash, a mismatched code fingerprint is only reported as real
+    drift if the behaviour hash disagrees too. A result recorded before this field
+    existed falls back to the plain code-only check.
     """
     entries = []
     bots_dir = ROOT / "bots"
@@ -149,7 +145,7 @@ def _scan_bots() -> list[dict]:
 
 
 def _sha(path: Path) -> str:
-    """SHA-256 prefix (16 hex chars), matching versions.fingerprints()."""
+    """Return the SHA-256 prefix (16 hex chars), matching versions.fingerprints()."""
     import hashlib
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
@@ -178,14 +174,12 @@ def _current_frozen(version: str) -> dict[str, str]:
 def _scan_llmbench() -> list[dict]:
     """Find llm-bench passes and check which have drifted fingerprint keys.
 
-    A drifted key is not itself real drift: a comment or a class rename
+    A drifted key is not itself real drift because a comment or a class rename
     changes every one of the seven hashes without moving a single decision.
     When a pass carries a `behaviour` hash, drifted keys are only reported as
     real drift if the current behaviour hash for that version disagrees with
-    the one the pass recorded; a pass from before this field existed falls
+    the one the pass recorded. A pass from before this field existed falls
     back to the old key-by-key check.
-
-    Out: list of dicts with path, kind, pass index, and drift details.
     """
     entries = []
     bench = ROOT / "llm-bench"

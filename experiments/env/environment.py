@@ -1,6 +1,6 @@
-"""An RL-shaped view of the game.
+"""This module provides an RL-shaped view of the game.
 
-`pokelike.Game` speaks in dicts and action indices. An RL algorithm wants
+The `pokelike.Game` class speaks in dicts and action indices. An RL algorithm wants
 (state, actions, reward, done) with hashable keys. This is the adapter, and it
 is deliberately the only place where the two vocabularies meet.
 
@@ -10,8 +10,8 @@ The interface is the usual one:
     s, actions = env.reset(seed=1)
     s2, actions2, r, done = env.step("node:catch")
 
-Actions are passed by KEY, not by index. The env resolves the key back to the
-right index for that particular turn.
+Actions are passed by key. The `TrainingEnv` resolves the key back to the right
+index for that particular turn.
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ SITE = Path(__file__).resolve().parents[2] / "site"
 
 
 class TrainingEnv:
-    """One live game, wrapped for learning.
+    """Wraps one live game instance for learning.
 
     Starting Chromium costs about a second, so the browser is opened once and
-    every episode reuses it: `reset()` starts a new run inside the same browser.
+    every episode reuses it. The `reset` method starts a new run inside the same
+    browser.
     """
 
     def __init__(self, port: int = 8600, max_steps: int = 300,
@@ -71,10 +72,10 @@ class TrainingEnv:
         return state_key(self._obs), self.legal_actions()
 
     def legal_actions(self) -> list[str]:
-        """The action keys available right now.
+        """Returns the action keys available right now.
 
-        Duplicates are possible in principle (two slots mapping to one key); we
-        keep the first, since the algorithm can only pick a key anyway.
+        Duplicates are possible in principle when two slots map to one key; this
+        method keeps the first, since the algorithm can only pick a key anyway.
         """
         seen: dict[str, int] = {}
         for i, a in enumerate(self._obs.get("actions") or []):
@@ -111,7 +112,7 @@ class TrainingEnv:
         return None
 
     def score(self) -> dict[str, Any] | None:
-        """The game's own end-of-run score, for reporting (not for learning)."""
+        """Returns the game's own end-of-run score, used for reporting only."""
         return self.game.score()
 
     @property
@@ -120,5 +121,5 @@ class TrainingEnv:
 
     @property
     def observation(self) -> dict[str, Any] | None:
-        """The raw observation, if a policy wants more than the compressed key."""
+        """Returns the raw observation, for policies that want more than the compressed key."""
         return self._obs

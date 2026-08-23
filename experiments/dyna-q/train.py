@@ -1,4 +1,4 @@
-"""Training loop for Dyna-Q.
+"""This module implements the training loop for Dyna-Q.
 
     uv run python -m experiments.dyna-q.train --episodes 200
 
@@ -8,8 +8,9 @@ after every real step.
 
 Episodes are seeded consecutively rather than repeated, so the agent sees many
 different maps and learns something general instead of memorising one layout.
-Pass --fixed-seed to do the opposite and watch it overfit a single run, which is
-a useful sanity check that learning happens at all.
+Pass --fixed-seed to replay a single seed every episode and watch the agent
+overfit that one run, which is a useful sanity check that learning happens at
+all.
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
-"""The interactive per-pass follow view: `pokelike model watch`.
+"""The interactive per-pass follow view for `pokelike model watch`.
 
-Draws the dashboard for a single pass and redraws it in place until the pass ends or
-the user stops it. The five panels (pass info, runs table, this turn, team+map,
-memory) are each a pure function of the Pass record read from disk.
+This module draws the dashboard for a single pass and redraws it in place until the
+pass ends or the user stops it. The five panels (pass info, runs table, this turn,
+team+map, memory) are each a pure function of the Pass record read from disk.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _panel(p: "Pass", containers: list[str]):
     left = ""
     if p.done and p.wanted and p.state == "running":
         # From the trace's own clock. A pass without per-run timestamps gets no
-        # estimate rather than one that reads "0 min".
+        # estimate rather than an estimate that reads "0 min".
         per = sum(r.secs for r in p.runs[:-1]) / p.done
         rest = (p.wanted - p.done) * per
         if rest > 5400:
@@ -68,7 +68,7 @@ def _runs_table(p: "Pass", limit: int = 12):
 
 
 def _turn(p: "Pass"):
-    """Current decision: where the model is, what it chose, what it used."""
+    """Renders the current decision, showing where the model is, what it chose, and what it used."""
     from rich.panel import Panel
     from rich.table import Table
 
@@ -80,7 +80,7 @@ def _turn(p: "Pass"):
     grid.add_column(style="bold")
     grid.add_column()
     grid.add_row("seed", f"{r.seed}   step {r.steps}   {r.screen}")
-    # The region beside the map, because the map number restarts at every boundary.
+    # The region is shown beside the map because the map number restarts at every boundary.
     where = f"   region {r.region}" if r.region else ""
     grid.add_row("badges", f"{r.badges}   map {r.map}{where}")
     grid.add_row("said", (r.why or "[dim](nothing)[/dim]")[:160])
@@ -98,13 +98,13 @@ def _turn(p: "Pass"):
 
 
 def _team_and_map(p: "Pass"):
-    """The team at the last decision beside the map, shown side by side."""
+    """Renders the team at the last decision beside the map, shown side by side."""
     from rich.columns import Columns
     from rich.panel import Panel
 
     r = p.current or (p.runs[-1] if p.runs else None)
-    # A run at the character-select screen has no team and no map yet, which is
-    # distinct from a trace that never carries them.
+    # A run at the character-select screen has no team and no map yet, which
+    # differs from a trace that never carries team or map data at all.
     ever_team = any(x.team for x in p.runs)
     ever_map = any(x.map_view for x in p.runs)
     nothing_team = "[dim]not yet[/dim]" if ever_team else "[dim]not in this trace[/dim]"
@@ -122,8 +122,8 @@ def _memory(p: "Pass"):
     from rich.panel import Panel
 
     notes = p.notes_live or p.notes
-    # Numbered as the model sees them, because the numbers are what the model
-    # passes to `revise` and `forget`.
+    # Notes are numbered as the model sees them, because those numbers are what
+    # the model passes to `revise` and `forget`.
     body = ("\n".join(f"[{i}] {n}" for i, n in enumerate(notes, 1)) if notes
             else "[dim]nothing written yet[/dim]")
     if p.plan:
@@ -131,7 +131,7 @@ def _memory(p: "Pass"):
     title = "memory"
     if p.notes_live != p.notes:
         # The notebook file is per finished run, so notes_live and notes differ
-        # exactly when the current run has touched them.
+        # exactly when the current run has touched the notebook.
         title = "memory, this turn"
     return Panel(body, title=title, title_align="left", border_style="dim")
 
@@ -175,7 +175,7 @@ def dashboard(version: str | None = None, once: bool = False,
     if p is None:
         console.print(f"{folder} holds no trace yet")
         return 1
-    # When piped or not a terminal, draw once and stop.
+    # When piped or not a terminal, the dashboard is drawn once and stops.
     if once or not console.is_terminal:
         console.print(render(p, _get_containers()))
         return 0
@@ -184,14 +184,15 @@ def dashboard(version: str | None = None, once: bool = False,
               screen=False) as live_view:
         while True:
             time.sleep(every)
-            # Always re-read the same directory, not whichever was written to last.
-            # With two passes going the view would otherwise flip between them.
+            # The same directory is always re-read, rather than whichever was
+            # written to last. With two passes going the view would otherwise
+            # flip between them.
             fresh = read(folder, _get_containers())
             if fresh is None:
                 continue
             p = fresh
             live_view.update(render(p, _get_containers()))
             if p.state in ("done", "FAILED", "stalled"):
-                # Finished or died; nothing more to redraw.
+                # The pass finished or died, so there is nothing more to redraw.
                 break
     return 0

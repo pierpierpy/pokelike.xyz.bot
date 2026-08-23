@@ -1,4 +1,4 @@
-"""The overview tables: `pokelike model watch --all` and `pokelike model watch -o`.
+"""The overview tables for `pokelike model watch --all` and `pokelike model watch -o`.
 
 The overview() function shows every pass on disk, one row each, newest first. The
 monitor() function shows only the running passes with live progress bars, refreshed
@@ -22,7 +22,7 @@ from .read import read
 
 
 def overview(version: str | None = None) -> int:
-    """Every pass on disk, one row each, newest first."""
+    """Shows every pass on disk, one row each, newest first."""
     from rich.console import Console
     from rich.table import Table
 
@@ -64,16 +64,16 @@ def overview(version: str | None = None) -> int:
 
 
 def _running_table(version: str | None):
-    """One row per running pass, with a progress bar and summary stats.
+    """Returns one row per running pass, with a progress bar and summary stats.
 
-    Returns (table, n) where n is the number of running passes.
+    The return value is (table, n) where n is the number of running passes.
     """
     from rich.table import Table
 
     from ..llmbench.pricing import cached_prices, cost
 
     # Estimated cost at today's list price, fetched once and cached. A model
-    # the list does not know prints a dash.
+    # that the list does not know prints a dash instead.
     price = cached_prices()
 
     up = _get_containers()
@@ -104,7 +104,7 @@ def _running_table(version: str | None):
         tin = sum(r.tokens_in for r in finished)
         tout = sum(r.tokens_out for r in finished)
         fell = sum(r.fell for r in finished)
-        # Dollar value of tokens consumed so far.
+        # This is the dollar value of tokens consumed so far.
         spent = cost(tin, tout, price.get(p.model))
         money = f"${spent:.2f}" if spent is not None else "[dim]-[/dim]"
         left = "[dim]-[/dim]"
@@ -120,10 +120,10 @@ def _running_table(version: str | None):
 
 
 def monitor(version: str | None = None, every: float = 2.0) -> int:
-    """All running passes at once, refreshed in place (`model watch -o`).
+    """Shows all running passes at once, refreshed in place (`model watch -o`).
 
     Only running passes appear; a finished or killed pass drops off when its
-    heartbeat stops. Exits on its own when nothing is left running.
+    heartbeat stops. The function exits on its own when nothing is left running.
     """
     from rich.console import Console
     from rich.live import Live
@@ -134,7 +134,7 @@ def monitor(version: str | None = None, every: float = 2.0) -> int:
         console.print("nothing is running right now.")
         console.print("everything on disk:  uv run pokelike model watch --all")
         return 1
-    # When piped or not a terminal, draw the snapshot once.
+    # When piped or not a terminal, the snapshot is drawn once.
     if not console.is_terminal:
         console.print(table)
         return 0

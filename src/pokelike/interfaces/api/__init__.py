@@ -1,1 +1,1 @@
-"""The HTTP JSON interface."""
+"""This package provides the HTTP JSON interface."""

@@ -2,8 +2,8 @@
 
 A running pass touches its `.alive` file every HEARTBEAT_SECS seconds. A watcher
 treats any pass whose file has not been touched for HEARTBEAT_STALE seconds as
-dead. The signal works because absence of a fresh touch is detected, not because
-the process promised anything on exit.
+dead. The signal works because the absence of a fresh touch is what gets detected,
+rather than the process promising anything on exit.
 """
 
 from __future__ import annotations
@@ -15,14 +15,15 @@ from pathlib import Path
 
 from ..shared.heartbeat import HEARTBEAT_STALE  # noqa: F401 (re-exported for callers)
 
-# Seconds between touches of the .alive file.
+# HEARTBEAT_SECS is the interval in seconds between touches of the .alive file.
 HEARTBEAT_SECS = 5.0
 
 
 class HeartbeatThread:
     """Daemon thread that touches an .alive file until stopped.
 
-    Call `start()` to begin and `stop()` to end (which also removes the file).
+    Call `start()` to begin the heartbeat and `stop()` to end it (which also
+    removes the file).
     """
 
     def __init__(self, alive_path: Path) -> None:

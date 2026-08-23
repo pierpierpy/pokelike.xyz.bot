@@ -11,9 +11,9 @@ from ...shared.heartbeat import HEARTBEAT_STALE  # noqa: F401 (re-exported for r
 def _alive_fresh(trace: Path) -> bool:
     """True while the pass that owns this trace is still touching its heartbeat.
 
-    The `.alive` file beside the trace is refreshed by the running process every
-    few seconds (see llmbench.PassLog). No file, or an mtime older than
-    HEARTBEAT_STALE, means the process is gone.
+    The running process refreshes the `.alive` file beside the trace every few
+    seconds (see llmbench.PassLog). If the file is missing or its mtime is older
+    than HEARTBEAT_STALE, the process is gone.
     """
     try:
         return (time.time() - trace.with_suffix(".alive").stat().st_mtime) < HEARTBEAT_STALE

@@ -1,4 +1,4 @@
-"""Compare several bots over identical seeds, paired.
+"""This module compares several bots over identical seeds, paired.
 
 Seeds are paired so that the comparison controls for map variance rather than
 measuring who drew nicer maps.
@@ -21,8 +21,8 @@ def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
             region: int | str = 1) -> dict[str, Any]:
     """Run several bots over the same seeds and return a paired comparison.
 
-    Returns {"runs": {name: [row, ...]}, "table": str}. If no baseline is
-    given, a RandomBot is added to fill that role.
+    The return value is {"runs": {name: [row, ...]}, "table": str}. If no
+    baseline is given, a RandomBot is added to fill that role.
     """
     from ....bot.random_bot import RandomBot
 
@@ -44,7 +44,7 @@ def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
 def format_comparison(runs: dict[str, list[dict]], baseline: str) -> str:
     """Format the paired comparison table, ranked by badges.
 
-    Reports wins/draws/losses and a t statistic rather than only a mean.
+    The table reports wins/draws/losses and a t statistic rather than only a mean.
     """
     m = statistics.mean
     base = runs.get(baseline) or []

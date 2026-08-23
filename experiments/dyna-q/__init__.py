@@ -1,4 +1,4 @@
-"""Tabular Dyna-Q (Sutton & Barto, section 8.2)."""
+"""This package implements tabular Dyna-Q (Sutton & Barto, section 8.2)."""
 
 from .agent import DynaQ
 

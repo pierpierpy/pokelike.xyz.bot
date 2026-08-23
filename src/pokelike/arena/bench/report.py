@@ -1,4 +1,4 @@
-"""Formatting and saving benchmark results."""
+"""This module formats and saves benchmark results."""
 
 from __future__ import annotations
 

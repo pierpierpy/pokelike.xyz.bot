@@ -1,4 +1,4 @@
-"""Docker launch for model benchmark passes."""
+"""This module handles Docker launches for model benchmark passes."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _in_docker(args) -> int:
         if a == "--name" or (i and sys.argv[i] == "--name"):
             continue
         passthru.append(a)
-    # Drop the leading `model bench` verbs: they are the image's ENTRYPOINT.
+    # Drop the leading `model bench` verbs because they are the image's ENTRYPOINT.
     while passthru and passthru[0] in ("model", "bench"):
         passthru.pop(0)
 
@@ -63,8 +63,8 @@ def _in_docker(args) -> int:
         shown.append("<redacted>" if mask else a)
         mask = a == "--api-key"
     print("  " + " ".join(shown))
-    # COMPOSE_IGNORE_ORPHANS: other passes are not orphans.
-    # UID/GID: so files written on the mount belong to this user, not root.
+    # COMPOSE_IGNORE_ORPHANS is set because other passes are not orphans.
+    # UID/GID ensures files written on the mount belong to this user instead of root.
     env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true",
            "UID": str(os.getuid()), "GID": str(os.getgid()),
            "PK_TAG": tag}
@@ -103,7 +103,7 @@ def reap_exited() -> list[str]:
 
 
 def _image_tag(root: Path) -> str:
-    """Returns the Docker image tag: the short commit hash, or `latest` outside git."""
+    """Returns the Docker image tag, which is the short commit hash or `latest` outside git."""
     # Stable for the same code; a dirty tree is marked so the image holds
     # something no commit does.
     try:
@@ -120,7 +120,7 @@ def _image_tag(root: Path) -> str:
 
 def reap_images(keep: str) -> list[str]:
     """Removes pokelike-llm-bench image tags that no container is using."""
-    # Only `pokelike-llm-bench` images not in use by any container.
+    # This removes only `pokelike-llm-bench` images not in use by any container.
     try:
         imgs = subprocess.run(
             ["docker", "images", "pokelike-llm-bench", "--format", "{{.Tag}} {{.ID}}"],

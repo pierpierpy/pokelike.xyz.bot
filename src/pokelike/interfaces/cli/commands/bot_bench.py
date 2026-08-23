@@ -1,4 +1,4 @@
-"""Bot competition: bench and board commands."""
+"""Bot competition bench and board commands."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def cmd_bench(args) -> int:
 
     server, game = _server_and_game(args)
     try:
-        # --- logging: write the same file format the model benchmark uses ---
+        # --- logging, using the same file format the model benchmark uses ---
         from ....logging import Conversations, PassLog
         from ....logging.trace import enrich_decision
 
@@ -72,7 +72,7 @@ def cmd_bench(args) -> int:
             from ....bot.catalogue import folder as bot_folder
             bot_dir = bot_folder(args.bot)
 
-        # One directory per bench invocation.
+        # Each bench invocation gets one directory.
         log_base = bot_dir / "log"
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         while True:
@@ -90,7 +90,7 @@ def cmd_bench(args) -> int:
         ]
 
         def _bot_done_summary(log, one_pass):
-            """Summary line for a bot bench pass."""
+            """Prints the summary line for a bot bench pass."""
             s = one_pass.get("summary") or {}
             mins = (time.time() - log.started) / 60
             log._say(
@@ -106,7 +106,7 @@ def cmd_bench(args) -> int:
             region=_rname(region),
         )
 
-        # Last observation, for the decision enricher's map reading.
+        # This holds the last observation for the decision enricher's map reading.
         seen: dict = {}
         drawn = [""]
 
@@ -125,7 +125,7 @@ def cmd_bench(args) -> int:
             row["secs"] = round(now - _last[0], 1)
             _last[0] = now
             row["order"] = done_count
-            # Token counts for LLM bots.
+            # This adds token counts for LLM bots.
             if hasattr(bot, "metadata"):
                 n = bot.metadata()
                 row.update(

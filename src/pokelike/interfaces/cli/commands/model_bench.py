@@ -1,4 +1,4 @@
-"""Model benchmark: the bench/board command handler."""
+"""Model benchmark bench and board command handler."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def cmd_llm_bench(args) -> int:
     campaign = getattr(args, "regions", None) is not None
     region = effective_region(args)
 
-    # Required for both `bench` and `board`: rows are never compared across versions.
+    # Required for both `bench` and `board` because rows are never compared across versions.
     known = llmbench.versions()
     if not args.harness:
         print("--harness is required: it decides which frozen harness the model is\n"
@@ -39,7 +39,7 @@ def cmd_llm_bench(args) -> int:
         return _in_docker(args)
 
     if args.table:
-        # Prices fetched live, not stored: they change and a cost embedded in a
+        # Prices are fetched live because they change, and a cost embedded in a
         # result would go stale.
         price = llmbench.prices()
         if not price:
@@ -99,9 +99,9 @@ def cmd_llm_bench(args) -> int:
     # A partial seed list (fewer than 50) does not record.
     partial = not llmbench.records(seeds)
 
-    # A harness with cross-run memory cannot be parallelized: splitting seeds
-    # across workers gives independent notebooks whose result depends on the
-    # partition.
+    # A harness with cross-run memory cannot be parallelized because splitting
+    # seeds across workers gives independent notebooks whose result depends on
+    # the partition.
     if args.workers > 1 and llmbench.cross_run_memory(args.harness):
         print(f"harness {args.harness} lets the model keep notes between runs, so "
               f"the runs are not independent\nand the pass cannot be split across "
@@ -109,8 +109,8 @@ def cmd_llm_bench(args) -> int:
               file=sys.stderr)
         raise SystemExit(2)
 
-    # Pre-flight: one call per model to check tool-call support before spending
-    # fifty runs on a model that cannot emit them.
+    # The pre-flight makes one call per model to check tool-call support before
+    # spending fifty runs on a model that cannot emit them.
     #
     # Reports rather than raises, because the frozen harness has its own exception
     # classes.
@@ -134,7 +134,7 @@ def cmd_llm_bench(args) -> int:
             raise SystemExit(1)
         models = alive
 
-        # Estimated cost before committing.
+        # This prints the estimated cost before committing.
         price = llmbench.prices()
         if price:
             total = 0.0
@@ -151,7 +151,7 @@ def cmd_llm_bench(args) -> int:
                 print(f"    estimated total: about ${total:.2f} "
                       f"({llmbench.estimate(args.harness, models[0], 1, None)['basis']})")
 
-    # One directory for this command: all passes write their logs and traces here.
+    # All passes write their logs and traces into one directory per command.
     folder = llmbench.session_dir(args.harness)
     llmbench.record_command(folder, {
         "at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -164,10 +164,10 @@ def cmd_llm_bench(args) -> int:
         "records": not (args.dry_run or partial),
         # Harness-specific settings, recorded because they change the question.
         **({"settings": settings} if settings else {}),
-        # Region, only when not the default (Kanto).
+        # The region is included only when it differs from the default (Kanto).
         **({"region": region_name(region)} if region != 1 else {}),
         **({"regions": "all"} if campaign else {}),
-        # The endpoint (not the key): which provider served a row matters.
+        # The endpoint (but never the key) is recorded because which provider served a row matters.
         "endpoint": creds.get("endpoint") or os.environ.get("FW_ENDPOINT") or None,
         "preflight": preflight_said,
     })
@@ -179,8 +179,9 @@ def cmd_llm_bench(args) -> int:
     if args.workers <= 1:
         server, game = _server_and_game(args)
     try:
-        # Model outer, pass inner: repeats share the same conditions so the
-        # spread between them reflects the model's own variance.
+        # The model is the outer loop and the pass is the inner loop, so repeats
+        # share the same conditions and the spread between them reflects the
+        # model's own variance.
         for model in models:
             for attempt in range(1, args.repeat + 1):
                 if args.repeat > 1:

@@ -1,8 +1,8 @@
-"""llm-baseline: the rules, and nothing else.
+"""The llm-baseline bot serves as the control.
 
-This bot is the control. It is told what the game is and left to work out how to
-play, so every other prompt can be read as a claim about what the model does not
-figure out on its own.
+The prompt explains the game and lets the model work out how to play on its own.
+Every other prompt's additional guidance can then be measured against this baseline
+to determine how much the extra instruction helps.
 
 Credentials come from `.env` at the repository root.
 

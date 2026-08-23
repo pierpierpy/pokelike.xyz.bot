@@ -1,9 +1,10 @@
-"""Parallel execution: fan-out across subprocesses.
+"""Parallel execution by fanning out across subprocesses.
 
 Workers can outnumber cores because almost all wall clock is HTTP latency to
-the model provider. Processes rather than threads because Playwright's sync API
-is bound to the creating thread. Seeds are split in interleaved fashion and
-merged back into seed order; the result is identical to a sequential pass.
+the model provider. The implementation uses processes rather than threads because
+Playwright's sync API is bound to the creating thread. Seeds are split in
+interleaved fashion and merged back into seed order. The result is identical to
+a sequential pass.
 """
 
 from __future__ import annotations
@@ -34,8 +35,9 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     import sys
     import threading
 
-    # Refused for harnesses with cross-run memory: splitting seeds would give each
-    # worker its own independent notebook, making the pass unreproducible.
+    # Splitting seeds across workers is refused for harnesses with cross-run memory
+    # because each worker would get its own independent notebook, making the pass
+    # unreproducible.
     if cross_run_memory(version):
         raise RuntimeError(
             f"harness {version} carries the model's notes from one run into the "
@@ -46,8 +48,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             f"part of what {version} measures."
         )
 
-    # Credentials passed via env, not argv, because argv is visible in ps.
-    # Fingerprint taken before any worker starts.
+    # Credentials are passed via env because argv is visible in ps.
+    # The fingerprint is taken before any worker starts.
     stamp = fingerprints(version)
 
     env = dict(os.environ)
@@ -61,7 +63,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     procs = []
     for k, chunk in enumerate(chunks):
         procs.append(subprocess.Popen(
-            # Uses worker.py (not this module) to avoid double-import as __main__.
+            # Invokes worker.py to avoid double-import of this module as __main__.
             [sys.executable, "-m", "pokelike.harness.llmbench.worker", "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
              *[a for k, v in (settings or {}).items()
@@ -71,7 +73,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))
 
-    # Rows arrive as they finish from any worker; the bar tracks the whole pass.
+    # Rows arrive as they finish from any worker. The bar tracks the whole pass.
     rows: list[dict[str, Any]] = []
     # Current state of each worker, overwritten on each heartbeat.
     live: dict[int, dict[str, Any]] = {}
@@ -94,7 +96,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
     def postfix() -> None:
         done = [r for r in rows if r.get("badges") is not None]
-        # Token totals: finished runs plus in-flight estimates.
+        # Token totals combine finished runs and in-flight estimates.
         t_in = (sum(r.get("tokens_in", 0) for r in rows)
                 + sum(v.get("tokens_in", 0) for v in live.values()))
         t_out = (sum(r.get("tokens_out", 0) for r in rows)
@@ -132,8 +134,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
         postfix()
     bar.close()
 
-    # A partial pass is discarded: a mean over whichever seeds survived is not
-    # comparable to a full one.
+    # A partial pass is discarded because a mean over whichever seeds survived is
+    # not comparable to a full one.
     for k, p in enumerate(procs):
         p.wait()
         if p.returncode != 0:
@@ -154,8 +156,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     from ...arena.bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
                    fingerprint=stamp, settings=settings, site=site)
-    # Stamp recorded explicitly; the log paths are absolute and may not resolve on
-    # the host reading the result (e.g. /app/... inside a container).
+    # The stamp is recorded explicitly because the log paths are absolute and may
+    # not resolve on the host reading the result (e.g. /app/... inside a container).
     one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
@@ -165,7 +167,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
 
 def _worker() -> int:
-    """One subprocess: runs its slice of seeds and prints one JSON row per finish."""
+    """Runs one subprocess's slice of seeds and prints one JSON row per finish."""
     import argparse
 
     from ...assets.server import AssetServer
@@ -197,7 +199,7 @@ def _worker() -> int:
         for seed in seeds:
             began = time.time()
 
-            # Heartbeat every 5 steps so the parent's progress bar shows movement.
+            # A heartbeat is sent every 5 steps so the parent's progress bar shows movement.
             # The observation is kept every step for the decision trace's map.
             last: dict[str, Any] = {}
 
@@ -205,7 +207,7 @@ def _worker() -> int:
                 last["obs"] = obs
                 if steps % 5:
                     return
-                # Raw counts; the parent formats them after summing across workers.
+                # These are raw counts. The parent formats them after summing across workers.
                 print(json.dumps({
                     "live": True, "seed": _seed, "step": steps,
                     "tokens_in": bot.tokens_in, "tokens_out": bot.tokens_out,
@@ -215,7 +217,7 @@ def _worker() -> int:
             drawn = [""]
 
             def decided(entry, _seed=seed):
-                # Same enrichments as the sequential path for dashboard consistency.
+                # These enrichments match the sequential path for dashboard consistency.
                 extra: dict[str, Any] = {}
                 called = bot.tool_calls_made()
                 if called:

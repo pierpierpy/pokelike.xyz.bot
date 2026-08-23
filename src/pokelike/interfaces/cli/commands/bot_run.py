@@ -1,4 +1,4 @@
-"""Bot competition: run and new commands."""
+"""Bot competition run and new commands."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from ....shared.paths import BOTS  # noqa: F401 (re-exported for callers)
 
 
 def cmd_bot(args) -> int:
-    """Runs a bot: the bot decides the moves, this drives the loop."""
+    """Runs a bot by letting the bot decide the moves while this function drives the loop."""
     from ....bot import create
     from ....core.runner import play_campaign
     from ....core.browser import region_name as _rname
@@ -44,7 +44,7 @@ def cmd_bot(args) -> int:
     server, game = _server_and_game(args)
     try:
         if campaign:
-            # Campaign mode: play all four regions in sequence per seed.
+            # Campaign mode plays all four regions in sequence per seed.
             for i in range(args.runs):
                 seed = args.seed + i
                 if args.detailed:

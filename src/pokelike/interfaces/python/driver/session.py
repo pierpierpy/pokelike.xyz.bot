@@ -1,4 +1,5 @@
-"""Starting and stopping a game, so a caller does not have to assemble it.
+"""This module starts and stops a game so that a caller does not have to
+assemble the pieces manually.
 
 Two shapes:
 
@@ -25,7 +26,7 @@ SITE = ROOT / "site"
 
 
 def free_port() -> int:
-    """Return a port the OS reports as currently free.
+    """This function returns a port the OS reports as currently free.
     """
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -43,7 +44,7 @@ def _require_site(site: Path) -> None:
 class HostedGame(Game):
     """A Game that also owns the asset server feeding it.
 
-    Calling close() stops both the browser and the server.
+    The close() method stops both the browser and the server.
     """
 
     server: AssetServer | None = None
@@ -59,8 +60,8 @@ class _Worker:
     """A thread that owns a game and runs every call to it.
 
     Playwright's sync API refuses to start inside a running asyncio loop and is
-    bound to the thread that created it, so the game lives on a plain thread
-    with no event loop. All browser calls are marshalled to that thread.
+    bound to the thread that created it. The game therefore lives on a plain
+    thread with no event loop, and all browser calls are marshalled to that thread.
     """
 
     def __init__(self) -> None:
@@ -80,7 +81,7 @@ class _Worker:
                 fut.set_exception(e)
 
     def run(self, fn, *args, timeout: float = 180.0, **kwargs):
-        """Run fn on the owning thread and return the result, with a timeout.
+        """This method runs fn on the owning thread and returns the result, with a timeout.
         """
         if not self._thread.is_alive():
             raise RuntimeError("the game thread is gone; open a new game")
@@ -100,7 +101,7 @@ class _Worker:
         self._thread.join(timeout=5)
 
 
-# Game methods that reach into the browser and must run on the owning thread.
+# These game methods reach into the browser and must run on the owning thread.
 # Plain attributes (steps, seed, last_alive) are just data and are read directly.
 _BROWSER_CALLS = ("reset", "state", "actions", "step", "reorder", "score",
                   "screenshot", "open", "close")
@@ -109,8 +110,8 @@ _BROWSER_CALLS = ("reset", "state", "actions", "step", "reorder", "score",
 class ThreadedGame:
     """A HostedGame on its own thread, with the same methods.
 
-    Used automatically when a running event loop is detected (notebooks, async
-    contexts). Browser calls are marshalled to the owning thread.
+    This class is used automatically when a running event loop is detected
+    (notebooks, async contexts). Browser calls are marshalled to the owning thread.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -135,7 +136,7 @@ class ThreadedGame:
 
 def _build_hosted(site: Path, watch: bool, load_images: bool,
                   port: int | None) -> HostedGame:
-    """Build and open a hosted game. Runs on whichever thread will own it."""
+    """Build and open a hosted game on whichever thread will own it."""
     _require_site(site)
     server = AssetServer(site, port=port or free_port())
     server.start()
@@ -160,7 +161,8 @@ def _loop_is_running() -> bool:
 
 def open_game(site: Path | str = SITE, watch: bool = False,
               load_images: bool = True, port: int | None = None):
-    """Open a game that stays alive until you close it. For notebooks and the REPL.
+    """Open a game that stays alive until you close it, intended for notebooks
+    and the REPL.
 
         game = open_game()
         obs = game.reset(seed=42)
@@ -171,7 +173,7 @@ def open_game(site: Path | str = SITE, watch: bool = False,
     """
     kwargs = dict(site=Path(site), watch=watch, load_images=load_images, port=port)
     # A running asyncio loop means Playwright's sync API won't start directly.
-    # The ThreadedGame proxy keeps the caller's code identical either way.
+    # The ThreadedGame proxy keeps the caller's code identical in both cases.
     if _loop_is_running():
         return ThreadedGame(**kwargs)
     return _build_hosted(**kwargs)
@@ -180,7 +182,8 @@ def open_game(site: Path | str = SITE, watch: bool = False,
 @contextmanager
 def session(site: Path | str = SITE, watch: bool = False,
             load_images: bool = True, port: int | None = None):
-    """Context-managed game, closed automatically on exit. For scripts.
+    """This context manager opens a game and closes it automatically on exit,
+    intended for scripts.
 
         with session() as game:
             obs = game.reset(seed=42)

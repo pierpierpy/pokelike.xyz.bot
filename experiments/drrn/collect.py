@@ -3,25 +3,27 @@
     uv run --with numpy python -m experiments.drrn.collect --episodes 400 --workers 8
 
 Collection and learning are split because they are bound by different things.
-Playing is bound by the browser — half a second a step, one browser per process,
-and this machine has 22 cores — while fitting a small net to a fixed dataset is
+Playing is bound by the browser (half a second a step, one browser per process,
+and this machine has 22 cores) while fitting a small net to a fixed dataset is
 bound by arithmetic and wants one process with all the data in memory. Splitting
 them turns 22 cores into 22x the data rather than 22 copies of the same run.
 
-WHAT A ROW HAS TO CARRY
-Fitted Q iteration needs `max` over the actions available NEXT, so a transition
-is not (x, r, x') but (x, r, [x'₁ … x'ₙ]): the features of every candidate at
-the following decision point. Recording only the action that was taken would
-make the dataset usable for evaluating the behaviour policy and useless for
-improving on it.
+What a row has to carry
+-----------------------
+Fitted Q iteration needs `max` over the actions available at the next decision
+point, so a transition is (x, r, [x'₁ ... x'ₙ]) rather than just (x, r, x').
+The vector includes the features of every candidate at the following decision
+point. Recording only the action that was taken would make the dataset usable
+for evaluating the behaviour policy and useless for improving on it.
 
 Both decision points are recorded, the move and the team order, exactly as the
-SARSA trainer treats them: reordering costs no turn, so it is a state of its own
-with reward 0 rather than an action inside the move.
+SARSA trainer treats them. Reordering costs no turn, so reordering is a state of
+its own with reward 0 rather than an action inside the move.
 
-THE BEHAVIOUR POLICY IS MIXED, AND THAT IS THE POINT
-Half the episodes follow an existing trained policy with some exploration, half
-are random. Learning offline from one policy's data teaches you about states
+The behaviour policy is mixed, and that is the point
+----------------------------------------------------
+Half the episodes follow an existing trained policy with some exploration, and
+half are random. Learning offline from one policy's data teaches you about states
 that policy visits; the random half is what puts anything else in the file. A
 dataset drawn only from a good policy has no examples of what the bad options
 lead to, which is exactly what a max over actions needs to know.
@@ -174,14 +176,15 @@ def fan_out(episodes: int, workers: int, seed0: int, port0: int,
             weights: Path | None, tag: str, **kw) -> list[Path]:
     """One process per worker, each its own browser, port and slice of seeds.
 
-    Processes rather than threads: two Playwright sync instances cannot live in
-    the same thread, and one game per thread is the rule the whole codebase is
-    built on.
+    The approach uses processes rather than threads because two Playwright sync
+    instances cannot live in the same thread, and one game per thread is the rule
+    the whole codebase is built on.
     """
     DATA.mkdir(parents=True, exist_ok=True)
-    # Made here rather than assumed: `logs/` is gitignored, git does not track an
-    # empty directory, and a worker's log is opened before the worker starts. So
-    # a fresh clone died after launching nothing at all.
+    # The `logs/` directory is created here rather than assumed to exist, because
+    # git does not track an empty directory, and a worker's log is opened before
+    # the worker starts. A fresh clone would otherwise die before launching
+    # anything.
     (HERE / "logs").mkdir(parents=True, exist_ok=True)
     per = episodes // workers
     procs, shards = [], []

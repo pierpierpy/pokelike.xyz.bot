@@ -1,20 +1,24 @@
-"""Reward functions, selectable by name.
+"""This module provides reward functions, selectable by name.
 
 The choice of reward matters more here than the choice of algorithm, and this
-file exists so that claim can be tested rather than asserted: train the same
-Dyna-Q with different rewards, compare them on the same metric, see which one
-actually produces a better player.
+file exists so that claim can be tested rather than asserted. Train the same
+Dyna-Q with different rewards, compare them on the same metric, and see which
+one actually produces a better player.
 
 A reward function receives the transition and returns a float:
 
     reward(before, after, done, won) -> float
 
 where `before` and `after` are observations (the full state dicts), so a reward
-is free to look at anything: the engine's counters, the badges, the team, how
-deep on the map you are.
+is free to look at anything:
+
+  * the engine's counters
+  * the badges
+  * the team
+  * how deep on the map you are
 
 
-WHY THE GAME'S OWN FORMULA IS A POOR OBJECTIVE HERE
+Why the game's own formula is a poor objective here
 ---------------------------------------------------
 The engine's score is
 
@@ -30,8 +34,8 @@ are dead in a Story run:
   * `winBonus` needs the whole League beaten, which essentially never happens.
 
 What is left is `5·KO − 10·faints`, which rewards fighting and punishes dying but
-says nothing at all about getting further. Badges — the thing Story mode is
-actually about — do not appear in the formula.
+says nothing at all about getting further. Badges, the thing Story mode is
+actually about, do not appear in the formula.
 
 That is why a run with three badges can score −5, and why `game` below is kept
 mainly as the honest baseline to measure the others against.
@@ -58,7 +62,7 @@ def _delta(before: Observation | None, after: Observation | None, field: str) ->
 
 
 def _depth(obs: Observation | None) -> int:
-    """Which layer of the current map we are standing on."""
+    """Returns the layer of the current map the player is standing on."""
     m = (obs or {}).get("map")
     if not m or not m.get("current"):
         return 0
@@ -69,10 +73,10 @@ def _depth(obs: Observation | None) -> int:
 
 
 def game(before, after, done=False, won=False) -> float:
-    """The engine's own weights, per step. Faithful, and nearly blind in Story.
+    """Applies the engine's own weights per step, faithful but nearly blind in Story mode.
 
-    Kept as the baseline: if a shaped reward cannot beat this, the shaping was
-    not worth it.
+    This function is kept as the baseline. If a shaped reward cannot beat this,
+    the shaping was not worth the complexity.
     """
     r = 5 * _delta(before, after, "enemiesKO")
     r += -10 * _delta(before, after, "faintsSuffered")
@@ -83,11 +87,11 @@ def game(before, after, done=False, won=False) -> float:
 
 
 def badges(before, after, done=False, won=False) -> float:
-    """Only progression matters: a badge is worth a hundred faints... almost.
+    """Only progression matters here; a badge is worth a hundred faints, almost.
 
-    VERY sparse. A whole run produces one or two nonzero rewards, which is close
-    to nothing for a tabular method to learn from. Included precisely so that
-    sparsity can be seen rather than argued about.
+    This reward is extremely sparse. A whole run produces one or two nonzero
+    rewards, which is close to nothing for a tabular method to learn from. The
+    function is included so that sparsity can be seen rather than argued about.
     """
     r = 100 * ((_run(after).get("badges") or 0) - (_run(before).get("badges") or 0))
     r += -10 * _delta(before, after, "faintsSuffered")
@@ -97,17 +101,17 @@ def badges(before, after, done=False, won=False) -> float:
 
 
 def progress(before, after, done=False, won=False) -> float:
-    """Badges, plus a small payment for every step deeper into the map.
+    """Rewards badges, plus a small payment for every step deeper into the map.
 
-    The map is a DAG, so you cannot farm this by going in circles: every node
-    visited really is progress. That turns the sparse badge signal into a dense
-    one, which is the textbook fix for a long chain of decisions ending in a
-    single distant payout.
+    The map is a DAG, so you cannot farm this by going in circles because every
+    node visited really is progress. That turns the sparse badge signal into a
+    dense one, which is the textbook fix for a long chain of decisions ending in
+    a single distant payout.
     """
     r = 100 * ((_run(after).get("badges") or 0) - (_run(before).get("badges") or 0))
     r += -10 * _delta(before, after, "faintsSuffered")
 
-    # Depth resets to 0 on a new map, and a new map is progress, not a setback.
+    # Depth resets to 0 on a new map, and a new map is still progress.
     d_before, d_after = _depth(before), _depth(after)
     map_before = _run(before).get("map") or 0
     map_after = _run(after).get("map") or 0
@@ -122,11 +126,11 @@ def progress(before, after, done=False, won=False) -> float:
 
 
 def survival(before, after, done=False, won=False) -> float:
-    """Stay alive. The densest signal available, and a cautionary tale.
+    """Rewards staying alive, which is the densest signal available and a cautionary tale.
 
-    Every step is worth something, so this should be easy to learn — and it is
+    Every step is worth something, so this should be easy to learn, and it is
     exactly the reward that can produce a bot which lingers safely without ever
-    getting anywhere. Worth measuring for that reason.
+    getting anywhere. The function is worth measuring for that reason.
     """
     r = 1.0
     r += -50 * _delta(before, after, "faintsSuffered")
@@ -138,11 +142,11 @@ def survival(before, after, done=False, won=False) -> float:
 
 
 def composite(before, after, done=False, won=False) -> float:
-    """Progression, with credit for fighting efficiently.
+    """Rewards progression, with credit for fighting efficiently.
 
     Damage dealt and taken are counted by the engine every battle, so this adds a
-    dense quality signal on top of progress: not just how far you got, but how
-    cheaply.
+    dense quality signal on top of progress, measuring how far you got and how
+    cheaply you got there.
     """
     r = progress(before, after, done, won)
     r += 0.05 * _delta(before, after, "totalDamageDealt")

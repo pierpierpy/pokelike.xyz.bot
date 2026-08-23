@@ -2,11 +2,11 @@
 
     uv run python -m experiments.sarsa.train --episodes 300
 
-Unlike the tabular experiment this drives `Game` directly and works on action
-INDICES, not on action keys. That is not a detail: keying by type collapses the
-five EQUIP buttons of the equip modal into one action, so a tabular agent cannot
-choose *who* to give an item to. Indices keep them apart, and the features
-describe each one.
+Unlike the tabular experiment, this module drives `Game` directly and works on
+action indices rather than action keys. The distinction matters because keying by
+type collapses the five equip buttons of the equip modal into one action, so a
+tabular agent cannot choose which team member to give an item to. Indices keep
+the buttons apart, and the features describe each one.
 """
 
 from __future__ import annotations
@@ -87,17 +87,18 @@ def train(
         for ep in bar:
             seed = seed0 + ep
             # Reseeded per episode so a resumed run replays exactly what an
-            # uninterrupted one would: the agent's own RNG breaks ties in
-            # epsilon-greedy, and it is not part of the checkpoint.
+            # uninterrupted one would. The agent's own RNG breaks ties in
+            # epsilon-greedy, and the RNG is not part of the checkpoint.
             agent.rng = random.Random(seed)
             obs = game.reset(seed=seed)
             agent.start_episode()
 
             # Two kinds of decision alternate. Reordering the team does not
             # consume a game turn, so it is a decision point of its own with
-            # reward 0 — an extra state in the MDP rather than an extra action
-            # in it. SARSA(lambda) then handles the credit by itself: the trace
-            # carries the eventual reward back through the swap that helped.
+            # reward 0, an extra state in the MDP rather than an extra action
+            # in it. SARSA(lambda) then handles the credit by itself because the
+            # trace carries the eventual reward back through the swap that
+            # helped.
             total = 0.0
             phase = "reorder"
 
@@ -123,7 +124,7 @@ def train(
                     b = acts[i]["b"]
                     if b is not None:
                         obs = game.reorder(0, b)
-                    r, done = 0.0, False        # free: no turn spent, no reward
+                    r, done = 0.0, False        # free, no turn spent, no reward
                     phase = "action"
                 else:
                     obs = game.step(i)

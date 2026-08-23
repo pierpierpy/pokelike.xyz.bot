@@ -1,1 +1,1 @@
-"""CLI command implementations, split by family."""
+"""This package contains the CLI command implementations, split by family."""

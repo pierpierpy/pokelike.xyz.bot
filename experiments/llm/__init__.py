@@ -1,1 +1,1 @@
-"""Prompt engineering as an experiment, not an argument."""
+"""Prompt engineering treated as a measurable experiment."""

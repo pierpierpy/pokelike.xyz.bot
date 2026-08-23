@@ -1,4 +1,4 @@
-"""Writing and reading bot results."""
+"""This module writes and reads bot results."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def load_results(root: Path | None = None) -> list[dict[str, Any]]:
         r["bot"] = f.parent.name
         # Recomputed on every read so edits after a benchmark are detected.
         #
-        # A missing fingerprint is "unverified", not "stale": the result
+        # A missing fingerprint is marked "unverified" because the result
         # predates the mechanism or was hand-written.
         r["unverified"] = not r.get("fingerprint")
         r["stale"] = bool(r.get("fingerprint")) and r["fingerprint"] != fingerprint(f.parent)

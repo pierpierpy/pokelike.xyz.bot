@@ -22,14 +22,14 @@ DISPLAY_NAMES = {
 
 
 def short_label(a: dict[str, Any]) -> str:
-    """A compact name for an action, for logs and traces."""
+    """Returns a compact name for an action, for logs and traces."""
     if a.get("kind") == "node":
-        # Include the id: a layer can offer two nodes of the same kind.
+        # Include the id because a layer can offer two nodes of the same kind.
         kind = DISPLAY_NAMES.get(a["node"], a["node"])
         return f"{kind}#{a['id']}" if a.get("id") is not None else kind
     label = (a.get("label") or "").strip()
 
-    # Row context: keep the contextual part (e.g. "EQUIP:Ponyta Lv8").
+    # For row-context labels, keep the contextual part (e.g. "EQUIP:Ponyta Lv8").
     if "—" in label:
         parts = [p.strip() for p in label.split("—")]
         return f"{parts[0]}:{_name_and_level(parts[1])}"[:30]
@@ -79,7 +79,7 @@ def play_run(
         if on_step:
             on_step(obs, game.steps)
 
-        # Reorder first: it does not consume the turn, so act() sees the final order.
+        # Reorder first because reordering does not consume the turn, so act() sees the final order.
         swapped = None
         if obs.get("can_reorder"):
             try:
@@ -98,8 +98,8 @@ def play_run(
         options = list(obs["actions"])
         chosen = bot.act(obs)
 
-        # Trace entry recorded here (not in the bot) so the log format is
-        # identical regardless of which bot is playing.
+        # The trace entry is recorded here (not in the bot) so the log format
+        # is identical regardless of which bot is playing.
         run = obs.get("run") or {}
         team = obs.get("team") or []
         trace.append({
@@ -159,7 +159,7 @@ def play_campaign(
     under `regions`.
     """
     # Each region is a full independent game (new starter, badge count resets).
-    # Only the bot's memory crosses. Stops at the first region not won.
+    # Only the bot's memory crosses. The campaign stops at the first region not won.
     order = list(regions or REGIONS)
     runs: list[dict[str, Any]] = []
     opening: str | None = None
@@ -184,7 +184,7 @@ def play_campaign(
             on_region(done)
         if not won or done["next"] is None:
             break
-        # Called before reset_memory so the bot still has the region's context.
+        # This is called before reset_memory so the bot still has the region's context.
         opening = bot.region_cleared(done)
         bot.reset_memory()
 
@@ -208,7 +208,7 @@ def play_campaign(
         "regions": runs,
         "regions_played": len(runs),
         "regions_cleared": sum(1 for r in runs if r.get("ending") == "win-screen"),
-        # Flattened trace tags each entry with its region for readability.
+        # The flattened trace tags each entry with its region for readability.
         "trace": [{**e, "region": r["region"]} for r in runs
                   for e in (r.get("trace") or [])],
     })

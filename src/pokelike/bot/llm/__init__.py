@@ -1,4 +1,4 @@
-"""The harness every LLM bot shares.
+"""This package is the harness every LLM bot shares.
 
 A bot built on this is a prompt in an LLMConfig:
 
@@ -13,11 +13,12 @@ A bot built on this is a prompt in an LLMConfig:
 Credentials come from the environment (FW_ENDPOINT, FW_TOKEN, MODEL_ID) or from
 the command line, never from a bot file.
 
-This module is shared across all LLM bots, so editing it reaches every one.
-Bump `harness_version` whenever a change here could move a decision.
+This module is shared across all LLM bots, so editing any file here reaches
+every one. The `harness_version` constant should be bumped whenever a change
+here could move a decision.
 """
 
-# Public API: tests and bots import from `pokelike.bot.llm`.
+# Public API for tests and bots that import from `pokelike.bot.llm`.
 
 from .agent import HARNESS, LLMBot  # noqa: F401
 from .config import (  # noqa: F401

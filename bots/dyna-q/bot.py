@@ -17,12 +17,12 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# Both encoding versions this bot can speak, kept so tables trained under
-# either version still play.
+# This bot speaks both encoding versions, so tables trained under either
+# version still play.
 LATEST_ENCODING = 2
 
-# The table lives beside this file. POKELIKE_DYNAQ_TABLE overrides for
-# measuring a candidate before promotion.
+# The table lives beside this file. The POKELIKE_DYNAQ_TABLE environment
+# variable overrides this path for measuring a candidate before promotion.
 HERE = Path(__file__).resolve().parent
 TABLE = HERE / "artifacts" / "weights.json"
 
@@ -89,16 +89,16 @@ def _base_key(state: dict[str, Any]) -> tuple:
 
 
 def state_key_v1(state: dict[str, Any]) -> tuple:
-    """Version 1: also keys on which actions are offered.
+    """Encode the state for version 1, which also keys on which actions are offered.
 
-    Kept so tables trained under v1 still play.
+    This encoding is kept so tables trained under v1 still play.
     """
     offered = tuple(sorted({action_key(a) for a in state.get("actions") or []}))
     return _base_key(state) + (offered,)
 
 
 def state_key_v2(state: dict[str, Any]) -> tuple:
-    """Version 2: the menu is left out, since Q is keyed by action anyway."""
+    """Encode the state for version 2, which omits the menu since Q is keyed by action anyway."""
     return _base_key(state)
 
 
@@ -190,7 +190,7 @@ class DynaQBot(Bot):
         values = self.Q.get(s)
 
         if not values:
-            # State not in the table; fall back to the safe heuristic.
+            # The state is not in the table, so the bot falls back to the safe heuristic.
             self.unseen += 1
             self._last_why = "state never seen in training, fell back to the safe rule"
             return self.fallback_move(state)
@@ -205,7 +205,7 @@ class DynaQBot(Bot):
 
     @staticmethod
     def fallback_move(state: dict[str, Any]) -> int:
-        """Keep the team alive: heal if hurt, otherwise grow the team."""
+        """Keep the team alive by healing if hurt or otherwise growing the team."""
         actions = state["actions"]
         team = state.get("team") or []
         hurt = [p for p in team if p["max_hp"] and p["hp"] / p["max_hp"] < 0.4]

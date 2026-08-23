@@ -2,9 +2,9 @@
 
     uv run python tests/record_golden.py
 
-Run this ONLY when the game itself has changed (a new release upstream) and you
-have checked by hand that the new behaviour is correct. Regenerating it to make
-a failing test go green defeats the whole point.
+Run this only when the game itself has changed (a new release upstream) and you
+have checked by hand that the new behaviour is correct. Regenerating the golden
+file to make a failing test go green defeats the whole point.
 """
 
 from __future__ import annotations

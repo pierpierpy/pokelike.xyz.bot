@@ -1,4 +1,4 @@
-"""Fast tests: no browser, no network, no game copy needed."""
+"""Fast tests that need no browser, no network, and no game copy."""
 
 from __future__ import annotations
 
@@ -41,12 +41,12 @@ def test_every_bot_on_disk_defines_exactly_one_bot():
     """Each folder under `bots/` must load and define one Bot subclass.
 
     A bot is loaded from a directory rather than imported from a registry, so
-    nothing checks it until something tries to play it. This is that check: a
-    folder that will not load is a bot nobody can run, including its author.
+    nothing checks the folder until something tries to play it. This test is that
+    check. A folder that will not load is a bot nobody can run, including its author.
 
-    It stops at the CLASS on purpose. Building one is allowed to need things a
-    test does not have — the LLM bot refuses to construct without credentials,
-    which is deliberate and right.
+    The test stops at the class on purpose. Building one is allowed to need things a
+    test does not have; the LLM bot refuses to construct without credentials, which
+    is deliberate and right.
     """
     from pokelike.bot.catalogue import BOTS, available as on_disk, load_class
 
@@ -58,7 +58,7 @@ def test_every_bot_on_disk_defines_exactly_one_bot():
 
 
 def test_the_baseline_is_always_available():
-    """`random` must build with no bots/ folder at all: `compare()` defaults to it."""
+    """The `random` bot must build with no bots/ folder at all, since `compare()` defaults to it."""
     assert "random" in available()
     assert isinstance(create("random", seed=1), Bot)
 
@@ -66,11 +66,10 @@ def test_the_baseline_is_always_available():
 def test_the_sarsa_bot_freezes_exactly_the_features_it_was_trained_on():
     """The copy in `bots/sarsa-v2/bot.py` must stay identical to the training code.
 
-    Weights are a plain list of numbers: index 43 only means `mon_new_type`
-    because `feature_names()` says so. Insert one feature on the training side
-    and every index after it silently points somewhere else, so the same file of
-    weights becomes a different policy — including policies already on the
-    leaderboard.
+    Weights are a plain list of numbers where index 43 only means `mon_new_type`
+    because `feature_names()` says so. Inserting one feature on the training side
+    makes every index after it silently point somewhere else, so the same file of
+    weights becomes a different policy, including policies already on the standings.
 
     If this fails, the fix is to bump `FEATURES_VERSION` and retrain, never to
     quietly paste the new names across.
@@ -85,10 +84,10 @@ def test_the_sarsa_bot_freezes_exactly_the_features_it_was_trained_on():
     assert sys.modules[frozen].feature_names() == trained_on()
 
 
-# Every branch of `features()`, as states rather than as names: a map node with
+# Every branch of `features()`, as states rather than as names, including a map node with
 # its crosses and its lookahead, both Pokemon cards, the item screen, the two
 # screens that list the team and mean opposite things, and a tutor offer. Built
-# by hand because this has to stay a fast test — no browser, no game copy.
+# by hand because this has to stay a fast test, with no browser and no game copy.
 def _pin_states():
     def mon(uid, name, level, hp, max_hp, types, atk, item=None, move=None):
         return {
@@ -154,7 +153,7 @@ def _pin_states():
     out = [base, {**base, "map": board("n1_1")}]
     out += [{**base, "screen": s, "actions": buttons(s, labels)}
             for s, labels in screens.items()]
-    # A team of one and nothing decided yet: every `or []` fallback at once.
+    # A team of one and nothing decided yet, so every `or []` fallback fires at once.
     out.append({"screen": "map-screen", "run": {}, "team": [],
                 "actions": base["actions"], "map": board("n0_0"),
                 "can_reorder": False})
@@ -164,18 +163,18 @@ def _pin_states():
 @pytest.mark.parametrize("frozen_bot", ["bots/sarsa-v2/bot.py",
                                         "experiments/drrn/bot.py"])
 def test_a_frozen_feature_copy_computes_the_same_vector(frozen_bot):
-    """The copies must agree on the NUMBERS, not only on the names.
+    """The copies must agree on the numbers, not only on the names.
 
     The test above compares `feature_names()`, which catches an inserted or
-    reordered feature and misses a changed one: rescale `mon_power` by 100 on one
-    side and both lists still match while every weight that reads it means
+    reordered feature and misses a changed one. Rescaling `mon_power` by 100 on one
+    side means both lists still match while every weight that reads the feature means
     something else.
 
-    It matters most for `experiments/drrn/`, where the two halves of one
-    experiment sit on opposite sides of the copy — `collect.py` and `train.py`
-    import the training features, `bot.py` carries the frozen ones — so a drift
+    This matters most for `experiments/drrn/`, where the two halves of one
+    experiment sit on opposite sides of the copy. `collect.py` and `train.py`
+    import the training features, while `bot.py` carries the frozen ones, so a drift
     fits one feature map and benchmarks another. Both sides keep 100 features and
-    nothing raises: the only symptom is a benchmark number that means nothing.
+    nothing raises; the only symptom is a benchmark number that means nothing.
     """
     import sys
 
@@ -200,9 +199,9 @@ def test_a_frozen_feature_copy_computes_the_same_vector(frozen_bot):
 
 
 def test_new_bot_writes_something_that_loads(tmp_path):
-    """Both templates, because they break differently.
+    """Both templates must load, because they break differently.
 
-    The LLM one is full of JSON — tool schemas are literal braces — and the
+    The LLM one is full of JSON (tool schemas are literal braces) and the
     scaffold used `str.format`, so adding a commented-out tool example to the
     template made `new-bot` die with a KeyError about a JSON key. A template is
     only text until someone runs it.
@@ -222,10 +221,10 @@ def test_new_bot_writes_something_that_loads(tmp_path):
 def test_every_bot_can_actually_be_recorded(tmp_path, monkeypatch):
     """The last five seconds of a benchmark, exercised without the fifty runs.
 
-    `artifacts()` and `record_result` only run after a COMPLETE benchmark, so
+    `artifacts()` and `record_result` only run after a complete benchmark, so
     nothing reached them for minutes at a time and three separate breakages sat
-    there unseen: a relative import in a recovered bot, an artifact copied onto
-    itself now that a bot's folder IS its archive rather than being copied into
+    there unseen. A relative import in a recovered bot, an artifact copied onto
+    itself now that a bot's folder is its archive rather than being copied into
     one, and a NameError in the line that lists what was written.
 
     Recording into tmp_path rather than bots/, so running the tests never files
@@ -245,7 +244,7 @@ def test_every_bot_can_actually_be_recorded(tmp_path, monkeypatch):
         shutil.copytree(BOTS / name, tmp_path / name,
                         ignore=shutil.ignore_patterns("__pycache__"))
         bot = load_class(tmp_path / name / "bot.py")()
-        # The call that was never made: a bot may declare artifacts, and a
+        # The call that was never made, because a bot may declare artifacts, and a
         # relative import inside artifacts() survives every other check.
         assert isinstance(bot.artifacts(), list), f"{name}.artifacts() is not a list"
         d = record_result(name, fake, bot, tmp_path)
@@ -260,10 +259,10 @@ def test_every_bot_can_actually_be_recorded(tmp_path, monkeypatch):
 
 
 def test_a_bot_is_measured_where_it_lives(tmp_path):
-    """`--bot <path>` loads the bot from any folder — an experiment's, usually.
+    """The `--bot <path>` flag loads the bot from any folder, typically an experiment's.
 
     The point is that measuring a candidate never requires moving it, and above
-    all never requires wearing another bot's name: you benchmark the folder you
+    all never requires wearing another bot's name. You benchmark the folder you
     are working in, and only a bot brought into bots/ the standard way is ever
     recorded.
     """
@@ -288,11 +287,11 @@ def test_a_trained_net_and_the_bot_that_plays_it_agree():
 
     A net is fitted with numpy and played by a bot written in plain Python, so
     that a submission needs no numeric dependency. Two implementations of the
-    same arithmetic is exactly the kind of split that drifts without saying so:
-    the bot would keep playing, just a different policy from the one measured.
+    same arithmetic is exactly the kind of split that drifts without saying so.
+    The bot would keep playing, just a different policy from the one measured.
 
-    Skipped where numpy is absent — it belongs to the experiments group, not to
-    the package.
+    Skipped where numpy is absent because numpy belongs to the experiments group,
+    not to the package.
     """
     numpy = pytest.importorskip("numpy")
 
@@ -322,7 +321,7 @@ def test_the_two_sarsas_are_two_different_policies():
     """v1 and v2 exist side by side to be compared, so they must differ.
 
     The failure this catches is copying a folder to make a variant and forgetting
-    to change the weights: two rows on the leaderboard, one policy, and a
+    to change the weights. Two rows on the standings, one policy, and a
     difference in their scores that is pure noise being read as progress.
     """
     import json
@@ -334,13 +333,13 @@ def test_the_two_sarsas_are_two_different_policies():
 
 
 def test_every_llm_bot_uses_the_shared_harness_and_differs_from_the_others(monkeypatch):
-    """Same loop, and no two bots identical in every dimension.
+    """Every LLM bot shares the same loop, and no two bots are identical in every dimension.
 
     A benchmark of models compares models only if the harness is held still, so
     an LLM bot that reimplements the loop is measuring something else. Sharing a
-    PROMPT is fine and sometimes the point: `llm-raw` is `llm-survivor` word for
+    prompt is fine and sometimes the point. `llm-raw` is `llm-survivor` word for
     word with a different state view, which is what makes the pair a single
-    variable. What must not repeat is the whole configuration — two bots alike
+    variable. What must not repeat is the whole configuration; two bots alike
     in prompt, view and tools are one bot under two names, and the difference
     between their rows would be pure noise read as a finding.
     """
@@ -365,10 +364,10 @@ def test_every_llm_bot_uses_the_shared_harness_and_differs_from_the_others(monke
 
 
 def test_an_llm_bot_refuses_to_build_without_credentials(monkeypatch):
-    """Never a silent default: a bot that cannot reach a model must say so.
+    """A silent default here must never happen.
 
-    Falling back here would play a whole run on the backup heuristic and file it
-    as an LLM result — a leaderboard row no model ever played.
+    Falling back would play a whole run on the backup heuristic and file the result
+    as an LLM result, producing a standings row no model ever played.
     """
     from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
@@ -391,11 +390,11 @@ def test_an_llm_bot_refuses_to_build_without_credentials(monkeypatch):
 def test_a_bot_may_add_its_own_tools_but_not_remove_play(monkeypatch):
     """Tools are overridable, because a prompt is not the only thing worth trying.
 
-    `play` is the exception, checked once at construction rather than discovered
-    fifty runs in: it is how a turn ends, so without it every turn exhausts its
-    rounds and falls back — a whole benchmark of our backup heuristic, filed
-    under the model's name, with nothing that looks wrong until you read
-    `fallback_rate`.
+    The `play` tool is the exception, checked once at construction rather than
+    discovered fifty runs in. The `play` tool is how a turn ends, so without it every
+    turn exhausts its rounds and falls back. A whole benchmark of our backup
+    heuristic, filed under the model's name, with nothing that looks wrong until you
+    read `fallback_rate`.
     """
     from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
@@ -414,8 +413,8 @@ def test_a_bot_may_add_its_own_tools_but_not_remove_play(monkeypatch):
     assert "bag" in bot.tool_names() and "play" in bot.tool_names()
     assert bot.answer_tool("bag", {}, {}) == "a potion"
     assert "empty team" in bot.answer_tool("team_details", {}, {"team": []})
-    # An invented tool is answered, not raised: the model should be told and
-    # allowed to carry on, not have the turn thrown away and played by fallback.
+    # An invented tool is answered rather than raised, because the model should be told and
+    # allowed to carry on without having the turn thrown away and played by fallback.
     assert "unknown tool" in bot.answer_tool("invented", {}, {})
     # And the difference is recorded, so the row is not read as comparable.
     assert bot.metadata()["stock_tools"] is False
@@ -457,7 +456,7 @@ def test_decorated_tool_deduplicates_with_bag_tool(monkeypatch):
     # The decorated version wins over the shared one in dispatch.
     assert bot.answer_tool("bag", {}, {"bag": ["Potion"]}) == "decorated bag wins"
 
-    # Also test extra_tools collision: decorated still wins.
+    # This also tests extra_tools collision, where the decorated version still wins.
     class DedupExtra(LLMBot):
         config = LLMConfig(prompt="x", extra_tools=[
             {"type": "function", "function": {
@@ -552,12 +551,11 @@ def test_decorated_tool_metadata_reports_them(monkeypatch):
 
 
 def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monkeypatch):
-    """What the model reads each turn is a knob, and replacing it is safe.
+    """What the model reads each turn is a knob, and replacing the view is safe.
 
-    The old hook mixed the view with the journal and the "pick an index" line,
-    so a bot that replaced it wholesale silently lost its memory and stopped
-    telling the model how many options there were — and kept running, just
-    worse, for reasons nothing reported.
+    The view must be separate from the journal and the "pick an index" line, so
+    that a bot replacing render_state does not silently lose its memory or stop
+    telling the model how many options there are.
     """
     from pokelike.bot.llm import LLMBot, LLMConfig, LLMConfigError
 
@@ -608,9 +606,10 @@ def test_the_state_view_is_the_bots_to_choose_and_cannot_break_the_plumbing(monk
 def test_the_journal_records_the_action_not_the_models_sentence(monkeypatch):
     """The model's own guess must not come back to it as a record of events.
 
-    It used to record `why` alone under a heading reading YOUR RECENT MOVES, so a
-    plan ("a second Pokemon matters more than one more fight this early") read as
-    a thing that had happened, one turn later, with nothing to tell the two apart.
+    The journal records what the game did (the action), then what the model said
+    about it (the reasoning). Separating these keeps plans ("a second Pokemon
+    matters more than one more fight this early") from looking like a thing that
+    had happened, one turn later, with nothing to tell the two apart.
     """
     from pokelike.bot.llm import LLMBot, LLMConfig
 
@@ -678,7 +677,8 @@ def test_parse_index_takes_the_last_valid_number(monkeypatch):
 
 
 def test_play_index_as_string_is_accepted(monkeypatch):
-    """`{"index": "2"}` is the integer 2, not a malformed answer to fall back on."""
+    """The value `{"index": "2"}` should be parsed as the integer 2, not treated as a
+    malformed answer that falls back to the heuristic."""
     from pokelike.bot.llm import LLMBot, LLMConfig
     for var, val in (("FW_ENDPOINT", "https://x.invalid"), ("FW_TOKEN", "t"),
                      ("MODEL_ID", "m")):
@@ -693,7 +693,7 @@ def test_play_index_as_string_is_accepted(monkeypatch):
 
 
 def test_memory_minus_one_keeps_every_turn(monkeypatch):
-    """memory=-1 is an unbounded, append-only journal; a positive value caps it."""
+    """memory=-1 is an unbounded, append-only journal, while a positive value caps it."""
     from pokelike.bot.llm import LLMBot, LLMConfig
     for var, val in (("FW_ENDPOINT", "https://x.invalid"), ("FW_TOKEN", "t"),
                      ("MODEL_ID", "m")):
@@ -717,7 +717,7 @@ def test_memory_minus_one_keeps_every_turn(monkeypatch):
 
 
 def test_a_name_matching_two_bots_is_an_error_not_a_guess():
-    """`--bot sarsa` with sarsa-v1 and sarsa-v2 on disk must refuse to choose.
+    """The `--bot sarsa` flag with sarsa-v1 and sarsa-v2 on disk must refuse to choose.
 
     Variants of one idea share a name, so picking one silently produces a result
     that looks entirely plausible and is about the wrong bot.
@@ -806,12 +806,13 @@ TUTOR_OFFER = {"0": {"name": "Energy Ball", "power": 90, "type": "Grass",
 
 
 def test_the_tutor_block_appears_only_on_the_tutor_screen():
-    """It used to appear on EVERY turn, which is 187 characters of prompt a turn.
+    """The tutor block used to appear on every turn, which is 187 characters of prompt per turn.
 
     The bridge asks the engine what the tutor would offer each team member on
-    every state, so `offered_moves` is always there; `tutor_view` renders
-    whenever it is, and nothing was gating on the screen. Measured on seed 10000:
-    the block was on 11 of the first 13 turns, not one of them a tutor.
+    every state, so `offered_moves` is always present. The `tutor_view` function
+    renders whenever the field is present, and nothing was gating on the screen.
+    Measured on seed 10000, the block appeared on 11 of the first 13 turns, none
+    of them a tutor.
     """
     off_tutor = {**SAMPLE_STATE, "offered_moves": TUTOR_OFFER}
     assert "MOVE TUTOR" not in render.screen(off_tutor)
@@ -826,7 +827,8 @@ def test_tutor_view_still_answers_when_asked_off_the_tutor_screen():
     """The gate is the caller's, not the function's.
 
     A bot planning several maps ahead has a reason to ask what the tutor would
-    offer before reaching one, and no way to get it back if this refused.
+    offer before reaching one, and no way to get the information back if this
+    function refused.
     """
     text = render.tutor_view({**SAMPLE_STATE, "offered_moves": TUTOR_OFFER})
     assert "Energy Ball" in text
@@ -881,7 +883,7 @@ def test_record_then_read_back(temp_db):
 
 
 def test_the_team_comes_from_the_alive_state(temp_db):
-    """The regression that started this: at game over the final state is empty."""
+    """This regression started because at game over the final state is empty."""
     import json
     import sqlite3
 
@@ -922,13 +924,13 @@ def test_explain_describes_the_columns(temp_db):
 
 
 def test_a_bot_may_carry_its_own_bridge(tmp_path, monkeypatch):
-    """The state is written by hand, so adding to it needs a file, not a hook.
+    """The state is written by hand, so adding to it needs a file, not just a hook.
 
     `view()`, `EXTRA_TOOLS` and `run_tool()` cover almost everything a bot wants,
     but none of them can invent data the bridge never read out of the engine. A bot
     that needs a field nobody thought to expose puts its own `bridge.js` in
-    `artifacts/`, and `artifacts/` specifically, because the leaderboard hashes
-    everything under it: the score stays checkable without a line of new code.
+    `artifacts/`. The `artifacts/` directory specifically, because the standings hash
+    everything under it so the score stays checkable without new code.
     """
     import pokelike.interfaces.cli.shared as cli
     from pokelike.bot import catalogue
@@ -970,7 +972,7 @@ def test_a_bots_own_bridge_lands_in_its_fingerprint(tmp_path):
     after = fingerprint(d)
     assert before != after, "a custom bridge must not be invisible to the record"
 
-    # Beside bot.py it would NOT be hashed, which is why the convention matters.
+    # Beside bot.py it would not be hashed, which is why the convention matters.
     (d / "artifacts" / "bridge.js").unlink()
     (d / "bridge.js").write_text("// mine\n")
     assert fingerprint(d) == before
@@ -980,8 +982,9 @@ def test_a_bots_own_bridge_lands_in_its_fingerprint(tmp_path):
 #
 # `.env` was already where credentials lived for the container (compose reads it
 # through `env_file:`), but nothing on the host did, so every local run needed an
-# export or `--api-key` on the command line, which is the one place a key must not
-# be: `ps` shows it to every other user of the machine and the shell saves it.
+# export or `--api-key` on the command line. The command line is the one place a key
+# must not be, because `ps` shows it to every other user of the machine and the
+# shell saves it.
 
 
 def _dotenv_at(root, body: str, monkeypatch):
@@ -1010,9 +1013,8 @@ def test_env_file_fills_what_the_shell_did_not(tmp_path, monkeypatch):
 
 
 def test_the_shell_wins_over_the_file(tmp_path, monkeypatch):
-    """Precedence, and the reason it is `setdefault` and not assignment.
-
-    A variable exported for one command must not be quietly replaced by a file.
+    """A variable exported for one command must not be quietly replaced by a file.
+    The reason it is `setdefault` and not assignment.
     """
     monkeypatch.setenv("FW_ENDPOINT", "https://exported")
     monkeypatch.delenv("FW_TOKEN", raising=False)
@@ -1051,18 +1053,15 @@ def test_no_env_file_is_not_an_error(tmp_path, monkeypatch):
 
 # ------------------------------------------------------- the conversations file
 #
-# What the model was actually given, recorded by WRAPPING the bot's own
-# `call_model`. Wrapping and not a callback, because the frozen harnesses build
-# their own messages and cannot be edited: a recorded result hashes those files. So
-# the recorder has to work from outside, and must leave the bot exactly as it found
-# it.
+# What the model was actually given, recorded by wrapping the bot's own
+# `call_model`. The approach is wrapping rather than a callback because the frozen
+# harnesses build their own messages and cannot be edited (a recorded result hashes
+# those files). So the recorder has to work from outside, and must leave the bot
+# exactly as it found it.
 
 
 def test_the_conversation_is_recorded_without_the_bot_cooperating(tmp_path):
-    """A bot that knows nothing about logging still gets logged.
-
-    In: any object with call_model(messages). Out: one line per decision.
-    """
+    """A bot that knows nothing about logging still gets logged."""
     import json
     from pokelike.logging import Conversations
 
@@ -1093,10 +1092,7 @@ def test_the_conversation_is_recorded_without_the_bot_cooperating(tmp_path):
 
 
 def test_several_rounds_of_one_turn_are_one_line(tmp_path):
-    """A turn that calls tools before playing is one conversation, not three.
-
-    In: three model calls between two decisions. Out: one line, three rounds.
-    """
+    """A turn that calls tools before playing is one conversation, not three."""
     import json
     from pokelike.logging import Conversations
 
@@ -1122,10 +1118,7 @@ def test_several_rounds_of_one_turn_are_one_line(tmp_path):
 
 
 def test_a_bot_that_talks_to_no_model_writes_nothing(tmp_path):
-    """The random bot, a policy, a search: nothing to record and no empty file.
-
-    In: an object with no call_model. Out: watch() says no, and no file appears.
-    """
+    """The random bot, a policy, and a search have nothing to record and leave no empty file."""
     from pokelike.logging import Conversations
 
     class Policy:
@@ -1140,11 +1133,7 @@ def test_a_bot_that_talks_to_no_model_writes_nothing(tmp_path):
 
 
 def test_the_scratchpad_keeps_the_words_and_drops_the_screen():
-    """The last N turns travel verbatim, minus the screen they were looking at.
-
-    In: a bot with scratch_turns set. Out: kept turns carry a placeholder user
-    message, and only the current turn carries the real one.
-    """
+    """The last N turns travel verbatim, minus the screen they were looking at."""
     from pokelike.bot.llm import LLMBot
 
     obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}],
@@ -1182,10 +1171,7 @@ def test_the_scratchpad_keeps_the_words_and_drops_the_screen():
 
 
 def test_what_a_kept_turn_shows_is_a_choice(monkeypatch):
-    """Three modes for the user slot of a kept turn, and a seam behind them.
-
-    In: scratch_state set each way. Out: a marker, a line of facts, or the screen.
-    """
+    """Three modes for the user slot of a kept turn, with a seam behind them."""
     from pokelike.bot.llm import LLMBot
 
     obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}],
@@ -1218,10 +1204,7 @@ def test_what_a_kept_turn_shows_is_a_choice(monkeypatch):
 
 
 def test_scratch_turns_minus_one_keeps_every_turn():
-    """-1 is keep-all, like memory=-1 for the journal.
-
-    In: scratch_turns=-1 over several turns. Out: none of them dropped.
-    """
+    """-1 means keep-all, like memory=-1 for the journal."""
     from pokelike.bot.llm import LLMBot
 
     obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}], "team": [],
@@ -1244,7 +1227,7 @@ def test_scratch_turns_minus_one_keeps_every_turn():
         b.reset(1)
         for step in range(turns):
             b.act({**obs, "steps": step})
-        # the assistant messages of the LAST request, minus the current turn's own
+        # the assistant messages of the last request, minus the current turn's own
         return sum(1 for m in sent[-1] if m["role"] == "assistant") - 1
 
     assert held(5, scratch_turns=-1) == 4, "every earlier turn kept"
@@ -1280,7 +1263,7 @@ def test_a_tool_is_added_overridden_and_removed_in_one_line_each():
         config = LLMConfig(prompt="p", drop_tools=("what_lies_ahead",))
 
     assert "bag" in names(Added)
-    # Overriding is the SAME gesture as adding: one schema, and it is the bot's.
+    # Overriding is the same gesture as adding, with one schema that belongs to the bot.
     assert names(Overridden).count("team_details") == 1
     b = Overridden(seed=0, endpoint="x", token="t", model="m")
     assert b.answer_tool("team_details", {}, {}) == "mine"
@@ -1307,17 +1290,15 @@ def test_play_may_be_neither_dropped_nor_redeclared():
         def play(self, state, index: int) -> str:
             return "x"
 
-    # Without this the loop would still end the turn on the NAME while reading
+    # Without this the loop would still end the turn on the tool name while reading
     # `index` and `why` out of a schema that no longer promises them.
     with pytest.raises(LLMConfigError):
         Redeclares(seed=0, endpoint="x", token="t", model="m").tools()
 
 
 def test_exits_of_reads_the_map_edges():
-    """Where each option leads, which is why looking before choosing is possible.
-
-    In: a state with a map. Out: the node kinds each option reaches next.
-    """
+    """The function shows where each option leads, which is why looking before choosing
+    is possible."""
     from pokelike.core import render
 
     state = {
@@ -1347,7 +1328,7 @@ def test_exits_of_reads_the_map_edges():
 
 
 def test_a_region_is_named_or_numbered_and_nothing_else():
-    """In: what a caller might pass. Out: 1-4, or a refusal."""
+    """A region can be named or numbered; anything else is refused."""
     import pytest
 
     from pokelike.core.browser import REGIONS, normalise_region, region_name
@@ -1363,7 +1344,7 @@ def test_a_region_is_named_or_numbered_and_nothing_else():
 
 
 def test_what_survives_a_region_boundary_is_a_setting():
-    """In: a bot with memory in every drawer. Out: only what was asked for."""
+    """Only the items listed in `keep_across_regions` survive a boundary."""
     from pokelike.bot.llm import LLMBot
 
     def loaded(**cfg):
@@ -1391,11 +1372,8 @@ def test_what_survives_a_region_boundary_is_a_setting():
 
 
 def test_the_boundary_is_crossed_with_the_memory_still_intact():
-    """The reason `region_cleared` exists: a bot can summarise what it still has.
-
-    In: a campaign whose regions are all won. Out: the hook saw the memory, and the
-    forgetting happened after it.
-    """
+    """The reason `region_cleared` exists is that a bot can summarise while the
+    memory is still intact."""
     from pokelike.core import runner
     from pokelike.bot.llm import LLMBot
 
@@ -1430,10 +1408,7 @@ def test_the_boundary_is_crossed_with_the_memory_still_intact():
 
 
 def test_a_campaign_stops_at_the_first_region_not_won():
-    """Carrying on after a loss would measure four regions and call it progress.
-
-    In: a campaign whose first region ends in a loss. Out: one region played.
-    """
+    """Carrying on after a loss would measure four regions and call it progress."""
     from pokelike.core import runner
     from pokelike.bot import RandomBot
 
@@ -1449,7 +1424,7 @@ def test_a_campaign_stops_at_the_first_region_not_won():
 
 
 def test_the_next_region_opens_with_what_the_last_one_left():
-    """In: a bot handed an opening. Out: it is in the first prompt, then makes way."""
+    """The opening text appears in the first prompt of a new region, then makes way."""
     from pokelike.bot.llm import LLMBot
 
     obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}], "team": [],
@@ -1465,10 +1440,7 @@ def test_the_next_region_opens_with_what_the_last_one_left():
 
 
 def test_campaign_trace_says_which_region_each_decision_came_from():
-    """The flattened trace is four regions long, so an entry with no region cannot be read.
-
-    In: a campaign over two regions. Out: every flattened entry names its region.
-    """
+    """The flattened trace is four regions long, so an entry with no region cannot be read."""
     from pokelike.core import runner
     from pokelike.bot import RandomBot
 
@@ -1490,10 +1462,7 @@ def test_campaign_trace_says_which_region_each_decision_came_from():
 
 
 def test_a_campaign_answers_every_column_a_run_answers():
-    """A blank in a table is a key nobody carried over. This is why they cannot be typed by hand.
-
-    In: a campaign over two regions. Out: no key of a run's row is missing.
-    """
+    """A blank in a table is a key nobody carried over. These keys cannot be typed by hand."""
     from pokelike.core import runner
     from pokelike.bot import RandomBot
 

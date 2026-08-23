@@ -1,4 +1,4 @@
-"""Registry of played runs: who played, and how it went."""
+"""Registry of played runs, recording who played and how each run went."""
 
 from .registry import DB_PATH, format_summary, record, recent, summary
 

@@ -3,8 +3,8 @@
 How well does a model play the game?
 
 Every model runs the same harness on the same fifty seeds, and only the model changes.
-This is a different question from [`bots/`](../bots/README.md), where the prompt is the
-submission and the model is whatever you happened to point it at.
+This benchmark answers a different question from [`bots/`](../bots/README.md), where the prompt is the
+submission and the model is whatever the author happened to point the bot at.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
@@ -12,13 +12,13 @@ uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
 ```
 
 Running that command plays fifty games, records the result, and prints a row. The full
-sweep takes about half an hour. One such sweep through the fifty seeds is called a pass;
-the `--repeat` flag runs more than one pass, which is how you see a model's own score
+sweep takes about half an hour. One full sweep through the fifty seeds is called a pass.
+The `--repeat` flag runs more than one pass, which is how you see a model's own score
 vary from pass to pass.
 
 ---
 
-**Contents**
+Contents
 
 - [Standings](#standings)
 - [Running it](#running-it)
@@ -35,8 +35,8 @@ vary from pass to pass.
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.22 | 0.0244 |
-| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 0.99 | 0.0198 |
+| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.18 | 0.0237 |
+| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 0.96 | 0.0193 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -48,7 +48,7 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.43 | 0.0286 |
+| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.39 | 0.0278 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -58,7 +58,7 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **0.96** | 0.185 | 8 | 0 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
+| 1 | `Qwen/Qwen3.8-27B-FP8` ⚠︎ | 1 | 50 | **0.96** | 0.185 | 8 | 0 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -68,18 +68,18 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.78 | 0.0155 |
-| 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
-| 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
-| 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
-| 6 | `openai/gpt-5.6-luna-pro` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
-| 7 | `z-ai/glm-4.7-flash` | 1 | 50 | **0.98** | 0.105 | 4 | 0 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
-| 8 | `x-ai/grok-4.3` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
-| 9 | `meta-llama/llama-4-scout` | 1 | 50 | **0.9** | 0.129 | 4 | 0 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
-| 10 | `openai/gpt-5-nano` | 1 | 50 | **0.8** | 0.099 | 3 | 0 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
-| 11 | `mistralai/mistral-medium-3.1` | 1 | 50 | **0.78** | 0.092 | 3 | 0 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
-| 12 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | 0 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
+| 1 | `moonshotai/kimi-k2.6` ⚠︎ | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
+| 2 | `deepseek/deepseek-v4-flash` ⚠︎ | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.75 | 0.0151 |
+| 3 | `google/gemini-3.7-flash` ⚠︎ | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
+| 4 | `qwen/qwen3.7-flash` ⚠︎ | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
+| 5 | `Qwen/Qwen3.8-27B-FP8` ⚠︎ | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
+| 6 | `openai/gpt-5.6-luna-pro` ⚠︎ | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
+| 7 | `z-ai/glm-4.7-flash` ⚠︎ | 1 | 50 | **0.98** | 0.105 | 4 | 0 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
+| 8 | `x-ai/grok-4.3` ⚠︎ | 1 | 50 | **0.96** | 0.09 | 4 | 0 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
+| 9 | `meta-llama/llama-4-scout` ⚠︎ | 1 | 50 | **0.9** | 0.129 | 4 | 0 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
+| 10 | `openai/gpt-5-nano` ⚠︎ | 1 | 50 | **0.8** | 0.099 | 3 | 0 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
+| 11 | `mistralai/mistral-medium-3.1` ⚠︎ | 1 | 50 | **0.78** | 0.092 | 3 | 0 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
+| 12 | `google/gemini-2.5-flash-lite` ⚠︎ | 1 | 50 | **0.72** | 0.107 | 3 | 0 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -89,10 +89,10 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | 0 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
-| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.61 | 0.0122 |
-| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | 0 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
-| 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | 0 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
+| 1 | `qwen/qwen3.7-flash` ⚠︎ | 1 | 50 | **1.38** | 0.18 | 5 | 0 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
+| 2 | `deepseek/deepseek-v4-flash-0731` ⚠︎ | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.61 | 0.0122 |
+| 3 | `google/gemma-4-31b-it` ⚠︎ | 1 | 50 | **1.02** | 0.132 | 5 | 0 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
+| 4 | `inclusionai/ling-3.0-flash` ⚠︎ | 1 | 50 | **0.92** | 0.056 | 2 | 0 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -102,13 +102,13 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `anthropic/claude-haiku-4.5` | 1 | 50 | **1.1** | 0.149 | 6 | 0 | 59492 | 8876 | 0.0 | 5.19 | 0.1039 |
-| 2 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | 41576 | 20894 | 0.071 | 0.11 | 0.0022 |
-| 3 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 0 | 37740 | 13965 | 0.027 | 0.15 | 0.0029 |
-| 4 | `openai/gpt-5.4-mini` | 1 | 50 | **0.7** | 0.082 | 2 | 0 | 22619 | 1089 | 0.006 | 1.09 | 0.0219 |
-| 5 | `openai/gpt-5.6-luna` | 1 | 50 | **0.7** | 0.065 | 1 | 0 | 31488 | 3167 | 0.0 | 0.50 | 0.0101 |
-| 6 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 0 | 34881 | 968 | 0.0 | 0.19 | 0.0038 |
-| 7 | `openai/gpt-5-nano` | 1 | 50 | **0.66** | 0.073 | 2 | 0 | 20602 | 26157 | 0.468 | 0.57 | 0.0115 |
+| 1 | `anthropic/claude-haiku-4.5` ⚠︎ | 1 | 50 | **1.1** | 0.149 | 6 | 0 | 59492 | 8876 | 0.0 | 5.19 | 0.1039 |
+| 2 | `inclusionai/ling-3.0-flash` ⚠︎ | 1 | 50 | **0.96** | 0.09 | 4 | 0 | 41576 | 20894 | 0.071 | 0.11 | 0.0022 |
+| 3 | `qwen/qwen3.7-flash` ⚠︎ | 1 | 50 | **0.76** | 0.093 | 3 | 0 | 37740 | 13965 | 0.027 | 0.15 | 0.0029 |
+| 4 | `openai/gpt-5.4-mini` ⚠︎ | 1 | 50 | **0.7** | 0.082 | 2 | 0 | 22619 | 1089 | 0.006 | 1.09 | 0.0219 |
+| 5 | `openai/gpt-5.6-luna` ⚠︎ | 1 | 50 | **0.7** | 0.065 | 1 | 0 | 31488 | 3167 | 0.0 | 0.50 | 0.0101 |
+| 6 | `google/gemma-4-31b-it` ⚠︎ | 1 | 50 | **0.68** | 0.088 | 3 | 0 | 34881 | 968 | 0.0 | 0.19 | 0.0038 |
+| 7 | `openai/gpt-5-nano` ⚠︎ | 1 | 50 | **0.66** | 0.073 | 2 | 0 | 20602 | 26157 | 0.468 | 0.57 | 0.0115 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -120,9 +120,14 @@ because two models that were asked different questions cannot be compared.
 
 ## Running it
 
-Credentials come from three places, and the later one wins: a `.env` file, the
-environment, then the flags. Write the file and forget about it: it is gitignored, the
-container reads it too, and nothing then needs a key on a command line.
+Credentials come from three places, and the later source wins:
+
+- a `.env` file at the repository root
+- the environment variables
+- the `--endpoint` and `--api-key` command-line flags
+
+Write the `.env` file and forget about credentials after that, because the file is gitignored, the
+container reads the file too, and nothing then needs a key on a command line.
 
 ```bash
 # .env at the repository root, and that is the whole setup
@@ -131,8 +136,8 @@ FW_TOKEN=sk-or-...
 MODEL_ID=google/gemini-2.5-flash      # optional, the default when --model is absent
 ```
 
-Exporting still works and beats the file, and the `--endpoint` and `--api-key` flags
-beat both (passing `--api-key @path` reads the key from a file, so it stays out of
+Exporting environment variables still works and beats the `.env` file, and the `--endpoint` and `--api-key` flags
+beat both the file and the environment (passing `--api-key @path` reads the key from a file, so the key stays out of
 `ps`).
 
 ```bash
@@ -145,16 +150,15 @@ uv run pokelike model bench --harness v0 --model a/b --repeat 3           # see 
 uv run pokelike model board --harness v0                                  # print + rewrite the tables above
 ```
 
-The `--harness` flag is required: the version is the question a row answers, because
-two harness versions ask different things and their results are never compared. Two
-rules are easy to miss: only the standard fifty seeds record a result (using `--runs`,
-`--seeds`, or `--dry-run` all print output but record nothing), and a literal key on
+The `--harness` flag is required because the version is the question a row answers. Two harness versions ask different things, and their results are never compared. Two
+rules are easy to miss. First, only the standard fifty seeds record a result, so using `--runs`,
+`--seeds`, or `--dry-run` will print output but record nothing. Second, a literal key on
 the command line is readable by everyone on the machine and saved in your shell history,
 which is what the `.env` file above avoids (passing `--api-key @path` reads the key from
 a file if you prefer that instead). The `--set KEY=VALUE` flag passes a setting straight
 to the harness (passing `--set notes=4` caps v4's notebook size), and a pre-flight call
 before any seed catches a model that cannot emit a tool call. The full flag list is
-`--help`.
+available through `--help`.
 
 ## Reading the table
 
@@ -167,11 +171,11 @@ before any seed catches a model that cannot emit a tool call. The full flag list
   passes of one model can differ by about 0.2 badges, which is roughly the whole gap
   between the top two entries in `bots/`. Passing `--repeat 3` tells you whether your
   model's score is stable or you are looking at variance.
-- Badges cap at 8: the engine has eight gym leaders (Brock, Misty, Lt. Surge, Erika,
+- Badges cap at 8 because the engine has eight gym leaders (Brock, Misty, Lt. Surge, Erika,
   Koga, Sabrina, Blaine, Giovanni), and the Elite Four after them awards none. A model
   that finishes the game scores the same 8 badges as one that reaches the Elite Four and
-  dies there. The `won` column counts runs that ended on the victory screen: out of 1400
-  recorded runs across all models, exactly one has.
+  dies there. The `won` column counts runs that ended on the victory screen. Out of 1400
+  recorded runs across all models, exactly one has ended there.
 - The `fallback` column counts turns where the model's API call failed, or the model
   responded without calling the `play` tool at all. On those turns the frozen benchmark
   harness picks a safe fallback move on its own and plays it, but the result is still
@@ -180,7 +184,7 @@ before any seed catches a model that cannot emit a tool call. The full flag list
   model, so at that point the row is measuring the harness's fallback behavior as much
   as it is measuring the model.
 - The `$` column is computed from each provider's published per-token prices when the
-  table is printed; the cost is never stored in a result file. Storing a cost would be a
+  table is printed. The cost is never stored in a result file. Storing a cost would be a
   claim about today's pricing that nobody could correct once the price changed.
 
 ## Watching a pass
@@ -193,10 +197,10 @@ uv run pokelike model stop <stamp>              # end one on purpose, keeping it
 ```
 
 The `model watch` command reads the decision-log file that the running pass writes to
-disk, so it works equally well on a container, on a pass started in another terminal, or
+disk, so the command works equally well on a container, on a pass started in another terminal, or
 on one that finished last week. The display shows the finished runs, where the model is
-now, the tools it called this turn, the team and map it is standing on, and the notes
-and route it is holding. With more than one pass running, the command asks which one you
+now, the tools the model called this turn, the team and map the model is standing on, and the notes
+and route the model is holding. With more than one pass running, the command asks which one you
 mean. Passing `--stamp` or `--model` (a prefix is enough) answers that question in
 advance.
 
@@ -207,14 +211,13 @@ instead of on the host:
 uv run pokelike model bench --harness v5 --model a/b --docker
 ```
 
-The `--docker` flag forwards the same benchmark flags untouched, plus it handles the
-parts that are easy to get wrong by hand: the image is rebuilt first, so a pass can
-never run stale code; the container removes itself when the pass ends; and the
-container is named after the harness, the model, and a short random suffix, so two
+The `--docker` flag forwards the same benchmark flags untouched, and the flag also handles the
+parts that are easy to get wrong by hand. The image is rebuilt first, so a pass can
+never run stale code. The container removes itself when the pass ends. The container is named after the harness, the model, and a short random suffix, so two
 passes of the same model can run at once and remain distinguishable. The flag also
 clears away any bench container that has already exited, and tags the image with the
-commit it was built from, so running `docker ps` says which code each pass is playing.
-The compose setup behind the flag is in [`docker/`](docker/): it sets `shm_size: 2gb`
+commit the image was built from, so running `docker ps` says which code each pass is playing.
+The compose setup behind the flag is in [`docker/`](docker/), and the compose file sets `shm_size: 2gb`
 because Chromium needs far more than Docker's default, mounts your `site/` read-only,
 keeps only `llm-bench/` writable, and runs the container as your user rather than as
 root.

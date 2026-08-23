@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Rende leggibile il bundle offuscato di pokelike.xyz.
 
-Il bundle è impacchettato da javascript-obfuscator: tutte le stringhe stanno in
+Il bundle è impacchettato da javascript-obfuscator. Tutte le stringhe stanno in
 un unico array restituito da una funzione, e ogni uso è una chiamata
 `<alias>(0xNNNN)` a un decoder `f(i){ i = i - OFFSET; return array()[i] }`.
 L'array viene rimescolato all'avvio da un IIFE in cima al file, quindi la
-tabella si può leggere solo *eseguendo* quel preambolo — cosa che qui facciamo
+tabella si può leggere solo eseguendo quel preambolo, cosa che qui facciamo
 con Node.
 
 I nomi delle funzioni cambiano a ogni rilascio, quindi vengono ricavati dal file

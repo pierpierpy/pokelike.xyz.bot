@@ -5,8 +5,9 @@
 
     q̂(s, a, w) = wᵀ x(s, a)
 
-Trained by `experiments/sarsa/`. Sutton & Barto, 2nd edition: chapter 10
-for the semi-gradient control update, section 12.7 for the SARSA(lambda) form.
+The weights were trained by `experiments/sarsa/`. See Sutton & Barto, 2nd edition,
+chapter 10 for the semi-gradient control update, section 12.7 for the SARSA(lambda)
+form.
 
 This is the second feature set (100 features, encoding v2), adding type-matchup,
 item, team-order, and move-tutor terms to sarsa-v1's 81.
@@ -27,14 +28,14 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# Bumped whenever the feature vector changes meaning. Weights carry the version
-# they were trained under; loading a mismatch raises an error.
+# This version is bumped whenever the feature vector changes meaning. Weights
+# carry the version they were trained under, and loading a mismatch raises an error.
 #
 # Version 2 added the order, items, and tutor groups relative to v1.
 FEATURES_VERSION = 2
 
-# The weights live beside this file. POKELIKE_SARSA_WEIGHTS overrides for
-# measuring a candidate before promotion.
+# The weights live beside this file. The POKELIKE_SARSA_WEIGHTS environment
+# variable overrides this path for measuring a candidate before promotion.
 HERE = Path(__file__).resolve().parent
 WEIGHTS = HERE / "artifacts" / "weights.json"
 
@@ -46,8 +47,8 @@ def find_weights() -> Path:
 
 # ---------------------------------------------- the frozen feature set, v2
 #
-# Copied from experiments/sarsa/features/groups.py; not imported so the
-# submission stays self-contained.
+# This code is copied from experiments/sarsa/features/groups.py but is not
+# imported, so the submission stays self-contained.
 
 TYPES = {
     "NORMAL", "FIRE", "WATER", "ELECTRIC", "GRASS", "ICE", "FIGHTING", "POISON",
@@ -55,7 +56,7 @@ TYPES = {
     "STEEL", "FAIRY",
 }
 
-# Node kinds worth a feature of their own; anything rarer falls into "other".
+# These node kinds each get their own feature; anything rarer falls into "other".
 NODE_KINDS = [
     "catch", "battle", "trainer", "item", "pokecenter", "question",
     "move_tutor", "trade", "boss", "pokemart", "shiny", "other",
@@ -117,35 +118,36 @@ def _leads_to(state: dict[str, Any], node_id: str) -> list[str]:
     return [by_id[t]["kind"] for f, t in m.get("edges", []) if f == node_id and t in by_id]
 
 
-# Named feature groups. Group order is the index order and must not be
-# reshuffled, because `w[i]` only means something because this list defines
-# position i's name.
+# The named feature groups are listed here. Group order defines index order and
+# must not be reshuffled, because `w[i]` only means something because this list
+# defines position i's name.
 GROUPS: dict[str, list[str]] = {
-    # State-only context; cannot discriminate between actions by construction.
+    # These are state-only context features that cannot discriminate between
+    # actions by construction.
     "context": ["bias", "team_size", "min_hp", "mean_hp", "map_index", "depth",
                 "badges", "any_fainted", "n_actions"],
-    # Which kind of node this move leads to.
+    # These encode which kind of node this move leads to.
     "node": [f"node:{k}" for k in NODE_KINDS],
-    # Node kind crossed with the situation.
+    # These cross the node kind with the situation.
     "node_deep": [f"node:{k}*deep" for k in NODE_KINDS],
     "node_hurt": [f"node:{k}*hurt" for k in NODE_KINDS],
     "node_team": [f"node:{k}*small_team" for k in NODE_KINDS],
-    # One step of lookahead past the node.
+    # These encode one step of lookahead past the node.
     "lookahead": ["leads_to_heal", "leads_to_catch", "leads_to_boss", "leads_dead_end"],
-    # Which screen the choice is on (state-only).
+    # These record which screen the choice is on (state-only).
     "screen": [f"screen:{s}" for s in SCREENS],
-    # Pokemon card stats.
+    # These encode Pokemon card stats.
     "mon": ["mon_new_type", "mon_level_rel", "mon_power", "mon_bulk", "mon_atk",
             "mon_shiny", "mon_best_stats"],
-    # Which team member a slot-shaped screen is pointing at.
+    # These indicate which team member a slot-shaped screen is pointing at.
     "slot": ["equip_on_strongest", "equip_on_weakest", "swap_out_weakest"],
     "button": ["is_skip", "is_cancel", "is_bag"],
-    # Team order. Slot 0 leads the next battle; reordering does not consume the
-    # turn. Features are relative to the current leader, so they discriminate
-    # between candidates.
+    # Team order features. Slot 0 leads the next battle, and reordering does
+    # not consume the turn. Features are relative to the current leader, so
+    # they discriminate between candidates.
     #
-    # Items. The item screen's features read the id and TYPE_ITEM_MAP (the
-    # engine's type-to-item table).
+    # Item features. The item screen's features read the id and TYPE_ITEM_MAP
+    # (the engine's type-to-item table).
     "item": [
         "item:matches_my_type",
         "item:matches_lead_type",
@@ -155,7 +157,8 @@ GROUPS: dict[str, list[str]] = {
         "item:is_offensive",
         "item:already_held",
     ],
-    # Move tutor: compares the offered move against what the recipient uses now.
+    # The move tutor features compare the offered move against what the recipient
+    # uses now.
     "tutor": [
         "tutor:power_gain",
         "tutor:is_upgrade",
@@ -178,7 +181,10 @@ ALL_GROUPS = list(GROUPS)
 
 
 def feature_names(groups: list[str] | None = None) -> list[str]:
-    """The vector's index order, named. Returns the full set when called with no argument."""
+    """Return the vector's index order as a list of names.
+
+    This function returns the full set when called with no argument.
+    """
     for g in (groups or []):
         if g not in GROUPS:
             raise KeyError(f"unknown feature group '{g}' — have: {', '.join(ALL_GROUPS)}")
@@ -191,16 +197,16 @@ N_FEATURES = len(feature_names())
 
 def features(state: dict[str, Any], action: dict[str, Any],
              index: dict[str, int] | None = None) -> dict[int, float]:
-    """Sparse x(s, a): index -> value, non-zero entries only.
+    """Return sparse x(s, a) as a dict of index to value, non-zero entries only.
 
-    When `index` is provided, names not in it are silently skipped, which is how
-    a variant with some groups switched off works.
+    When `index` is provided, names not present in the dict are silently skipped,
+    which is how a variant with some groups switched off works.
     """
     names = _NAME_INDEX if index is None else index
     x: dict[int, float] = {}
 
     def put(name: str, value: float = 1.0) -> None:
-        # Names the variant left out are silently skipped.
+        # The function silently skips names that the variant left out.
         i = names.get(name)
         if value and i is not None:
             x[i] = value
@@ -224,7 +230,8 @@ def features(state: dict[str, Any], action: dict[str, Any],
     put("n_actions", len(state.get("actions") or []) / 7)
 
     if action.get("kind") == "reorder":
-        # b is None for the "leave it" option; otherwise brings slot b to front.
+        # A value of None for b means "leave it"; otherwise b identifies the
+        # slot to bring to front.
         b = action.get("b")
         if b is None or not team:
             put("order:noop")
@@ -312,7 +319,8 @@ _NAME_INDEX = {n: i for i, n in enumerate(feature_names())}
 
 
 class FeatureSet:
-    """A variant of the vector: which groups are active, and their index order.
+    """A variant of the vector that defines which groups are active and their
+    index order.
 
     Weights are saved by name, so loading into a different group set zero-fills
     the missing ones.
@@ -333,10 +341,10 @@ class FeatureSet:
 
 
 def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
-    """The team-order decision as a list of actions scored like any other.
+    """Return the team-order decision as a list of actions scored like any other.
 
-    Leads with the "leave it" option so it competes on the same footing.
-    Returns an empty list when there is nothing to decide.
+    The list leads with the "leave it" option so that option competes on the same
+    footing. The function returns an empty list when there is nothing to decide.
     """
     team = state.get("team") or []
     if not state.get("can_reorder") or len(team) < 2:
@@ -346,8 +354,8 @@ def reorder_options(state: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-# Item effect categories, keyed on the item id. The engine has no structured
-# effect field, so only the coarse kind is encoded here.
+# These sets categorize items by effect, keyed on the item id. The engine has
+# no structured effect field, so only the coarse kind is encoded here.
 EVOLUTION_ITEMS = {"moon_stone", "fire_stone", "water_stone", "thunder_stone",
                    "leaf_stone", "sun_stone", "dusk_stone", "shiny_stone",
                    "dawn_stone", "ice_stone", "rare_candy"}
@@ -361,7 +369,7 @@ OFFENSIVE_ITEMS = {"choice_band", "choice_specs", "choice_scarf", "life_orb",
 
 
 def _item_id(action: dict[str, Any]) -> str:
-    """Derive an item id from the button label text."""
+    """Derive an item id from the button's label text."""
     label = (action.get("label") or "").strip().lower()
     words = re.split(r"[^a-z]+", label)
     return "_".join(w for w in words[:2] if w)
@@ -371,8 +379,8 @@ def _item_features(put, state: dict[str, Any], action: dict[str, Any]) -> None:
     item = _item_id(action)
     team = state.get("team") or []
     type_items = state.get("type_items") or {}
-    # TYPE_ITEM_MAP maps Pokemon type -> item id; invert to find which type
-    # this item boosts.
+    # The TYPE_ITEM_MAP maps Pokemon type to item id; inverting the map reveals
+    # which type this item boosts.
     boosts = {v: k.upper() for k, v in type_items.items()}
     boosted = boosts.get(item)
 
@@ -395,11 +403,13 @@ def _item_features(put, state: dict[str, Any], action: dict[str, Any]) -> None:
 
 def _tutor_features(put, state: dict[str, Any], action: dict[str, Any],
                     label: str) -> None:
-    """Compare the offered move against what the recipient currently uses."""
+    """Compare the offered move against what the recipient currently uses.
+
+    The label format is "-> SURF:Wartortle Lv35" or similar.
+    """
     team = state.get("team") or []
     if not team:
         return
-    # "→ SURF:Wartortle Lv35" / "→ SURF - WARTORTLE LV35 ..."
     who = None
     for i, p in enumerate(team):
         if p["name"].lower() in label.lower():
@@ -463,7 +473,7 @@ class SarsaBot(Bot):
         return sum(self.w[i] * v for i, v in x.items())
 
     def act(self, state: dict[str, Any]) -> int:
-        """Greedy over q̂(s, a, w). Ties broken at random, seeded."""
+        """Choose greedily over q̂(s, a, w), breaking ties at random with the seeded RNG."""
         self.decisions += 1
         actions = state["actions"]
         values = [self.q(features(state, a)) for a in actions]

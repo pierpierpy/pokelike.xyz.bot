@@ -1,7 +1,7 @@
-"""The turn journal: what happened, what the model said, and how much to keep.
+"""The turn journal tracks what happened, what the model said, and how much to keep.
 
-Builds per-turn records and assembles the user message that wraps them around
-the state view.
+This module builds per-turn records and assembles the user message that wraps
+them around the state view.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from typing import Any
 
 def journal_entry(state: dict[str, Any], index: int, why: str) -> str:
     """Builds one past-turn record from the action taken and the model's reason."""
-    # The action comes from state["actions"][index] (harness data, not the
-    # model's guess). The reasoning is kept so the model can notice repeated
-    # patterns, but labelled as its own claim rather than verified fact.
+    # The action comes from state["actions"][index], which is harness data.
+    # The reasoning is kept so the model can notice repeated patterns, and it
+    # is labelled as the model's own claim.
     actions = state.get("actions") or []
     chosen = actions[index] if 0 <= index < len(actions) else {}
     if chosen.get("kind") == "node":
@@ -44,9 +44,10 @@ def build_user_message(
     notes_block: list[str] | None = None,
     plan_block: list[str] | None = None,
 ) -> str:
-    """Assembles the full user message: view, notes, plan, journal, instruction."""
-    # Notes and plan come before the journal: cross-run learning outranks
-    # recent turn history.
+    """Assembles the full user message from the view, notes, plan, journal, and
+    instruction."""
+    # Notes and plan come before the journal because cross-run learning
+    # outranks recent turn history.
     parts = [state_view]
     if notes_block:
         parts += notes_block

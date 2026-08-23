@@ -1,4 +1,4 @@
-"""Registry of played runs stored in SQLite (stats/runs.db). One row per run."""
+"""Registry of played runs stored in SQLite (stats/runs.db), with one row per run."""
 
 from __future__ import annotations
 
@@ -53,11 +53,11 @@ def record(
     alive: dict[str, Any] | None = None,
     path: Path | None = None,
 ) -> int:
-    """Saves the outcome of a run. Returns the row id.
+    """Saves the outcome of a run and returns the row id.
 
-    `alive` is the last observation taken while the run was still going; the
-    engine wipes `state` on the game-over screen, so team and badges come from
-    `alive`.
+    The `alive` parameter is the last observation taken while the run was still
+    going. The engine wipes `state` on the game-over screen, so team and badges
+    come from `alive`.
     """
     s = score or {}
     b = s.get("breakdown") or {}
@@ -96,7 +96,7 @@ def record(
 
 
 def summary(path: Path | None = None) -> list[dict[str, Any]]:
-    """One row per bot, with averages and bests."""
+    """Returns one row per bot, with averages and bests."""
     with _connect(path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
@@ -136,7 +136,7 @@ def recent(n: int = 10, bot: str | None = None, path: Path | None = None) -> lis
         return [dict(r) for r in rows]
 
 
-# (key in the dict, heading, width)
+# Each tuple is (key in the dict, heading, width).
 COLUMNS = [
     ("bot", "bot", 11),
     ("runs", "runs", 6),
@@ -193,8 +193,8 @@ def format_summary(rows: list[dict[str, Any]], explain: bool = False) -> str:
     head = f"{COLUMNS[0][1]:<{COLUMNS[0][2]}}" + "".join(
         f"{name:>{width}}" for _, name, width in COLUMNS[1:]
     )
-    # This header warns the user: the table uses arbitrary seeds and mixed runs,
-    # so it is not comparable between bots the way the standings are.
+    # This header warns the user that the table uses arbitrary seeds and mixed
+    # runs, so the results are not comparable between bots the way the standings are.
     out = ["practice runs on this machine, on whatever seeds you played, so not "
            "comparable between bots.",
            "", head, "-" * len(head)]

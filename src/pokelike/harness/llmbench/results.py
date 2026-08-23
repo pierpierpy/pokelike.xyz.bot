@@ -1,7 +1,7 @@
 """Recording, loading, and summarising benchmark results.
 
-Each model has one JSON file per harness version; every pass is appended to it.
-Statistics are always derived at read time, never stored.
+Each model has one JSON file per harness version, and every pass is appended to
+that file. Statistics are always derived at read time and never stored.
 """
 
 from __future__ import annotations
@@ -23,16 +23,16 @@ from .versions import (BROWSER, GAME, RUNNER, _bench, cross_run_memory,
 
 
 def _settings_key(settings: dict[str, Any] | None) -> tuple:
-    """A hashable, order-independent key for a pass's --set overrides."""
+    """Returns a hashable, order-independent key for a pass's --set overrides."""
     return tuple(sorted((settings or {}).items()))
 
 
 def stats_by_settings(doc: dict[str, Any],
                       version: str | None = None) -> list[dict[str, Any]]:
-    """One `stats()` row per distinct `--set` group in this model's passes.
+    """Returns one `stats()` row per distinct `--set` group in this model's passes.
 
     A plain pass (no `--set`) and a pass with `--set reasoning=low` are two
-    different questions asked of the same model; pooling them into one row
+    different questions asked of the same model. Pooling them into one row
     would average over that difference rather than showing it. Passes that
     share the same settings (e.g. two `reasoning=low` passes, run to check
     sampling noise) are still pooled together, exactly as `stats()` already
@@ -46,23 +46,23 @@ def stats_by_settings(doc: dict[str, Any],
 
 
 def result_path(version: str, model: str) -> Path:
-    """Path where this model's results are stored under this harness version."""
+    """Returns the path where this model's results are stored under this harness version."""
     return _bench() / version / "results" / f"{slug(model)}.json"
 
 
 def record(version: str, model: str, one_pass: dict[str, Any]) -> Path:
     """Appends a pass to this model's result file.
 
-    Multiple passes of the same model are needed to distinguish real gaps from
-    sampling noise.
+    Multiple passes of the same model are needed to distinguish real score gaps
+    from sampling noise.
     """
     path = result_path(version, model)
     if path.is_file():
         doc = json.loads(path.read_text(encoding="utf-8"))
     else:
         doc = {"model": model, "harness": version, "passes": []}
-    # Fingerprint stored per pass, not per file: different passes may have run
-    # against different code.
+    # The fingerprint is stored per pass rather than per file, because different
+    # passes may have run against different code.
     doc["passes"].append(one_pass)
     doc["model"] = model
     doc["harness"] = version
@@ -83,11 +83,12 @@ def load(version: str) -> list[dict[str, Any]]:
 
 
 def learning(passes: list[dict[str, Any]], k: int = LEARN_K) -> dict[str, Any]:
-    """First k runs of a pass vs. its last k, averaged over passes.
+    """Compares the first k runs of a pass to its last k, averaged over passes.
 
-    Computed in play order (via the `order` field), not seed order, because the
-    model's notes accumulate over the pass. Per pass then averaged, so different
-    lifetimes are never mixed.
+    The comparison uses play order (via the `order` field) rather than seed order,
+    because the model's notes accumulate over the pass. Each pass is evaluated
+    independently and the results are averaged, so different lifetimes are never
+    mixed.
     """
     firsts: list[float] = []
     lasts: list[float] = []
@@ -113,15 +114,15 @@ def learning(passes: list[dict[str, Any]], k: int = LEARN_K) -> dict[str, Any]:
 
 
 def _elite4_cleared(run: dict[str, Any]) -> int:
-    """How many Elite Fours this one run beat.
+    """Returns how many Elite Fours this one run beat.
 
-    `regions_cleared` is the real count for a run that played several regions
-    in one campaign; for a run that played only one region, it is 1 if that
-    region's Elite Four was beaten, 0 otherwise. Every run recorded before this
-    field existed has no `regions_cleared` key at all: for those, a single
-    region was always what got played, so the same rule (win-screen means the
-    one Elite Four in that run was beaten) gives the same answer without a
-    backfill script.
+    The `regions_cleared` field is the real count for a run that played several
+    regions in one campaign. For a run that played only one region, the value is 1
+    if that region's Elite Four was beaten and 0 otherwise. Every run recorded
+    before this field existed has no `regions_cleared` key at all. For those older
+    runs a single region was always what got played, so the same rule (win-screen
+    means the one Elite Four in that run was beaten) gives the same answer without
+    a backfill script.
     """
     if "regions_cleared" in run:
         return run["regions_cleared"] or 0
@@ -130,15 +131,16 @@ def _elite4_cleared(run: dict[str, Any]) -> int:
 
 def stats(doc: dict[str, Any], version: str | None = None,
           passes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Pooled statistics over every run of every pass, with across-pass spread.
+    """Computes pooled statistics over every run of every pass, with across-pass spread.
 
-    Statistics are derived here at read time, never stored in the result file.
+    Statistics are derived here at read time and never stored in the result file.
     Two passes of the same model with different `--set` overrides answer a
     different question (a row for `reasoning=low` is not the same experiment as
     one for `reasoning=high`), so a caller comparing settings should call this
-    once per settings group rather than once per model. `passes` may be given
-    explicitly to restrict which of the file's passes are pooled; the default
-    pools every pass in the file, unchanged from before this parameter existed.
+    once per settings group rather than once per model. The `passes` parameter may
+    be given explicitly to restrict which of the file's passes are pooled. The
+    default pools every pass in the file, unchanged from before this parameter
+    existed.
     """
     passes = passes if passes is not None else (doc.get("passes") or [])
     runs = [r for p in passes for r in (p.get("runs") or [])]
@@ -160,7 +162,7 @@ def stats(doc: dict[str, Any], version: str | None = None,
         "model": doc.get("model"),
         "passes": len(passes),
         "runs": len(runs),
-        # Region: at the doc level, or inferred from the first pass that carries one.
+        # Region is taken from the doc level, or inferred from the first pass that carries one.
         "region": (doc.get("region")
                    or next((p.get("region") for p in passes if p.get("region")), None)),
         "badges_mean": round(statistics.mean(badges), 3),
@@ -168,15 +170,15 @@ def stats(doc: dict[str, Any], version: str | None = None,
         "badges_sem": round(sd / len(badges) ** 0.5, 3) if sd else 0.0,
         "badges_median": statistics.median(badges),
         "badges_best": max(badges),
-        # Runs that reached the win screen. Badges cap at 8, so without this
-        # column the standings cannot distinguish a win from an Elite Four loss.
+        # This counts runs that reached the win screen. Badges cap at 8, so without
+        # this column the standings cannot distinguish a win from an Elite Four loss.
         "won": sum(1 for r in runs if r.get("ending") == "win-screen"),
         # How many Elite Fours this group's runs beat in total. For a
         # single-region pass this is the same count as `won` (one Elite Four
-        # per run, at most); for a multi-region campaign pass it can exceed
+        # per run, at most). For a multi-region campaign pass it can exceed
         # `won`, since a run that dies in region 3 still cleared regions 1-2.
         "elite4": sum(_elite4_cleared(r) for r in runs),
-        # Spread across passes: isolates the model's sampling noise from seed luck.
+        # Spread across passes, which isolates the model's sampling noise from seed luck.
         "pass_spread": round(max(per_pass) - min(per_pass), 3) if len(per_pass) > 1 else None,
         "tokens_in_per_run": round(tok_in / len(runs)),
         "tokens_out_per_run": round(tok_out / len(runs)),
@@ -199,14 +201,16 @@ def stats(doc: dict[str, Any], version: str | None = None,
         _pkg = sys.modules[__package__]
         now = _pkg.fingerprints(version)
         used = {k: v for p in passes for k, v in (p.get("fingerprint") or {}).items()}
-        # Compared key by key over the keys the pass recorded. A key the pass never
-        # had is not evidence of drift; it just means the fingerprint grew later.
+        # Compared key by key over the keys the pass recorded. A key the pass
+        # never had is not evidence of drift; the absence just means the
+        # fingerprint grew after that pass was recorded.
         code_drifted = any(now[k] != v for k, v in used.items() if k in now)
         out["code_drifted"] = code_drifted
-        # A file changing is not itself the alarm: a comment or a rename changes
-        # every hash without moving a single decision. `behaviour` is the alarm,
-        # and only a pass recorded with one can be cleared by it; a pass from
-        # before this field existed falls back to the old, blunter check.
+        # A changed file hash alone does not mean a score moved, because a comment
+        # or a rename changes every hash without affecting any decision. The
+        # `behaviour` hash is the true check, and only a pass that recorded one can
+        # be cleared by it. A pass from before this field existed falls back to
+        # the older, blunter code-drift check.
         behaviours = {p.get("behaviour") for p in passes if p.get("behaviour")}
         if code_drifted and behaviours:
             try:
@@ -232,17 +236,17 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
              site: Any = None) -> dict[str, Any]:
     """Assembles a pass dict ready for recording.
 
-    The fingerprint should be taken by the caller before play starts. If none is
-    supplied, this function computes it from the current disk state. `settings`
-    is whatever `--set` overrode for this pass (e.g. `{"reasoning": "low"}`);
-    two passes of the same model with different settings answer a different
-    question, so both the result file and the standings keep them apart. `site`
-    is the asset server root; when given, this also records a `behaviour` hash
-    (see `versions.behaviour`), a short deterministic replay through this
-    version's own engine, so a later reader can tell "the files changed" apart
-    from "a decision changed" instead of only ever seeing the first. Omitted
-    when `site` is not given, so a caller that cannot afford the replay (a unit
-    test, a dry run) still gets a valid pass.
+    The caller should take the fingerprint before play starts. If none is supplied,
+    this function computes the fingerprint from the current disk state. The
+    `settings` parameter is whatever `--set` overrode for this pass (e.g.
+    `{"reasoning": "low"}`). Two passes of the same model with different settings
+    answer a different question, so both the result file and the standings keep
+    them apart. The `site` parameter is the asset server root. When given, this
+    function also records a `behaviour` hash (see `versions.behaviour`), which is a
+    short deterministic replay through this version's own engine so that a later
+    reader can distinguish "the files changed" from "a decision changed." The
+    behaviour hash is omitted when `site` is not given, so a caller that cannot
+    afford the replay (a unit test, a dry run) still gets a valid pass.
     """
     turns = sum(r.get("turns") or 0 for r in runs)
     falls = sum(r.get("fallbacks") or 0 for r in runs)
@@ -261,11 +265,11 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
         "notes": notes,
         "runs": sorted(runs, key=lambda r: r["seed"]),
     }
-    # Region: only recorded when it is not kanto, so existing files stay valid.
+    # The region is only recorded when it is not kanto, so existing files stay valid.
     if region and region != "kanto":
         out["region"] = region
-    # Settings: only recorded when --set overrode something, so a plain pass
-    # (no --set at all) still looks exactly like it did before this field existed.
+    # Settings are only recorded when --set overrode something, so a plain pass
+    # (no --set at all) still looks exactly like one recorded before this field existed.
     if settings:
         out["settings"] = settings
     if site is not None:
@@ -275,7 +279,7 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
             out["behaviour"] = _pkg.behaviour(version, site)
             out["behaviour_schema"] = BEHAVIOUR_SCHEMA
         except Exception:
-            # A replay failure should never lose an otherwise-good pass; the row
+            # A replay failure should never lose an otherwise-good pass. The row
             # simply carries no behaviour hash, exactly like one recorded before
             # this field existed.
             pass

@@ -1,4 +1,4 @@
-"""Driving the game from Python. The third face, beside the CLI and the API.
+"""This module drives the game from Python, the third interface beside the CLI and the API.
 
     from pokelike import session, play, compare
 

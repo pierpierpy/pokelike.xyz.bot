@@ -1,4 +1,4 @@
-"""The shared game logic. The CLI, the API, and every bot are thin faces over this class.
+"""The shared game logic. The CLI, the API, and every bot all delegate to this class.
 
 The model is a turn-based environment:
 
@@ -41,7 +41,7 @@ class Game:
 
     session: Session | None = field(default=None, repr=False)
     seed: int | None = None
-    # 1-4. Set by `reset`; defaults to Kanto so `state()` before a reset does not raise.
+    # Region is 1-4, set by `reset`. Defaults to Kanto so `state()` before a reset does not raise.
     region: int = 1
     steps: int = 0
     score_hook: dict[str, Any] | None = field(default=None, repr=False)
@@ -76,8 +76,8 @@ class Game:
         Accepts the seed and the region as a number (1-4) or a name (kanto,
         johto, hoenn, sinnoh). Returns the first observation.
 
-        Picking the trainer and the starter is not done here: those are player
-        decisions and appear as the first two turns. The seed is validated
+        Picking the trainer and the starter is not done here because those are
+        player decisions that appear as the first two turns. The seed is validated
         before anything is played, so an invalid seed fails immediately.
         """
         seed = normalise_seed(seed)
@@ -86,22 +86,22 @@ class Game:
             self.open()
         assert self.session is not None
 
-        # Record the normalised value: what reproduces this run.
+        # Record the normalised value, which is what reproduces this run.
         self.seed = seed
         self.region = gen
         self.steps = 0
         self.last_alive = None
         page = self.session.load(seed)
 
-        # Into Story mode. Both predicates below only read (no clicks), so they
-        # are safe to use in a poller. Clicking inside a polled predicate would
-        # fire an unpredictable number of times and desync the engine's PRNG.
+        # Both predicates below only read (no clicks), so they are safe to poll.
+        # Clicking inside a polled predicate fires unpredictably and desyncs the PRNG.
         if gen != 1:
             # The game locks every region except Kanto until a Hall of Fame entry
-            # exists in localStorage. Since init.js clears localStorage on every
-            # load, a fake Kanto win must be written back here after the page loads.
-            # This is done from Python rather than in init.js because each frozen
-            # harness hashes its own init.js, and this approach avoids editing those.
+            # exists in localStorage. Since the init.js script clears localStorage on
+            # every load, a fake Kanto win must be written back here after the page
+            # loads. This is done from Python rather than in init.js because each
+            # frozen harness hashes its own init.js, and this approach avoids editing
+            # those.
             page.evaluate(
                 "() => { try { localStorage.setItem('poke_hall_of_fame',"
                 " JSON.stringify([{endless: false, gen2Mode: false, gen3Mode: false,"
@@ -128,11 +128,11 @@ class Game:
                 timeout=10_000,
             )
         except Exception:  # noqa: BLE001
-            # Fallback: let _settle sort out whatever screen is showing.
+            # As a fallback, let _settle sort out whatever screen is showing.
             page.wait_for_timeout(300)
 
         if self.scoring:
-            # Scoring is a bonus: if the hook fails the run must still go on.
+            # Scoring is optional; if the hook fails, the run must still proceed.
             try:
                 self.score_hook = page.evaluate("() => window.__pk_attach_score()")
             except Exception as e:  # noqa: BLE001
@@ -157,7 +157,7 @@ class Game:
     # ------------------------------------------------------------ observation
 
     def state(self) -> dict[str, Any]:
-        """The current state. Read-only: it does not advance the game."""
+        """The current state. This method is read-only and does not advance the game."""
         if self.session is None or self.session.page is None:
             raise RuntimeError("no run open: call reset()")
         obs = self.session.page.evaluate("() => window.__pk_obs()")
@@ -187,7 +187,7 @@ class Game:
             )
         choice = actions[index]
         applied = self.session.page.evaluate("c => window.__pk_apply(c)", choice)
-        # Returns false on refusal; otherwise a dict with a pre-click signature.
+        # Returns false on refusal; otherwise the result is a dict with a pre-click signature.
         if not applied:
             raise IllegalAction(f"the engine refused the action: {choice}")
         self.steps += 1
@@ -197,7 +197,7 @@ class Game:
         # back the same decision twice.
         #
         # Guarded because bridge.js is re-read from disk on every run, so a
-        # running process may hold a bridge version without __pk_await_change.
+        # process may hold a version without __pk_await_change.
         sig = applied.get("sig") if isinstance(applied, dict) else None
         if sig:
             self.session.page.evaluate(
@@ -247,7 +247,8 @@ class Game:
     def screenshot(self, path: str | Path) -> Path:
         """Saves a PNG of the current screen to `path`.
 
-        Works identically headless: the browser renders into memory on request.
+        This works identically in headless mode because the browser renders into
+        memory on request.
         """
         if self.session is None or self.session.page is None:
             raise RuntimeError("no run open")
@@ -263,8 +264,8 @@ class Game:
     def _settle(self, timeout_s: float = 90.0) -> dict[str, Any]:
         """Runs non-choice transitions in one JS call, then returns the state.
 
-        Uses `__pk_settle` in the page. Must not be wrapped in a
-        `wait_for_function` predicate, because the pump clicks elements and a
+        This method calls `__pk_settle` in the page. It must not be wrapped in a
+        `wait_for_function` predicate because the pump clicks elements, and a
         predicate can fire an unpredictable number of times, which would desync
         the engine's seeded PRNG.
         """
