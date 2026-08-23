@@ -21,6 +21,29 @@ from .versions import (BROWSER, GAME, RUNNER, _bench, cross_run_memory,
 # ------------------------------------------------------------------- recording
 
 
+def _settings_key(settings: dict[str, Any] | None) -> tuple:
+    """A hashable, order-independent key for a pass's --set overrides."""
+    return tuple(sorted((settings or {}).items()))
+
+
+def stats_by_settings(doc: dict[str, Any],
+                      version: str | None = None) -> list[dict[str, Any]]:
+    """One `stats()` row per distinct `--set` group in this model's passes.
+
+    A plain pass (no `--set`) and a pass with `--set reasoning=low` are two
+    different questions asked of the same model; pooling them into one row
+    would average over that difference rather than showing it. Passes that
+    share the same settings (e.g. two `reasoning=low` passes, run to check
+    sampling noise) are still pooled together, exactly as `stats()` already
+    does for passes with no settings at all.
+    """
+    passes = doc.get("passes") or []
+    groups: dict[tuple, list[dict[str, Any]]] = {}
+    for p in passes:
+        groups.setdefault(_settings_key(p.get("settings")), []).append(p)
+    return [stats(doc, version, passes=group) for group in groups.values()]
+
+
 def result_path(version: str, model: str) -> Path:
     """Path where this model's results are stored under this harness version."""
     return _bench() / version / "results" / f"{slug(model)}.json"
@@ -88,12 +111,19 @@ def learning(passes: list[dict[str, Any]], k: int = LEARN_K) -> dict[str, Any]:
     }
 
 
-def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
+def stats(doc: dict[str, Any], version: str | None = None,
+          passes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Pooled statistics over every run of every pass, with across-pass spread.
 
     Statistics are derived here at read time, never stored in the result file.
+    Two passes of the same model with different `--set` overrides answer a
+    different question (a row for `reasoning=low` is not the same experiment as
+    one for `reasoning=high`), so a caller comparing settings should call this
+    once per settings group rather than once per model. `passes` may be given
+    explicitly to restrict which of the file's passes are pooled; the default
+    pools every pass in the file, unchanged from before this parameter existed.
     """
-    passes = doc.get("passes") or []
+    passes = passes if passes is not None else (doc.get("passes") or [])
     runs = [r for p in passes for r in (p.get("runs") or [])]
     if not runs:
         return {"model": doc.get("model"), "passes": 0, "runs": 0}
@@ -135,6 +165,10 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
             if any("notes_kept" in r for r in runs) else None
         ),
         "learning": learning(passes),
+        # The --set overrides shared by every pass in this group, or None for a
+        # plain pass. Distinguishes rows like `reasoning=low` from `reasoning=high`
+        # in a table that would otherwise show the same model name twice.
+        "settings": next((p.get("settings") for p in passes if p.get("settings")), None),
     }
     if version:
         # Looked up through the package so that tests can monkeypatch
@@ -155,11 +189,15 @@ def stats(doc: dict[str, Any], version: str | None = None) -> dict[str, Any]:
 def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, Any]],
              game: dict[str, str], notes: dict[str, Any],
              fingerprint: dict[str, str] | None = None,
-             region: str | None = None) -> dict[str, Any]:
+             region: str | None = None,
+             settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """Assembles a pass dict ready for recording.
 
     The fingerprint should be taken by the caller before play starts. If none is
-    supplied, this function computes it from the current disk state.
+    supplied, this function computes it from the current disk state. `settings`
+    is whatever `--set` overrode for this pass (e.g. `{"reasoning": "low"}`);
+    two passes of the same model with different settings answer a different
+    question, so both the result file and the standings keep them apart.
     """
     turns = sum(r.get("turns") or 0 for r in runs)
     falls = sum(r.get("fallbacks") or 0 for r in runs)
@@ -181,4 +219,8 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
     # Region: only recorded when it is not kanto, so existing files stay valid.
     if region and region != "kanto":
         out["region"] = region
+    # Settings: only recorded when --set overrode something, so a plain pass
+    # (no --set at all) still looks exactly like it did before this field existed.
+    if settings:
+        out["settings"] = settings
     return out

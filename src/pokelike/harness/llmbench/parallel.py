@@ -153,7 +153,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
     from ...arena.bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
-                   fingerprint=stamp)
+                   fingerprint=stamp, settings=settings)
     # Stamp recorded explicitly; the log paths are absolute and may not resolve on
     # the host reading the result (e.g. /app/... inside a container).
     one["stamp"] = log.stamp

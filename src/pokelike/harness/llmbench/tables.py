@@ -23,11 +23,11 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     """Formats the standings for terminal output."""
     import sys
 
-    from .results import stats
+    from .results import stats_by_settings
 
     # Looked up through the package so that tests can monkeypatch `L.load`.
     _pkg = sys.modules[__package__]
-    rows = [stats(d, version) for d in _pkg.load(version)]
+    rows = [row for d in _pkg.load(version) for row in stats_by_settings(d, version)]
     rows = [r for r in rows if r.get("runs")]
     if not rows:
         return ""
@@ -37,8 +37,12 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     learns = cross_run_memory(version)
     # Region column: shown only when at least one row is not kanto.
     show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
+    # Settings column: shown only when at least one row has a --set override,
+    # e.g. two rows for the same model under `reasoning=low` and `reasoning=high`.
+    show_settings = any(r.get("settings") for r in rows)
     head = (f"{'model':<34}{'passes':>7}{'runs':>6}"
             + (f"{'region':>9}" if show_region else "")
+            + (f"{'set':>18}" if show_settings else "")
             + f"{'badges~':>9}{'±sem':>7}"
             f"{'med':>5}{'best':>6}{'won':>5}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
@@ -50,9 +54,11 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
         usd = cost(r["tokens_in_per_run"] * r["runs"], r["tokens_out_per_run"] * r["runs"],
                    (price or {}).get(r["model"])) if money else None
         lc = r.get("learning") or {}
+        settings_str = ",".join(f"{k}={v}" for k, v in (r.get("settings") or {}).items())
         out.append(
             f"{str(r['model'])[:33]:<34}{r['passes']:>7}{r['runs']:>6}"
             + (f"{(r.get('region') or 'kanto'):>9}" if show_region else "")
+            + (f"{settings_str or '-':>18}" if show_settings else "")
             + f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
             f"{r['badges_best']:>6}{r.get('won', 0):>5}"
             + ((f"{lc['delta']:>+8.2f}" if lc.get("delta") is not None else f"{'-':>8}")
@@ -78,24 +84,31 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
 def markdown_table(version: str,
                    price: dict[str, dict[str, float]] | None = None) -> str:
     """Formats the standings as a Markdown table for the README."""
-    from .results import load, stats
+    from .results import load, stats_by_settings
 
-    rows = [stats(d, version) for d in load(version)]
+    rows = [row for d in load(version) for row in stats_by_settings(d, version)]
     rows = [r for r in rows if r.get("runs")]
     if not rows:
         return f"_No models measured under harness `{version}` yet._"
     rows.sort(key=lambda r: -r["badges_mean"])
     learns = cross_run_memory(version)
+    show_settings = any(r.get("settings") for r in rows)
+    scol, shdr = ("| set ", "|---") if show_settings else ("", "")
     lcol, lhdr = ("| learn | notes ", "|--:|--:") if learns else ("", "")
     out = [f"### Harness `{version}`", "",
-           f"| # | model | passes | runs | badges~ | ±sem | best {lcol}| tok in/run "
+           f"| # | model {scol}| passes | runs | badges~ | ±sem | best {lcol}| tok in/run "
            f"| tok out/run | fallback | $ | $/run |",
-           f"|--:|---|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|--:|"]
+           f"|--:|---{shdr}|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|--:|"]
     for i, r in enumerate(rows, 1):
         flag = " ⚠︎" if r.get("stale") else ""
         usd = cost(r["tokens_in_per_run"] * r["runs"],
                    r["tokens_out_per_run"] * r["runs"], (price or {}).get(r["model"]))
         lc = r.get("learning") or {}
+        settings_cell = ""
+        if show_settings:
+            s = r.get("settings") or {}
+            settings_cell = (f"| `{','.join(f'{k}={v}' for k, v in s.items())}` "
+                             if s else "| _(default)_ ")
         cell = ""
         if learns:
             d = lc.get("delta")
@@ -103,7 +116,7 @@ def markdown_table(version: str,
                     f"| {r.get('notes_kept') if r.get('notes_kept') is not None else 'n/a'} ")
         each = None if usd is None else usd / r["runs"]
         out.append(
-            f"| {i} | `{r['model']}`{flag} | {r['passes']} | {r['runs']} | "
+            f"| {i} | `{r['model']}`{flag} {settings_cell}| {r['passes']} | {r['runs']} | "
             f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} {cell}| "
             f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | "
             f"{r['fallback_rate']} | {'n/a' if usd is None else f'{usd:.2f}'} "
@@ -114,6 +127,11 @@ def markdown_table(version: str,
                     "the model keep notes between runs, so that column is what it "
                     "exists to measure. `badges~` is a mean over a learning curve "
                     "here."]
+    if show_settings:
+        out += ["", "`set` is what `--set` overrode for that row's pass(es); "
+                    "`_(default)_` means the harness ran with no override. Two "
+                    "rows for the same model with different `set` values are two "
+                    "different questions, not two samples of the same one."]
     return "\n".join(out)
 
 
