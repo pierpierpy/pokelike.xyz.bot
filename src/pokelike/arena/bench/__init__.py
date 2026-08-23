@@ -1,15 +1,8 @@
-"""The standard benchmark, so different bots can be compared honestly.
+"""The standard benchmark: plays the fixed 50-seed list and records the result.
 
-Two things make a result comparable, and both are easy to get wrong:
-
-**The same runs.** Luck dominates a single game. The benchmark uses a fixed seed
-list, so every bot faces the identical set of maps, starters and encounters.
-Comparing bots on different seeds mostly measures who drew the nicer maps.
-
-**The same game.** The upstream game gets updated, and its filename carries a
-content hash. A score from before an update is not comparable with one from
-after, so the result file records the hash of the exact bundle that was played.
-Without it a leaderboard silently mixes different games.
+Comparability requires two things: the same seeds (so luck cancels out) and the
+same game bundle (so an upstream update does not silently mix different games).
+The result file records both.
 """
 
 from .progress import _tok, live_fields, progress_bar

@@ -13,41 +13,43 @@ write, and for benchmarking the models that play it.**
 </div>
 
 [pokelike.xyz](https://pokelike.xyz/) is a Pokémon roguelike that runs entirely in the
-browser: pick a starter, walk a branching map of battles, catches, shops and gyms,
-earn badges, and lose the run for good if your team faints. The battles play
-themselves, what a player decides is the roguelike part: where to go, who to catch,
-which item to hold, who leads the next fight. This repo lets you play it headless, no
-window, no account, no internet, from the command line, from Python, or over an HTTP API.
+browser: pick a starter, walk a branching map of battles, catches, shops and gyms, earn
+badges, and lose the run for good if your team faints. The battles play themselves.
+What a player decides is the roguelike part: where to go, who to catch, which item to
+hold, who leads the next fight. This repo lets you play it headless, no window, no
+account, no internet, from the command line, from Python, or over an HTTP API.
 
 <p align="center">
   <img src="img/reinforcement_learning.gif" alt="A trained policy playing a run"><br>
   <sub><i>A trained RL policy mid-run: it just keeps sending Squirtle in, apparently. lol</i></sub>
 </p>
 
-This repo is 3 things in one, use it as you please. It is:
+This repo is three things in one, and you can use it for any of them:
 
--  &nbsp;an **[Environment](#1-environment)**, this is the core. An headless, reproducible copy of the game you can
-  simulate runs against, drive from a script or a notebook, and hand to a coding agent.
--  &nbsp;a **[LLM agentic benchmark](#2-llm-agentic-benchmark)**, this is the agentic harness that runs on
-  the same fifty seeds for every LLM, the output score tells the agentic/planning capabilities of a model
--  &nbsp;a **[Bot framework/competition](#3-bot-competition)**, here you write a bot and your goal is
-  to beat the game. The bot can be anything, a trained policy, a prompt, a
-  rulebook, tree search, anything that turns a state into a move. To see one think,
-  [step a bot through a run one decision at a time](bots/llm-example2/step.ipynb).
-
+- &nbsp;**[Environment](#1-environment)**: the core piece. A headless, reproducible copy
+  of the game that you can simulate runs against, drive from a script or a notebook, and
+  hand to a coding agent.
+- &nbsp;**[LLM agentic benchmark](#2-llm-agentic-benchmark)**: an agentic harness that
+  runs the same fifty seeds against every LLM. The resulting score measures a model's
+  agentic and planning capability.
+- &nbsp;**[Bot framework and competition](#3-bot-competition)**: you write a bot, and
+  the goal is to beat the game. A bot can be anything that turns a state into a move: a
+  trained policy, a prompt, a rulebook, a tree search. To see one think, watch
+  [a bot play one decision at a time](bots/llm-example2/step.ipynb).
 
 ---
 
 ## 1. Environment
 
-**The game lives entirely in the browser, and it has no server.** All its logic sits in
-one JavaScript file, already on your machine after setup. There is no remote API to
-call, we run the game in headless Chromium and talk straight to its own functions.
+The game lives entirely in the browser and has no server. All of its logic sits in one
+JavaScript file, already on your machine once you have run setup. There is no remote API
+to call: this project runs the game in headless Chromium and talks straight to its own
+functions.
 
-**"Headless" does not mean "no graphics".** It means no window. The browser still
-builds the state, the buttons and the map in memory; it simply never paints them. So we
-look at no pixels, the ASCII map you see is redrawn from the nodes and edges read out
-of the game's memory.
+Headless does not mean there are no graphics. It means there is no window. The browser
+still builds the game's state, buttons, and map, entirely in memory, it just never draws
+them on screen. As a result, no pixels are produced. The ASCII map shown in the terminal
+is redrawn directly from the nodes and edges stored in the game's memory.
 
 The pieces, and how a decision flows through them:
 
@@ -67,7 +69,7 @@ core/game.py         class Game  ← THE LOGIC, one copy of it
    └─── bot/              whoever decides the moves
 ```
 
-`Game` has five methods, and everything else goes through them:
+The `Game` class has five methods, and everything else goes through them:
 
 ```python
 g.reset(seed=42)   # start
@@ -79,13 +81,13 @@ g.score()          # what the run is worth
 
 You reach those five methods through three interfaces:
 
-- **CLI**, to play or watch in the terminal. `uv run pokelike play --seed 42` drops you
-  into a run; add `--watch` for a real window, or `--shots DIR` to save a PNG of every
-  screen.
-- **Python**, for scripts and notebooks. Open a game with `session()`, then call
-  `reset`, `step` and `score`; the server and the browser are started for you.
-- **HTTP API**, for any other language. `uv run pokelike api` serves the same five
-  methods as JSON and keeps the browser alive between calls.
+- **CLI**: for playing or watching in the terminal. Running `uv run pokelike play
+  --seed 42` drops you into a run; add `--watch` for a real window, or `--shots DIR` to
+  save a PNG of every screen.
+- **Python**: for scripts and notebooks. Open a game with `session()`, then call
+  `reset`, `step`, and `score`; the driver starts the server and the browser for you.
+- **HTTP API**: for any other language. Running `uv run pokelike api` serves the same
+  five methods as JSON and keeps the browser alive between calls.
 
 Reading a run in the terminal: the map goes top to bottom, `[here]` is where you are,
 `<like this>` are the legal moves, and picking one node closes the others on that layer
@@ -93,15 +95,15 @@ forever.
 
 ## 2. LLM agentic benchmark
 
-**How well does a language model play the game?** [`llm-bench/`](llm-bench/README.md)
-answers that, and it is built so the answer is about the model and nothing else.
+How well does a language model play the game? The
+[`llm-bench/`](llm-bench/README.md) benchmark answers that question, built so the
+answer is about the model and nothing else.
 
-Every model runs inside the **same frozen scaffold**, the same prompt, the same tools,
-the same rendering of the state, the same seeded clock, and plays the **same fifty
-seeds**. The scaffold is copied and hashed into every recorded result, so it cannot
-quietly move between one model and the next. Change it and you have a new benchmark
-version, not a corrected old one; the old rows stay valid under the version that earned
-them.
+Every model runs inside the same frozen harness: the same prompt, the same tools, the
+same rendering of the state, the same seeded clock, playing the same fifty seeds. The
+harness is copied and hashed into every recorded result, so it cannot quietly move
+between one model and the next. Changing it produces a new benchmark version, not a
+corrected old one; the old rows stay valid under the version that earned them.
 
 That makes it an unusual agentic task: no browsing, no tickets, no code, but
 irreversible choices, permanent losses, and a state that barely fits on a screen.
@@ -111,28 +113,29 @@ uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash \
   --endpoint https://openrouter.ai/api --api-key sk-or-...
 ```
 
-That plays fifty games, records the result, and prints a row, half an hour or so. The
-standings, the versions and how to read the table are in
-[llm-bench/README.md](llm-bench/README.md).
+Running that command plays fifty games, records the result, and prints a row. It takes
+about half an hour. The standings, the version history, and how to read the table live
+in [llm-bench/README.md](llm-bench/README.md).
 
 ## 3. Bot competition
 
-> **The competition is open.** Write something that plays
-> [pokelike.xyz](https://pokelike.xyz/) better than mine, put it in [bots/](bots/README.md), and
-> open a pull request. Anyone can enter, no permission needed.
+> The competition is open. Write something that plays
+> [pokelike.xyz](https://pokelike.xyz/) better than mine, add it under
+> [bots/](bots/README.md), and open a pull request. Anyone can enter; no permission
+> needed.
 
-**What counts as a bot is deliberately wide open.** A prompt around an LLM, a model
-fine-tuned on the game, reinforcement learning of any flavour, a hand-written rulebook,
-search over the game tree since the engine ships a battle simulator you can call. If it
-picks a move given the state, it qualifies.
+What counts as a bot is wide open. A prompt around an LLM, a model fine-tuned on the
+game, reinforcement learning of any flavour, a hand-written rulebook, or a search over
+the game tree, since the engine ships a battle simulator you can call. If it picks a
+move given the state, it qualifies.
 
-**How it is judged.** Every entry plays the same 50 fixed seeds, so nobody wins on luck,
-and is ranked by **badges**, the game's own progress counter. One command builds your
-submission, and it records the hash of the game bundle that was played, because scores
-from before and after a game update are not comparable. The standings are generated from
-what is measured on disk, so they cannot fall out of date.
+Every entry is judged by playing the same 50 fixed seeds, so nobody wins on luck, and
+ranked by badges, the game's own progress counter. One command builds your submission,
+and it records the hash of the game bundle that was played, because scores from before
+and after a game update are not comparable. The standings are generated from what is
+measured on disk, so they cannot fall out of date.
 
-Letting a bot play is one command, every bot ships with its weights, so there is
+Letting a bot play takes one command. Every bot ships with its own weights, so there is
 nothing to download or train:
 
 ```bash
@@ -147,12 +150,12 @@ uv run pokelike history                                   # how it went
   <sub><i>a bot playing, no window: the map is redrawn from the game's own memory</i></sub>
 </p>
 
-Writing one is a folder and a single method, `act(state) -> int`.
-**[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide**, a six-step walk-through from a
+Writing one comes down to a folder and a single method: `act(state) -> int`.
+[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide: a six-step walk-through from a
 clone to a pull request, plus everything you are allowed to change. The standings, the
-bar to beat, and every shipped bot are in [bots/](bots/README.md). Random is on the board
-too, and the gap between flailing and the best trained policy is smaller than you would
-expect.
+bar to beat, and every shipped bot are in [bots/](bots/README.md). Random is on the
+board too, and the gap between flailing and the best trained policy is smaller than you
+would expect.
 
 ---
 
@@ -173,98 +176,68 @@ uv sync              # creates the environment and installs dependencies
 uv run pokelike setup
 ```
 
-`setup` does three things, once: downloads the headless browser (~120 MB), checks it
-actually starts, and downloads the game into `site/` (~130 MB, a few minutes). After
-that **you never need the internet again**.
+Run the `setup` command once. It downloads the headless browser (about 120 MB), checks
+that the browser actually starts, and downloads the game into `site/` (about 130 MB,
+which takes a few minutes). After that, the tool works fully offline: you will not need
+an internet connection again.
 
 > On a minimal Linux box (Raspberry Pi, server, container) you may also need Chromium's
 > system libraries: `sudo $(which python) -m playwright install-deps chromium`.
 
-## Commands
+## Quickstart
 
-Three families. **General** drives the game, **bot** is the competition, **model** is
-the benchmark.
-
-### General
-
-| command | what it does |
-|---|---|
-| `setup` | browser + offline copy of the game. Run once |
-| `mirror` | rebuild the offline copy after a game update (`--phase verify` to just check it) |
-| `play` | interactive run in the terminal (`--seed`, `--watch`, `--shots`) |
-| `api` | HTTP JSON server (port 8423) |
-| `schema` | what a bot receives, printed from a live game |
-| `history` | the runs on this machine (`-d` explains the columns, `--recent N`) |
+A few commands to get moving right away:
 
 ```bash
-uv run pokelike play --seed 42
-uv run pokelike schema
-uv run pokelike history -d
+uv run pokelike play --seed 42                       # play a run yourself, in the terminal
+uv run pokelike bot run --bot sarsa-v2 --runs 5 -d    # watch the leading bot play, decision by decision
+uv run pokelike bot new mine                          # start your own bot
+uv run pokelike bot bench --bot mine --dry-run        # measure it on the 50 standard seeds, records nothing
+uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash   # benchmark a model instead
 ```
 
-### Bot: the competition
+Credentials for anything that calls a model come from a `.env` file at the repository
+root (gitignored), from `$FW_ENDPOINT` and `$FW_TOKEN`, or from `--endpoint` and
+`--api-key`; the last one you set wins.
 
-| command | what it does |
-|---|---|
-| `bot new` | creates `bots/<name>/`, ready to play (`--llm` for a prompt bot) |
-| `bot run` | plays a bot (`--bot`, `--runs`, `--seed`, `-d` to log decisions, `-g` for the map) |
-| `bot bench` | the 50 standard seeds, records the result (`--dry-run` to record nothing) |
-| `bot board` | rebuild the standings from what is measured on disk |
-
-```bash
-uv run pokelike bot new mine
-uv run pokelike bot run --bot mine --runs 5 -d
-uv run pokelike bot bench --bot mine --dry-run
-uv run pokelike bot board
-```
-
-### Model: the benchmark
-
-| command | what it does |
-|---|---|
-| `model bench` | a model against one frozen harness (`--harness`, `--models`, `--repeat`, `--workers`) |
-| `model board` | the table for that harness (`--harness`) |
-| `model watch` | follow a running pass: runs, team, map, tools, notes (`--all` for every pass) |
-
-```bash
-uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash
-uv run pokelike model board --harness v0
-uv run pokelike model watch --all
-# credentials: a .env at the repo root (gitignored, the container reads it too),
-# or $FW_ENDPOINT/$FW_TOKEN, or --endpoint/--api-key. Later wins
-```
+Every command documents its own flags with `--help`. The full references, with
+everything above and more, live in [CONTRIBUTING.md](CONTRIBUTING.md),
+[bots/README.md](bots/README.md), and [llm-bench/README.md](llm-bench/README.md).
 
 ## Documentation
 
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**, write and submit a bot (six steps), and how
-  to change the shared library or propose a benchmark harness.
-- **[bots/README.md](bots/README.md)**, the standings, and how to play any shipped bot.
-- **[experiments/README.md](experiments/README.md)**, the research area behind the
-  bots: training, sweeps, and what was already tried.
-- **[llm-bench/README.md](llm-bench/README.md)**, the model benchmark: the harnesses,
+- [CONTRIBUTING.md](CONTRIBUTING.md) explains how to write and submit a bot in six
+  steps, and how to change the shared library or propose a new benchmark harness.
+- [bots/README.md](bots/README.md) has the standings and explains how to play any
+  shipped bot.
+- [experiments/README.md](experiments/README.md) covers the research area behind the
+  bots: training, sweeps, and what has already been tried.
+- [llm-bench/README.md](llm-bench/README.md) covers the model benchmark: the harnesses,
   the standings, and how to read the table.
-- **[example.ipynb](src/pokelike/interfaces/python/example.ipynb)**, drive the game
-  from a notebook, cell by cell.
-- **[bots/llm-example2/](bots/llm-example2/)**, how a bot works and everything you are
-  allowed to change: the prompt, what the model sees, its memory, its tools. Every
-  setting is turned on there with a line saying what it does. It also ships
-  [step.ipynb](bots/llm-example2/step.ipynb), which walks one decision at a time: the
-  state goes to the bot, you see what went to the model and what came back, and nothing
-  moves until you run the next cell.
+- [example.ipynb](src/pokelike/interfaces/python/example.ipynb) drives the game from a
+  notebook, cell by cell.
+- [bots/llm-example2/](bots/llm-example2/) shows how a bot works and everything you are
+  allowed to change: the prompt, what the model sees, its memory, and its tools. Every
+  setting is turned on, and each one has a line explaining what it does. It also
+  includes [step.ipynb](bots/llm-example2/step.ipynb), which walks through one decision
+  at a time: the state goes to the bot, you see what was sent to the model and what came
+  back, and nothing moves until you run the next cell.
 
 ## Getting help
 
-Open an issue on the [tracker](https://github.com/pierpierpy/pokelike.xyz.bot/issues), a
-bug in the shared code is the most useful thing you can report. Include a seed and a step
-if you have one: `uv run pokelike bot run --bot random --runs 1 -d` prints every decision
-with the screen it was made on.
+Open an issue on the [tracker](https://github.com/pierpierpy/pokelike.xyz.bot/issues).
+A bug report about the shared code is the most useful thing you can send. Include a seed
+and a step if you have one: running `uv run pokelike bot run --bot random --runs 1 -d`
+prints every decision along with the screen it was made on.
 
 ## Maintainers & contributing
 
 Maintained by [@pierpierpy](https://github.com/pierpierpy). The bot competition is open
-to anyone, fork, add a folder under `bots/`, and open a pull request; a submission needs
-no permission and touches only your own folder. The full guide, and the rules for
-changing the shared library or the benchmark, are in [CONTRIBUTING.md](CONTRIBUTING.md).
+to anyone: fork the repo, add a folder under `bots/`, and open a pull request. A
+submission needs no permission and touches only your own folder. The full guide, and
+the rules for changing the shared library or the benchmark, are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-The game is somebody else's fan project; with the local copy, traffic to them is zero
-after the one-time download.
+The game itself is somebody else's fan project. Once you have the local copy, this
+project generates no further traffic to them beyond the one-time download.
+</content>

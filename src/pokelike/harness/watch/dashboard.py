@@ -1,8 +1,8 @@
 """The interactive per-pass follow view: `pokelike model watch`.
 
 Draws the dashboard for a single pass and redraws it in place until the pass ends or
-the user stops it. The rendering is five panels (pass info, runs table, this turn,
-team+map, memory), each a pure function of the Pass read from disk.
+the user stops it. The five panels (pass info, runs table, this turn, team+map,
+memory) are each a pure function of the Pass record read from disk.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ def _panel(p: "Pass", containers: list[str]):
     grid.add_row("harness", f"{p.version}   [dim]{p.model}[/dim]")
     left = ""
     if p.done and p.wanted and p.state == "running":
-        # From the trace's own clock, so a pass written before `at` existed has no
-        # per-run time and gets no estimate rather than one that reads "0 min".
+        # From the trace's own clock. A pass without per-run timestamps gets no
+        # estimate rather than one that reads "0 min".
         per = sum(r.secs for r in p.runs[:-1]) / p.done
         rest = (p.wanted - p.done) * per
         if rest > 5400:
@@ -70,7 +70,7 @@ def _runs_table(p: "Pass", limit: int = 12):
 
 
 def _turn(p: "Pass"):
-    """What the model is doing right now: where it is, what it chose, what it used."""
+    """Current decision: where the model is, what it chose, what it used."""
     from rich.panel import Panel
     from rich.table import Table
 
@@ -100,19 +100,13 @@ def _turn(p: "Pass"):
 
 
 def _team_and_map(p: "Pass"):
-    """The team as it stood at the last decision, beside the map it is standing on.
-
-    Side by side because they are one question. A team at half health matters because
-    of what is on the next layer, and a gym two layers down matters because of what
-    the team can take into it.
-    """
+    """The team at the last decision beside the map, shown side by side."""
     from rich.columns import Columns
     from rich.panel import Panel
 
     r = p.current or (p.runs[-1] if p.runs else None)
-    # A run at the character select has no team and no map yet, which is not the
-    # same as a trace that never carries them. Saying the wrong one of those sends
-    # you looking for a bug in the logger.
+    # A run at the character-select screen has no team and no map yet, which is
+    # distinct from a trace that never carries them.
     ever_team = any(x.team for x in p.runs)
     ever_map = any(x.map_view for x in p.runs)
     nothing_team = "[dim]not yet[/dim]" if ever_team else "[dim]not in this trace[/dim]"
@@ -130,16 +124,16 @@ def _memory(p: "Pass"):
     from rich.panel import Panel
 
     notes = p.notes_live or p.notes
-    # Numbered as the model sees them, because the numbers are what it passes to
-    # `revise` and `forget` and what the trace records.
+    # Numbered as the model sees them, because the numbers are what the model
+    # passes to `revise` and `forget`.
     body = ("\n".join(f"[{i}] {n}" for i, n in enumerate(notes, 1)) if notes
             else "[dim]nothing written yet[/dim]")
     if p.plan:
         body += f"\n\n[bold]plan[/bold]  {p.plan}"
     title = "memory"
     if p.notes_live != p.notes:
-        # Says which it is showing. The file behind `notes` is per finished run, so
-        # the two differ exactly when this run has touched them.
+        # The notebook file is per finished run, so notes_live and notes differ
+        # exactly when the current run has touched them.
         title = "memory, this turn"
     return Panel(body, title=title, title_align="left", border_style="dim")
 
@@ -154,7 +148,7 @@ def render(p: "Pass", containers: list[str]):
 def dashboard(version: str | None = None, once: bool = False,
               every: float = 2.0, stamp: str | None = None,
               model: str | None = None) -> int:
-    """The pass you chose, redrawn until it ends or you stop it."""
+    """Redraws the chosen pass until it ends or the user stops it."""
     from rich.console import Console
     from rich.live import Live
 
@@ -169,8 +163,7 @@ def dashboard(version: str | None = None, once: bool = False,
             console.print("what there is:  uv run pokelike model watch --all")
             return 1
         if folders(version):
-            # Traces exist but none is running: this is the common case, and it is
-            # NOT an error to be pointed at. Say so, and offer the overview.
+            # Traces exist but none is running.
             console.print("nothing is running right now.")
             console.print("everything on disk:  uv run pokelike model watch --all")
             return 1
@@ -184,9 +177,7 @@ def dashboard(version: str | None = None, once: bool = False,
     if p is None:
         console.print(f"{folder} holds no trace yet")
         return 1
-    # Redrawing in place needs a terminal to redraw in. Piped to a file or a pager it
-    # would write nothing at all, so it draws once and stops, which is what the pipe
-    # was asking for anyway.
+    # When piped or not a terminal, draw once and stop.
     if once or not console.is_terminal:
         console.print(render(p, _get_containers()))
         return 0
@@ -195,16 +186,14 @@ def dashboard(version: str | None = None, once: bool = False,
               screen=False) as live_view:
         while True:
             time.sleep(every)
-            # THE SAME directory, not whichever was written to last. With two passes
-            # going the last write alternates between them, and the view would flip
-            # every couple of seconds with neither one readable.
+            # Always re-read the same directory, not whichever was written to last.
+            # With two passes going the view would otherwise flip between them.
             fresh = read(folder, _get_containers())
             if fresh is None:
                 continue
             p = fresh
             live_view.update(render(p, _get_containers()))
             if p.state in ("done", "FAILED", "stalled"):
-                # Finished, or stopped being touched (died). Either way there is
-                # nothing more to redraw.
+                # Finished or died; nothing more to redraw.
                 break
     return 0

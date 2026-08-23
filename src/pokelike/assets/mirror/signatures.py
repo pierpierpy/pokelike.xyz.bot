@@ -1,8 +1,6 @@
 """Magic-byte validation for downloaded files.
 
-In: file bytes and a suffix. Out: whether the content matches the format.
-
-The site does NOT answer 404 for missing files: it returns index.html with
+The site does not answer 404 for missing files: it returns index.html with
 status 200. Without this check the mirror fills up with HTML pages wearing a
 .png extension.
 """
@@ -24,10 +22,7 @@ SIGNATURES = {
 
 
 def _valid_content(data: bytes, suffix: str) -> bool:
-    """Checks whether raw bytes match the expected format for a file extension.
-
-    In: the file content and the dot-prefixed suffix. Out: True if valid.
-    """
+    """Checks whether raw bytes match the expected format for a file extension."""
     if not data:
         return False
     expected = SIGNATURES.get(suffix.lower())

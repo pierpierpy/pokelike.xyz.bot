@@ -5,7 +5,7 @@ first. This prompt spends the whole run buying itself more run.
 
 Credentials come from `.env` at the repository root.
 
-The prompt is the whole submission. The tools, the loop, the rendering and the
+The prompt is the whole submission. The tools, the loop, the rendering, and the
 timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
 difference between models and prompts, not between harnesses.
 """

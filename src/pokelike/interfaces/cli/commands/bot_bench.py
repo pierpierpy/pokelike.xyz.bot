@@ -1,7 +1,4 @@
-"""Bot competition: bench and board commands.
-
-In: parsed args. Out: process exit code.
-"""
+"""Bot competition: bench and board commands."""
 
 from __future__ import annotations
 
@@ -19,10 +16,7 @@ from .bot_run import BOTS
 
 
 def cmd_bench(args) -> int:
-    """Runs the standard benchmark and writes a submittable result file.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Runs the standard benchmark and writes a submittable result file."""
     from ....bot import LLMBot, create
     from ....core.browser import region_name as _rname
 
@@ -39,43 +33,38 @@ def cmd_bench(args) -> int:
         print(e.args[0], file=sys.stderr)
         raise SystemExit(2) from e
 
-    # A path means the bot is being measured where it lives (inside an
-    # experiment folder, usually). That is the point: you benchmark what you are
-    # working on without moving it. It is never recorded from there; recording
-    # is for bots/, reached by the standard procedure.
+    # A path means the bot is measured where it lives (e.g. inside an experiment
+    # folder). Recording requires the bot to be under bots/.
     from_path = "/" in args.bot or "\\" in args.bot
     display = (Path(args.bot).resolve().parent.name if args.bot.endswith("bot.py")
                else Path(args.bot).resolve().name) if from_path else args.bot
 
     seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
 
-    # Whether this ends in a recorded entry is decided here, before the runs, so
-    # the notes below can say what will happen instead of what usually happens.
+    # Decide before the runs whether an entry will be recorded.
     partial = len(seeds) < len(STANDARD_SEEDS)
     records = not (args.dry_run or partial or from_path)
 
-    # The one place the two benchmarks get mixed up. Both end up as "an LLM playing
-    # the game", and nothing on screen said which question was being answered.
+    # Warn LLM bots that this is the bot competition, not the model benchmark.
     #
-    # Asked of the bot, not of --category. Keyed on the category, the note reached
-    # only those who had already understood the difference well enough to pass
-    # --category llm. Whoever needs it passes nothing and lands in the default.
+    # Keyed on isinstance rather than --category, so the warning reaches users
+    # who did not pass --category llm.
     if isinstance(bot, LLMBot):
         print("note: this is the BOT competition, where the model is not held\n"
               "  still: your prompt, view and tools are the submission, and the\n"
               "  model is whatever --model or $MODEL_ID names. To measure a MODEL\n"
-              "  against a fixed scaffold, that is `pokelike model bench`.\n")
+              "  against a fixed harness, that is `pokelike model bench`.\n")
         if records and args.category != "llm":
             print(f"  it would be recorded under category {args.category!r}, which\n"
                   "  is wrong for a bot that calls a model. Add `--category llm`.\n")
 
     server, game = _server_and_game(args)
     try:
-        # --- logging: same files the model benchmark writes, into the bot's folder
+        # --- logging: write the same file format the model benchmark uses ---
         from ....logging import Conversations, PassLog
         from ....logging.trace import enrich_decision
 
-        # The bot folder: either a path given directly or the standard bots/ location.
+        # Resolve the bot folder.
         if from_path:
             bot_dir = (Path(args.bot).resolve().parent if args.bot.endswith("bot.py")
                        else Path(args.bot).resolve())
@@ -83,7 +72,7 @@ def cmd_bench(args) -> int:
             from ....bot.catalogue import folder as bot_folder
             bot_dir = bot_folder(args.bot)
 
-        # One directory per bench invocation, timestamped + unique suffix.
+        # One directory per bench invocation.
         log_base = bot_dir / "log"
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         while True:
@@ -101,7 +90,7 @@ def cmd_bench(args) -> int:
         ]
 
         def _bot_done_summary(log, one_pass):
-            """Summary line for a bot bench pass (no model-specific vocabulary)."""
+            """Summary line for a bot bench pass."""
             s = one_pass.get("summary") or {}
             mins = (time.time() - log.started) / 60
             log._say(
@@ -117,13 +106,12 @@ def cmd_bench(args) -> int:
             region=_rname(region),
         )
 
-        # Keep the last observation so the decision enricher can read the map.
+        # Last observation, for the decision enricher's map reading.
         seen: dict = {}
         drawn = [""]
 
-        # Everything the model was given, beside the trace. Wraps the bot's own
-        # call_model, so it costs the bot nothing and a bot that talks to no model
-        # (the random one, a policy, a search) simply writes no file.
+        # Record every model exchange beside the trace. Bots that call no model
+        # (random, a policy) simply write no file.
         chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
         if not getattr(args, "no_conv", False):
             chat.watch(bot)
@@ -183,14 +171,8 @@ def cmd_bench(args) -> int:
 
     print(format_result(result))
 
-    # A PARTIAL run does not produce an entry, and neither does --dry-run, which
-    # is what `records` above already worked out.
-    #
-    # This used to write one whatever happened, so a `--runs 5` sanity check left
-    # a real submission on disk that the next `git add` would pick up. Refusing
-    # is not caution, it is the same rule the leaderboard already states: a score
-    # over 5 seeds is not comparable to one over 50, so it is not a submission,
-    # and something that is not a submission should not be written as one.
+    # A partial run (fewer than 50 seeds) or --dry-run produces no entry,
+    # because a score over fewer seeds is not comparable to one over 50.
     if not records:
         if from_path:
             print(f"\n  nothing recorded (measured from {args.bot}).")
@@ -205,20 +187,16 @@ def cmd_bench(args) -> int:
             print("  run it without --runs to record a result worth comparing.")
         return 0
 
-    # Recorded INTO the bot's own folder, next to the code that earned it, along
-    # with whatever it declared in artifacts() and a fingerprint over both. A
-    # score and the thing that produced it cannot then drift apart unnoticed.
+    # Record into the bot's own folder, next to the code, with its declared
+    # artifacts and a fingerprint over both.
     if not args.author:
-        # The standings have a column for it. Left empty here, it is empty there,
-        # and the fix afterwards is another fifty runs.
+        # The standings have a column for it; left empty here, it is empty there.
         print("note: no --author, so the entry will carry an empty one.\n")
 
     try:
         d = record_result(args.bot, result, bot, BOTS)
-    except Exception as e:  # noqa: BLE001 — the runs are the expensive part
-        # Fifty runs took minutes; a failure in the last five seconds must not
-        # throw them away. Written somewhere plain, with the one command that
-        # files it once whatever broke is fixed.
+    except Exception as e:  # noqa: BLE001, the runs are the expensive part
+        # Save the result even if recording fails, so fifty runs are not lost.
         from ....arena.bench import save
         from ....bot.catalogue import slugify
 
@@ -246,10 +224,7 @@ def cmd_bench(args) -> int:
 
 
 def cmd_leaderboard(args) -> int:
-    """Rebuilds the index from the entries on disk and prints the table.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Rebuilds the index from entries on disk and prints the standings."""
     index = build_index(BOTS)
     print(format_table(index))
     print(f"\n  {len(index['entries'])} measured, in {BOTS}/")
@@ -260,12 +235,9 @@ def cmd_leaderboard(args) -> int:
 
 
 def bot_bench_args(s) -> None:
-    """Registers the arguments for `pokelike bot bench`.
-
-    In: the argparse subparser. Out: None (mutates the parser).
-    """
+    """Registers the arguments for `pokelike bot bench`."""
     s.add_argument("--bot", default="random", help="which bot to benchmark")
-    s.add_argument("--name", default=None, help="name for the leaderboard (defaults to --bot)")
+    s.add_argument("--name", default=None, help="name for the standings (defaults to --bot)")
     s.add_argument("--author", default="", help="your name or github handle")
     s.add_argument("--category", default="other", choices=list(CATEGORIES),
                    help="rules, rl, llm, human or other")

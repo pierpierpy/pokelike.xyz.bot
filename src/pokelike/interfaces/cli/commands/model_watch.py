@@ -1,16 +1,10 @@
-"""Model benchmark: the watch/dashboard command.
-
-In: parsed args. Out: process exit code.
-"""
+"""Model benchmark: the watch/dashboard command."""
 
 from __future__ import annotations
 
 
 def cmd_watch(args) -> int:
-    """Follows one pass, from the trace it is already writing.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Follows a running pass from its trace file."""
     from ....harness.watch import dashboard, monitor, overview
 
     if args.overview:
@@ -22,14 +16,9 @@ def cmd_watch(args) -> int:
 
 
 def model_watch_args(s) -> None:
-    """Registers the arguments for `pokelike model watch`.
-
-    In: the argparse subparser. Out: None (mutates the parser).
-    """
+    """Registers the arguments for `pokelike model watch`."""
     from ....harness import llmbench as _lbv
-    # Optional here, unlike on `bench` and `board`. Watching is about what is
-    # happening rather than about a question being answered, and with nothing
-    # said it follows whichever pass was written to last.
+    # Optional here: watching follows whichever pass was written to last.
     s.add_argument("--harness", default=None,
                    help="follow a pass of this version, one of: "
                         f"{', '.join(_lbv.versions()) or 'none on disk'}. "
@@ -39,8 +28,7 @@ def model_watch_args(s) -> None:
     s.add_argument("--all", action="store_true",
                    help="every pass on this machine, one row each, instead of "
                         "one pass in detail")
-    # Which pass, when more than one is running. Without either, it asks; with
-    # nothing to ask (a pipe, a script) it follows the newest and says which.
+    # Which pass to follow when more than one is running.
     s.add_argument("--stamp", default=None, metavar="STAMP",
                    help="the log directory to follow, e.g. 20260820-153310. Part "
                         "of the name is enough")

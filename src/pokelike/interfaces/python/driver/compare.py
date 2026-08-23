@@ -1,11 +1,7 @@
 """Compare several bots over identical seeds, paired.
 
-In: a dict of named bots, seeds, optional baseline name. Out: runs and a
-formatted comparison table.
-
-Paired on purpose. Runs vary enormously by luck here, so two separate means
-mostly measure who drew the nicer maps. The question worth asking is "on this
-identical run, did it do better".
+Seeds are paired so that the comparison controls for map variance rather than
+measuring who drew nicer maps.
 """
 
 from __future__ import annotations
@@ -23,13 +19,10 @@ from .session import SITE, session
 def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
             site: Path | str = SITE,
             region: int | str = 1) -> dict[str, Any]:
-    """Several bots over the SAME seeds, compared pairwise.
+    """Run several bots over the same seeds and return a paired comparison.
 
-    In: {name: bot} dict, an iterable of seeds, optional baseline name, site, region.
-    Out: {"runs": {name: [row, ...]}, "table": str}.
-
-    `baseline` names what everything is measured against; without one a random
-    bot is added to play that part.
+    Returns {"runs": {name: [row, ...]}, "table": str}. If no baseline is
+    given, a RandomBot is added to fill that role.
     """
     from ....bot.random_bot import RandomBot
 
@@ -49,13 +42,9 @@ def compare(bots: dict[str, Any], seeds, baseline: str | None = None,
 
 
 def format_comparison(runs: dict[str, list[dict]], baseline: str) -> str:
-    """The paired table, ranked by badges.
+    """Format the paired comparison table, ranked by badges.
 
-    In: {name: [run_dicts]} and the baseline name. Out: formatted text table.
-
-    Reports wins, draws, losses and a t statistic rather than only a mean:
-    with this much variance between runs, a difference in means on its own says
-    very little.
+    Reports wins/draws/losses and a t statistic rather than only a mean.
     """
     m = statistics.mean
     base = runs.get(baseline) or []

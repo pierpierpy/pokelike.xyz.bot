@@ -1,8 +1,6 @@
-"""Building what the model sees: state rendering, view modes, and tool answers.
+"""State rendering and view modes for the LLM harness.
 
-Pure functions that turn a game state into text. The hook for changing what the
-model looks at is `render_state` on the class; this module holds the default
-implementations behind that hook.
+Pure functions that turn a game state into text for the model.
 """
 
 from __future__ import annotations
@@ -20,16 +18,8 @@ def render_state_default(
     state_view: str | list[str] | tuple[str, ...],
     verbose: bool = False,
 ) -> str:
-    """Renders the game state according to the configured view mode.
-
-    In: the state dict, the state_view spec (one of "screen", "json", "both",
-    or a list of key names), and a verbose flag. Out: the string the model reads.
-    """
-    # `state_view` decides what the model is looking at rather than what it is
-    # told to do: "screen" is ~880 chars, "json" is ~5900 chars. Six times the
-    # tokens is the price of "json", and it is not only money: filling the context
-    # with a map the turn does not need takes room from the reasoning it was about
-    # to do.
+    """Renders the game state according to the configured view mode."""
+    # "screen" is ~880 chars; "json" is ~5900 chars (six times the tokens).
     if isinstance(state_view, str) and state_view == "screen":
         return render.screen(state)
     if isinstance(state_view, str) and state_view in ("json", "both"):
@@ -40,10 +30,7 @@ def render_state_default(
     if isinstance(state_view, (list, tuple)):
         missing = [k for k in state_view if k not in state]
         if missing:
-            # Not an error: a key can be absent on one screen and present on
-            # the next: `map` is gone during a battle. Saying so beats a
-            # view that quietly shrinks and a run that gets worse for reasons
-            # nobody can see.
+            # A key can be absent on one screen (e.g. `map` during a battle).
             if verbose:
                 print(f"   [llm] state_view: no {', '.join(missing)} on this screen")
         return json.dumps(
@@ -60,11 +47,7 @@ def state_view_label(
     state_view: str | list[str] | tuple[str, ...],
     render_state_overridden: bool,
 ) -> str:
-    """Returns a short label describing the view mode for metadata recording.
-
-    In: the state_view spec and whether `render_state` was overridden by a
-    subclass. Out: a string like "screen", "json", "keys:bag,team", or "custom".
-    """
+    """Returns a short label describing the view mode for metadata recording."""
     if render_state_overridden:
         return "custom"
     spec = state_view
@@ -72,11 +55,7 @@ def state_view_label(
 
 
 def exits_text(state: dict[str, Any]) -> str:
-    """Describes where each legal action leads by reading the map edges.
-
-    In: the full state dict. Out: a multi-line string showing each action's index
-    and where it leads on the next layer.
-    """
+    """Describes where each legal action leads by reading the map edges."""
     if not state.get("map"):
         return "You are not on the map: this choice opens or closes no paths."
     exits = render.exits_of(state)

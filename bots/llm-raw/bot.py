@@ -2,16 +2,17 @@
 
 Every other bot here reads `render.screen` (~831 characters, written for a person).
 This one gets the state dict (~5900 characters of compact JSON) and works out what
-matters by itself. Same prompt as llm-survivor, so the difference between the two
-rows is the difference between reading a summary and reading the data.
+matters by itself. The prompt is the same as llm-survivor, so the difference
+between the two rows is the difference between reading a summary and reading the
+data.
 
-Costs about 8x the tokens per turn (~1.8M per fifty-seed benchmark against ~275k).
-Whether the extra data is worth the room it takes from reasoning is exactly what
-running both answers.
+This bot costs about 8x the tokens per turn (~1.8M per fifty-seed benchmark
+against ~275k). Whether the extra data is worth the room it takes from reasoning
+is exactly what running both answers.
 
-The prompt is deliberately unchanged from llm-survivor. Tuning it for JSON would be
-a fair thing to try and a different experiment: two variables moving at once tells
-you nothing about either.
+The prompt is deliberately unchanged from llm-survivor. Tuning the prompt for JSON
+would be a fair thing to try and a different experiment: two variables moving at
+once tells you nothing about either.
 
 Credentials come from `.env` at the repository root.
 """

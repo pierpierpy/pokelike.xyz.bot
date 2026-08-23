@@ -13,14 +13,9 @@ def actions_view(actions: list[dict]) -> str:
 
     In: the `actions` list from a state. Out: the printable block, one per option.
 
-    The `tooltip` is the text the game puts on screen when the pointer rests on
-    that node: the trainer's archetype and which types they use, a gym leader's
-    roster with levels, what a trade does. Someone playing in a browser reads it
-    before choosing, so a terminal that left it out was the poorer view, not the
-    equal one.
-
-    Absent on anything that is not a map node, and absent on older recordings,
-    hence the `.get`.
+    The `tooltip` field carries the hover text the game shows for a map node
+    (trainer archetype, gym roster, trade details). It is absent on non-node
+    actions and on older recordings, hence the `.get`.
     """
     if not actions:
         return "  (no actions)"
@@ -39,18 +34,11 @@ def tutor_view(obs: dict[str, Any]) -> str:
 
     In: the full observation dict. Out: comparison table (empty if no offers).
 
-    The buttons read "-> SURF:Wartortle Lv35" and carry neither power nor type,
-    so the comparison that decides the choice is not on screen at all. It is in
-    the state (`team[i].move` and `offered_moves[i]`) and this is where it
-    becomes readable.
+    The tutor buttons carry only species and level, not power or type, so this
+    function builds the comparison from `team[i].move` and `offered_moves[i]`.
 
-    Renders whenever `offered_moves` is present, which is every turn: the bridge
-    asks the engine what the tutor WOULD offer each member unconditionally, so
-    the question can be answered before reaching a tutor. Gating on the screen is
-    therefore the caller's job, and `screen()` does it. Kept that way round on
-    purpose, since a bot that wants to plan several maps ahead has a reason to
-    call this off a tutor screen and no way to get it back if this function
-    refused.
+    The `offered_moves` field is present every turn (the bridge asks the engine
+    unconditionally), so gating on the tutor screen is the caller's job.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []

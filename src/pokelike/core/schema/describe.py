@@ -2,8 +2,8 @@
 
 In: a dict observation from the game. Out: formatted text (plain or markdown).
 
-The self-check that reports undocumented fields runs every time the reference is
-printed, so `pokelike schema` can never describe a game that no longer exists.
+Fields present in a real observation but absent from the reference dicts are
+reported as undocumented every time the schema is printed.
 """
 
 from __future__ import annotations
@@ -144,12 +144,6 @@ def _trimmed(obs: dict[str, Any], keep: int = 4) -> dict[str, Any]:
 
     In: a full observation and a max-items-per-list count. Out: the same dict
     with long lists truncated and a marker saying what was dropped.
-
-    The previous version sliced the serialised text at 4000 characters, which cut
-    through the middle of a map node and left the block unparseable, a reference
-    sample nobody could paste anywhere. Long lists are shortened instead, with a
-    marker saying what was dropped, so every KEY a bot can read is still present
-    and the shape is intact.
     """
     def cut(seq: list, what: str) -> list:
         if len(seq) <= keep:
@@ -175,9 +169,8 @@ def capture(game, seed: int = 42, max_steps: int = 12) -> dict[str, Any]:
     In: a Game instance and optional seed/max_steps. Out: an observation dict
     with map, team and stats populated.
 
-    A fresh run has no map and no team, and `stats` only appears after the first
-    battle, which is exactly the field a bot author needs to build a reward. So
-    we play on until the state has all three.
+    Plays forward from reset until the state has all three fields, because a
+    fresh run starts with none of them.
     """
     obs = game.reset(seed=seed)
     for _ in range(max_steps):

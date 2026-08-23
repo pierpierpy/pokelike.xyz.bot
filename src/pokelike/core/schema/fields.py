@@ -6,8 +6,7 @@ In: nothing (pure data). Out: importable dicts keyed by field name.
 from __future__ import annotations
 
 # What each field means. Anything present in a real observation but missing from
-# here is reported as undocumented, which is the point: the check runs every time
-# the reference is printed.
+# here is reported as undocumented when the schema is printed.
 FIELDS = {
     "screen": "which screen you are on: map-screen, catch-screen, item-equip-modal, ...",
     "prompt": "what the screen is ASKING. Read it: on the swap screen the same "

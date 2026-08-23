@@ -1,14 +1,14 @@
 """Builds the complete local copy of the game, so it can be played offline.
 
-It works in five phases:
+Five phases:
 
-1. STATIC   -- downloads index.html, the CSS/JS it points at, and every file path
+1. STATIC: downloads index.html, the CSS/JS it points at, and every file path
    quoted literally inside the game bundle (sprites, audio, maps).
-2. NUMBERED -- badges and map backgrounds are addressed by number.
-3. SLUG     -- URLs built at runtime ("items/" + id + ".png"), tried one by one.
-4. PLAYED   -- opens the server and plays a few runs, downloading what is asked for.
-5. VERIFY   -- replays with the network closed and counts what is missing, then
-   repairs exactly that list and checks again.
+2. NUMBERED: badges and map backgrounds addressed by number.
+3. SLUG: URLs built at runtime ("items/" + id + ".png"), tried one by one.
+4. PLAYED: opens the server and plays a few runs, downloading what is asked for.
+5. VERIFY: replays with the network closed, counts what is missing, repairs
+   exactly that list, and checks again.
 """
 
 from .build import PHASES, build

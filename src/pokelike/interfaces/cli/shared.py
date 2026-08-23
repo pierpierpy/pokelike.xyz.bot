@@ -34,19 +34,14 @@ the virtualenv is not on root's PATH."""
 
 # --------------------------------------------------------------- credentials
 #
-# Three flags, on every command that can end up calling a model: --endpoint,
-# --api-key and --model. They override the environment; without them nothing
-# changes, so `export FW_ENDPOINT=...` keeps working exactly as before and no
-# existing script or fork breaks.
-#
-# A key on the command line is READABLE BY OTHER USERS of the machine, in `ps`,
-# and it lands in your shell history. That is a real cost, so `--api-key` also
-# accepts `@path`, reads the file and keeps the key out of both. The environment
-# and a file are the safe ways; the literal flag is the convenient one.
+# Three flags on every command that can call a model: --endpoint, --api-key,
+# --model. They override the environment; without them, FW_ENDPOINT/FW_TOKEN/
+# MODEL_ID work as before. The --api-key flag also accepts @path to read a
+# file, keeping the key out of `ps` and shell history.
 
 
 def add_llm_flags(parser, with_model: bool = True) -> None:
-    """The credential flags, worded the same everywhere they appear."""
+    """Add --endpoint, --api-key, and optionally --model to a parser."""
     g = parser.add_argument_group(
         "model credentials",
         "override FW_ENDPOINT, FW_TOKEN and MODEL_ID without exporting anything",
@@ -62,21 +57,11 @@ def add_llm_flags(parser, with_model: bool = True) -> None:
 
 
 def load_dotenv() -> list[str]:
-    """Fills the environment from `.env` at the repository root, without overriding.
+    """Read `.env` at the repo root into os.environ using setdefault.
 
-    In: nothing (the file is found from this module's location). Out: the names of
-    the variables it set, never their values.
+    Returns the names of the variables set, never their values.
     """
-    # WHY THIS EXISTS. `.env` was already the documented home for credentials, but
-    # only `docker compose` read it (`env_file:`), so a run on the host saw nothing
-    # and the only ways left were exporting by hand or passing `--api-key`, which
-    # puts the key in `ps` for every other user of the machine and in your shell
-    # history. That is the failure mode this removes: the file the container already
-    # trusts is now the file the CLI trusts too.
-    #
-    # `setdefault`, never assignment, so the precedence is the one you would guess:
-    # an explicit flag beats the environment, and the environment beats this file. A
-    # variable you exported for one command is not silently replaced by the file.
+    # Uses setdefault so an explicit export always wins over the file.
     root = Path(__file__).resolve().parents[3].parent
     path = root / ".env"
     if not path.is_file():
@@ -94,8 +79,7 @@ def load_dotenv() -> list[str]:
             line = line[len("export "):]
         name, _, value = line.partition("=")
         name, value = name.strip(), value.strip()
-        # Quotes are how a value with spaces is written in a file like this, and
-        # they are not part of the value.
+        # Strip surrounding quotes from the value.
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
         if not name or name in os.environ:
@@ -106,11 +90,10 @@ def load_dotenv() -> list[str]:
 
 
 def llm_settings(args) -> dict[str, str]:
-    """What was actually given, ready to hand to a bot's constructor.
+    """Return non-empty credential values from the parsed args.
 
-    Only non-empty values, and that is the whole point: an absent flag must not
-    become an empty string, or it would override the environment with nothing and
-    turn a working setup into "FW_TOKEN is required".
+    Absent flags are omitted so they do not override the environment with empty
+    strings.
     """
     out: dict[str, str] = {}
     if getattr(args, "endpoint", None):
@@ -119,7 +102,7 @@ def llm_settings(args) -> dict[str, str]:
         out["model"] = args.model
     key = getattr(args, "api_key", None)
     if key:
-        # @path reads the file, so the key never appears in argv or in history.
+        # @path reads from a file instead.
         if key.startswith("@"):
             path = Path(key[1:]).expanduser()
             if not path.is_file():
@@ -134,19 +117,9 @@ def llm_settings(args) -> dict[str, str]:
 
 
 def _own_bridge(name: str | None) -> Path | None:
-    """A bridge a bot carries, at `<bot>/artifacts/bridge.js`, or None.
+    """Return the path to a bot's own bridge.js at <bot>/artifacts/bridge.js, or None.
 
-    The state is a projection of the game written by hand in `bridge.js`, so a bot
-    that needs the engine to give up something nobody thought to expose has nowhere
-    else to do it: no `view()` and no tool can invent data the bridge never read.
-
-    In `artifacts/` and not the folder root, because the leaderboard hashes `bot.py`
-    plus everything under `artifacts/`. Putting it there makes the score checkable
-    for free, and puts the choice in front of anyone reading the submission.
-
-    Resolves the same way `create()` does, so a path and a unique prefix both work.
-    Returns None rather than raising: the bot has already been built by the time
-    this is called, so a name that does not resolve here is not a new error.
+    Returns None rather than raising when the name does not resolve.
     """
     if not name:
         return None
@@ -173,31 +146,15 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
     server.start()
 
     watch = getattr(args, "watch", False)
-    # With a window open the animations should run at their own speed, otherwise
-    # everything flashes past unseen. Headless squashes them to 1 ms because
-    # nobody is watching.
+    # With a window open, animations run at real speed; headless squashes them.
     #
-    # Which bridge drives the game, in order of precedence.
+    # Bridge precedence:
+    # 1. A benchmark run uses the frozen pair beside its harness version.
+    # 2. A bot may carry its own at bots/<name>/artifacts/bridge.js.
+    # 3. Everything else gets the shared live pair.
     #
-    # A benchmark run uses the pair frozen beside its harness: every model under a
-    # version has to be asked the same question, and the bridge decides what is in
-    # the state at all.
-    #
-    # A bot may carry its own at `bots/<name>/artifacts/bridge.js`. The state is a
-    # projection of the game written by hand, so a bot that wants the engine to
-    # give up something nobody thought to expose has nowhere else to do it: no
-    # `view()` and no tool can invent data the bridge never read. `artifacts/` and
-    # not the folder root, because the leaderboard hashes `bot.py` plus everything
-    # under `artifacts/`, so putting it there makes the score checkable for free.
-    #
-    # `init.js` is deliberately NOT overridable by a bot. It pins Math.random and
-    # Date.now, and a run's seed is built from both, so a bot supplying its own
-    # would play fifty different games while the table said it had played the
-    # standard fifty seeds. More information is fair game and is visible in the
-    # fingerprint; a different game under the same seed is not.
-    #
-    # Everything else gets the shared pair, and should: play and bot follow a fix
-    # rather than being pinned away from one.
+    # init.js is not overridable by a bot: it pins Math.random and Date.now,
+    # so a custom one would play different games while claiming the standard seeds.
     scripts = {}
     if getattr(args, "harness", None):
         from ...harness import llmbench as _lb
@@ -230,11 +187,10 @@ def _server_and_game(args) -> tuple[AssetServer, Game]:
 
 
 def browser_works() -> tuple[bool, str]:
-    """Actually launches the browser. Downloading it is not the same as running it.
+    """Launch and immediately close the browser to verify it can start.
 
-    The Playwright installer exits 0 even when it warns that the host is missing
-    libraries, so trusting the exit code makes `setup` claim success and every
-    later command fail with a stack trace. Better to find out here.
+    The Playwright installer exits 0 even when system libraries are missing,
+    so this is the only reliable check.
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -248,11 +204,9 @@ def browser_works() -> tuple[bool, str]:
 
 
 def seed_arg(value: str) -> int:
-    """`--seed` as argparse sees it: refused here rather than after the run.
+    """Argparse type for --seed: validates and returns the integer.
 
-    The check also lives in `Game.reset`, which is what protects the API and
-    anyone using the package as a library. Doing it here as well is what turns
-    a traceback into one line, before Chromium has even started.
+    Rejects invalid seeds early, before the browser starts.
     """
     try:
         seed = int(value)
@@ -266,11 +220,10 @@ def seed_arg(value: str) -> int:
 
 
 def parse_seeds(text: str) -> list[int]:
-    """`10010,10011` or `10010-10019`, or both mixed, in the order written.
+    """Parse '10010,10011' or '10010-10019' (or both mixed) into a seed list.
 
-    Order is kept rather than sorted: under a harness that carries notes between
-    runs the order IS part of the measurement, so quietly reordering would change
-    what was asked for.
+    Order is preserved because a harness that carries notes between runs treats
+    order as part of the measurement.
     """
     out: list[int] = []
     for part in text.replace(" ", "").split(","):
@@ -294,20 +247,13 @@ def parse_seeds(text: str) -> list[int]:
 
 # ---------------------------------------------------------------- region flags
 #
-# Two flags, mutually exclusive:
+# Two mutually exclusive flags:
 #   --region NAME   one of kanto, johto, hoenn, sinnoh (or 1-4). Default kanto.
 #   --regions all   play them in sequence, stopping at the first not won.
-#
-# Refusing both at once is simpler and more helpful than trying to define what
-# "play johto, then all four" would mean. The validation raises argparse-style
-# messages, not tracebacks, so the user never sees a stack trace for a typo.
 
 
 def region_arg(value: str) -> int:
-    """`--region` as argparse sees it: refused here rather than after the run.
-
-    In: the raw flag value. Out: a 1-4 integer.
-    """
+    """Argparse type for --region: returns a 1-4 integer or raises."""
     try:
         return normalise_region(value if not value.isdigit() else int(value))
     except ValueError as e:
@@ -315,10 +261,7 @@ def region_arg(value: str) -> int:
 
 
 def add_region_flags(parser) -> None:
-    """Adds --region and --regions to a subcommand parser.
-
-    In: an argparse (sub)parser. Out: None (mutates the parser).
-    """
+    """Add --region and --regions to a subcommand parser."""
     g = parser.add_argument_group(
         "region",
         f"which region to play: one of {', '.join(REGIONS)} (or 1-4)",
@@ -330,9 +273,8 @@ def add_region_flags(parser) -> None:
 
 
 def validate_region_flags(args) -> None:
-    """Refuses --region and --regions together, validates --regions value.
-
-    In: the parsed args namespace. Out: raises SystemExit(2) on conflict.
+    """Raise SystemExit(2) if --region and --regions are both set, or if
+    --regions has a value other than 'all'.
     """
     has_region = getattr(args, "region", None) is not None
     has_regions = getattr(args, "regions", None) is not None
@@ -349,10 +291,7 @@ def validate_region_flags(args) -> None:
 
 
 def effective_region(args) -> int:
-    """The region to play, from the flags. Default kanto (1).
-
-    In: the parsed args namespace. Out: 1-4.
-    """
+    """Return the region to play (1-4) from the parsed args. Defaults to kanto (1)."""
     if getattr(args, "region", None) is not None:
         return args.region
     return 1

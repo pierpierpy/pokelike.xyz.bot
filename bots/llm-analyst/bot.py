@@ -1,12 +1,13 @@
 """llm-analyst: look before you leap.
 
-Says nothing about how to play, only about what to read first. The cheapest test
-of whether these models lose runs by choosing badly or by choosing without looking.
-Costs the most tokens per turn: every turn spends tool rounds before committing.
+This bot says nothing about how to play, only about what to read first. It is the
+cheapest test of whether models lose runs by choosing badly or by choosing without
+looking. It costs the most tokens per turn because every turn spends tool rounds
+before committing.
 
 Credentials come from `.env` at the repository root.
 
-The prompt is the whole submission. The tools, the loop, the rendering and the
+The prompt is the whole submission. The tools, the loop, the rendering, and the
 timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
 difference between models and prompts, not between harnesses.
 """

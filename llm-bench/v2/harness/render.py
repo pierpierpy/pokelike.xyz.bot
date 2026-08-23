@@ -1,26 +1,13 @@
 """Text rendering of the game state, frozen beside the harness that uses it.
 
-A COPY of the part of `pokelike.core.render` this harness renders with, not an
-import of it. Same reason `bot.py` is a copy: the shared module is meant to
-improve, because the CLI reads it and so do the bots in `bots/`, and a benchmark
-needs the opposite. If this file imported that one, the next improvement made
-for a person reading a terminal would silently change what every recorded score
-on this harness meant.
+This is a copy of the relevant parts of `pokelike.core.render`, not an import.
+The shared module evolves freely for the CLI and bots/; importing it here would
+silently change what recorded scores meant. This file is never edited once results
+exist beside it.
 
-So it is never edited once a result exists beside it. A new idea is a new
-harness directory, and the rows already recorded stay valid under the version
-that earned them.
-
-What is here is what the harness calls, and nothing else: `screen()` and
-`team_view()`, plus the three block renderers and the two tables `screen()`
-needs. The shared module also carries `graph_view` (the drawn map), plus
-`score_view`, `trace_view` and `ending_view`. Those are read by a person at a
-terminal and by nothing in here, so copying them would have been 300 lines of
-code this file cannot reach.
-
-Everything is rebuilt from `state`, a JavaScript object read as JSON. No pixel is
-ever inspected: the map below is not read from an image, we draw it ourselves
-from the nodes and edges.
+Contains `screen()` and `team_view()`, plus the block renderers and tables they
+need. Everything is built from the `state` dict (a JavaScript object read as JSON);
+no pixels are inspected.
 """
 
 from __future__ import annotations
@@ -75,12 +62,9 @@ def team_view(team: list[dict] | None) -> str:
         bar = "#" * max(0, filled) + "." * max(0, 10 - filled)
         item = f"  [{p['item']}]" if p.get("item") else ""
         shiny = " *" if p.get("shiny") else ""
-        # Slot 0 is the Pokemon that enters the next battle. The numbers were
-        # already here but read as decoration; saying so makes the order legible
-        # as the decision it is.
+        # Slot 0 enters the next battle first.
         lead = "  <- leads" if i == 0 and len(team) > 1 else ""
-        # What it actually attacks with. The engine knows; nothing on screen says
-        # it, so a player reading only the terminal was choosing blind too.
+        # The move the engine would use in battle (not shown on the game screen).
         mv = p.get("move") or {}
         move = f"  {mv['name']} {mv.get('power', '?')}" if mv.get("name") else ""
         rows.append(
@@ -103,12 +87,8 @@ def actions_view(actions: list[dict]) -> str:
 
 
 def tutor_view(obs: dict[str, Any]) -> str:
-    """The tutor's offer against what that Pokemon already uses.
-
-    The buttons read "→ SURF:Wartortle Lv35" and carry neither power nor type,
-    so the comparison that decides the choice is not on screen at all. It is in
-    the state — `team[i].move` and `offered_moves[i]` — and this is where it
-    becomes readable.
+    """Compares the tutor's offered move against each Pokemon's current move,
+    showing power and type (which the game's own buttons do not carry).
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -138,8 +118,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking. Without it, "pick one of your team" is
-        # ambiguous between promoting and releasing.
+        # What the screen is asking (e.g. "release" vs "promote").
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 

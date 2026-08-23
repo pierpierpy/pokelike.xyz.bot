@@ -1,7 +1,4 @@
-"""Formatting and saving benchmark results.
-
-In: a result dict. Out: a human-readable summary string, or a JSON file on disk.
-"""
+"""Formatting and saving benchmark results."""
 
 from __future__ import annotations
 
@@ -11,20 +8,14 @@ from typing import Any
 
 
 def save(result: dict[str, Any], path: Path) -> Path:
-    """Writes a result document to a JSON file.
-
-    In: the result dict and the target path. Out: the path written.
-    """
+    """Writes a result document to a JSON file and returns the path."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=1), encoding="utf-8")
     return path
 
 
 def format_result(result: dict[str, Any]) -> str:
-    """Formats a benchmark result as a human-readable block.
-
-    In: the result dict. Out: a multi-line summary string.
-    """
+    """Formats a benchmark result as a human-readable block."""
     s = result["summary"]
     g = result["game"]
     return "\n".join([

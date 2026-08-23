@@ -1,4 +1,4 @@
-"""The model benchmark: the scaffold is frozen, the model is the entry.
+"""The model benchmark: the harness is frozen, the model is the entry.
 
     llmbench/   versions and fingerprints, one pass and its log, the results and
                 their tables, the pricing, the fan-out and its worker

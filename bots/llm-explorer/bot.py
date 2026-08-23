@@ -1,12 +1,12 @@
 """llm-explorer: push down the map.
 
-The opposite bet to llm-survivor: badges only come from going further, and a team
-kept perfectly healthy on safe nodes scores exactly zero. Worth having both
-measured rather than argued about.
+This bot makes the opposite bet to llm-survivor: badges only come from going
+further, and a team kept perfectly healthy on safe nodes scores exactly zero.
+Having both measured rather than argued about is the reason both exist.
 
 Credentials come from `.env` at the repository root.
 
-The prompt is the whole submission. The tools, the loop, the rendering and the
+The prompt is the whole submission. The tools, the loop, the rendering, and the
 timeout policy are shared (`pokelike.bot.llm`), so a difference in results is a
 difference between models and prompts, not between harnesses.
 """

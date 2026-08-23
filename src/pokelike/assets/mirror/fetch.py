@@ -1,7 +1,4 @@
-"""Low-level download and cleanup helpers for the offline copy.
-
-In: a relative path and a root directory. Out: the file on disk (or False).
-"""
+"""Low-level download and cleanup helpers for the offline copy."""
 
 from __future__ import annotations
 
@@ -21,16 +18,12 @@ RE_CSS_URL = re.compile(r"""url\(["']?([^"')]+?\.\w{2,5})["']?\)""")
 
 
 def _log(*a) -> None:
-    """Print immediately: without a flush, progress is invisible when redirected."""
+    """Print with flush so progress is visible when output is redirected."""
     print(*a, flush=True)
 
 
 def _fetch(path: str, root: Path) -> bool:
-    """Downloads a relative path into the root.
-
-    In: the URL-relative path and the local root. Out: True if it now exists
-    and is valid.
-    """
+    """Downloads a relative path into the root. Returns True if the file exists and is valid."""
     rel = path.lstrip("/")
     dest = root / rel
     if dest.is_file() and dest.stat().st_size > 0:
@@ -53,10 +46,7 @@ def _fetch(path: str, root: Path) -> bool:
 
 
 def clean(root: Path, log=_log) -> int:
-    """Deletes files whose content does not match their extension.
-
-    In: the site root directory. Out: the number of files removed.
-    """
+    """Deletes files whose content does not match their extension. Returns the count removed."""
     removed = 0
     for p in root.rglob("*"):
         if not p.is_file():

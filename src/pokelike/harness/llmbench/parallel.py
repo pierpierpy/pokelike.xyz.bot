@@ -1,19 +1,9 @@
-"""Parallel execution: fan-out across subprocesses and the worker entry point.
+"""Parallel execution: fan-out across subprocesses.
 
-Worth much more here than for a local bot. An LLM run is about twenty turns and
-one HTTP request each, so almost all of its wall clock is spent waiting on the
-provider rather than on this machine: which means workers can outnumber cores
-and still help. Fifty seeds sequentially is half an hour; eight at a time is a
-few minutes, for the same tokens and the same money.
-
-Processes, not threads, and not by choice: Playwright's sync API is bound to the
-thread that created it, so one game per process is the only arrangement that
-works. `experiments/drrn/collect.py` fans out the same way for the same reason.
-
-Seeds are independent, so splitting them changes nothing about the result: the
-merged pass is what a sequential run would have produced, sorted back into seed
-order. Interleaved rather than in blocks, so a worker that draws a run of long
-games does not become the one everybody waits for.
+Workers can outnumber cores because almost all wall clock is HTTP latency to
+the model provider. Processes rather than threads because Playwright's sync API
+is bound to the creating thread. Seeds are split in interleaved fashion and
+merged back into seed order; the result is identical to a sequential pass.
 """
 
 from __future__ import annotations
@@ -37,23 +27,15 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             attempt: int = 1,
             settings: dict[str, Any] | None = None,
             region: int | str = 1, campaign: bool = False) -> dict[str, Any]:
-    """Plays the same pass using several subprocesses at once.
-
-    In: version, model, seeds, worker count, site path, base port, credentials,
-    log folder, attempt number, settings. Out: the assembled pass dict.
-    """
+    """Plays the seeds using several subprocesses, then assembles the pass dict."""
     import os
     import queue
     import subprocess
     import sys
     import threading
 
-    # Not for a harness whose model keeps notes between runs. Splitting the seeds
-    # would give each worker its own notebook and each note to a tenth of the pass,
-    # so the result would depend on how the seeds happened to be dealt and on which
-    # worker finished first. Refused rather than warned about: the pass would look
-    # exactly like a valid one, and the recorded row would be unreproducible in a
-    # way nothing in the file would reveal.
+    # Refused for harnesses with cross-run memory: splitting seeds would give each
+    # worker its own independent notebook, making the pass unreproducible.
     if cross_run_memory(version):
         raise RuntimeError(
             f"harness {version} carries the model's notes from one run into the "
@@ -64,12 +46,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             f"part of what {version} measures."
         )
 
-    # Credentials reach the workers through the environment even when they came
-    # from a flag, and NOT on their command line: every process list on the
-    # machine shows argv, so a key passed that way would be readable by any other
-    # user for as long as the benchmark runs. The model id is not a secret and
-    # stays visible, which is what makes `ps` useful here.
-    # Before a single worker starts, for the same reason as the sequential path.
+    # Credentials passed via env, not argv, because argv is visible in ps.
+    # Fingerprint taken before any worker starts.
     stamp = fingerprints(version)
 
     env = dict(os.environ)
@@ -83,9 +61,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     procs = []
     for k, chunk in enumerate(chunks):
         procs.append(subprocess.Popen(
-            # `worker.py` and not this module: this one is already imported by the
-            # package, and running an imported module with `-m` imports it a second
-            # time as `__main__`. worker.py exists to be that entry and nothing else.
+            # Uses worker.py (not this module) to avoid double-import as __main__.
             [sys.executable, "-m", "pokelike.harness.llmbench.worker", "--worker",
              "--harness", version, "--model", model, "--port", str(port0 + k),
              *[a for k, v in (settings or {}).items()
@@ -95,12 +71,9 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         ))
 
-    # Rows arrive as they finish, from whichever worker finished them, so the bar
-    # measures the whole pass rather than one process's share of it.
+    # Rows arrive as they finish from any worker; the bar tracks the whole pass.
     rows: list[dict[str, Any]] = []
-    # Where each worker is right now, keyed by worker. Overwritten rather than
-    # appended: this is a reading, not a record: the record is the row that
-    # arrives when the run finishes.
+    # Current state of each worker, overwritten on each heartbeat.
     live: dict[int, dict[str, Any]] = {}
     q: queue.Queue = queue.Queue()
 
@@ -121,9 +94,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
     def postfix() -> None:
         done = [r for r in rows if r.get("badges") is not None]
-        # Finished runs plus what the in-flight ones have spent so far, in and out
-        # kept apart: output is priced several times higher, so one total cannot be
-        # turned into a bill.
+        # Token totals: finished runs plus in-flight estimates.
         t_in = (sum(r.get("tokens_in", 0) for r in rows)
                 + sum(v.get("tokens_in", 0) for v in live.values()))
         t_out = (sum(r.get("tokens_out", 0) for r in rows)
@@ -133,12 +104,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             "in": _tok(t_in),
             "out": _tok(t_out),
             "fell": sum(r.get("fallbacks", 0) for r in rows),
-            # What the workers are on at this instant, so a bar stuck on the same
-            # count still shows movement: or shows that there is none. Seed and
-            # depth only: badges and steps mid-run are noise, and the row written
-            # when the run finishes carries both. Passed as a dict rather than as
-            # keywords because tqdm renders numbers through its own formatter, and
-            # a seed becomes `1e+4`.
+            # Current worker positions (seed and depth) for a stuck-bar diagnostic.
             "now": " ".join(f"{v['seed']}@{v.get('layer', '?')}"
                             for v in sorted(live.values(), key=lambda x: x["seed"])),
         })
@@ -156,9 +122,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
             postfix()
             continue
         if "trace" in item:
-            # Written by the parent rather than by each worker, so a parallel pass
-            # produces ONE trace file instead of one per process: and so no two
-            # processes ever write the same file.
+            # Written by the parent so a parallel pass produces one trace file.
             log.decision(item["trace"])
             continue
         rows.append(item)
@@ -168,9 +132,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
         postfix()
     bar.close()
 
-    # All or nothing. A pass with 43 of 50 seeds in it is worse than no pass: the
-    # mean would be over whichever seeds happened to survive, and nothing in the
-    # file would say so.
+    # A partial pass is discarded: a mean over whichever seeds survived is not
+    # comparable to a full one.
     for k, p in enumerate(procs):
         p.wait()
         if p.returncode != 0:
@@ -191,9 +154,8 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
     from ...arena.bench import bundle_fingerprint
     one = _as_pass(version, model, seeds, rows, bundle_fingerprint(site), {},
                    fingerprint=stamp)
-    # Named explicitly, not only implied by the paths below: those are absolute
-    # and were written inside the container, so `/app/...` is a directory that does
-    # not exist on the host reading the result. The stamp is the portable half.
+    # Stamp recorded explicitly; the log paths are absolute and may not resolve on
+    # the host reading the result (e.g. /app/... inside a container).
     one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)
@@ -203,10 +165,7 @@ def fan_out(version: str, model: str, seeds: list[int], workers: int,
 
 
 def _worker() -> int:
-    """One subprocess, one browser, its slice of the seeds. Prints JSON rows.
-
-    In: command-line args (harness, model, port, seeds, settings). Out: exit code.
-    """
+    """One subprocess: runs its slice of seeds and prints one JSON row per finish."""
     import argparse
 
     from ...assets.server import AssetServer
@@ -223,8 +182,7 @@ def _worker() -> int:
     p.add_argument("--model", required=True)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--seeds", required=True)
-    # Passed through by `fan_out`. Without it a parallel pass would run the
-    # harness defaults while the pass said it ran what was asked for.
+    # Passed through by fan_out so the worker uses the same harness settings.
     p.add_argument("--set", action="append", dest="settings", default=[])
     a = p.parse_args()
 
@@ -239,22 +197,15 @@ def _worker() -> int:
         for seed in seeds:
             began = time.time()
 
-            # A worker's run takes one to three minutes and the parent cannot see
-            # inside it, so without this the shared bar has nothing to say for
-            # minutes at a time. Every fifth step, because the point is "it is
-            # moving and here is where", not a transcript.
-            #
-            # The observation itself is kept EVERY step, which is not the same thing:
-            # the decision written below draws the map from it, and a map four steps
-            # stale is a map of somewhere else.
+            # Heartbeat every 5 steps so the parent's progress bar shows movement.
+            # The observation is kept every step for the decision trace's map.
             last: dict[str, Any] = {}
 
             def live(obs, steps, _seed=seed):
                 last["obs"] = obs
                 if steps % 5:
                     return
-                # Raw counts, not the bar's pretty strings: the parent has to add
-                # them up across workers before anyone formats anything.
+                # Raw counts; the parent formats them after summing across workers.
                 print(json.dumps({
                     "live": True, "seed": _seed, "step": steps,
                     "tokens_in": bot.tokens_in, "tokens_out": bot.tokens_out,
@@ -264,9 +215,7 @@ def _worker() -> int:
             drawn = [""]
 
             def decided(entry, _seed=seed):
-                # The same additions the sequential path makes, and for the same
-                # reasons. Kept in step deliberately: a trace read by the dashboard
-                # cannot say less about a pass because four processes played it.
+                # Same enrichments as the sequential path for dashboard consistency.
                 extra: dict[str, Any] = {}
                 called = bot.tool_calls_made()
                 if called:

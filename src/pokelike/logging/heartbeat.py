@@ -1,12 +1,9 @@
 """Heartbeat liveness thread for a running pass.
 
-A running pass touches its `.alive` file every HEARTBEAT_SECS; a watcher treats
-a pass whose file has not been touched for HEARTBEAT_STALE seconds as no longer
-running. This is the ONE liveness signal that survives EVERY way a pass can stop:
-a clean return, an exception, `kill -9`, an OOM, the container being removed, the
-machine losing power: because all of them stop the touches. We read the ABSENCE
-of a fresh heartbeat, never a promise the pass made about itself on the way out,
-which a crash would skip.
+A running pass touches its `.alive` file every HEARTBEAT_SECS seconds. A watcher
+treats any pass whose file has not been touched for HEARTBEAT_STALE seconds as
+dead. The signal works because absence of a fresh touch is detected, not because
+the process promised anything on exit.
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ HEARTBEAT_STALE = 300.0
 class HeartbeatThread:
     """Daemon thread that touches an .alive file until stopped.
 
-    In: the path to the .alive file. Out: call start() to begin, stop() to end.
+    Call `start()` to begin and `stop()` to end (which also removes the file).
     """
 
     def __init__(self, alive_path: Path) -> None:
@@ -38,10 +35,7 @@ class HeartbeatThread:
 
     @property
     def owner(self) -> str:
-        """Who is playing this pass, written into the heartbeat file.
-
-        In: nothing. Out: a line like `pid=1234 host=7dae1e302082`.
-        """
+        """Returns a line identifying the process writing this heartbeat."""
         return f"pid={os.getpid()} host={socket.gethostname()}\n"
 
     def start(self) -> None:
@@ -49,10 +43,7 @@ class HeartbeatThread:
         self._thread.start()
 
     def stop(self) -> None:
-        """Stops the heartbeat and removes the .alive file.
-
-        In: nothing. Out: the .alive file is unlinked if possible.
-        """
+        """Stops the heartbeat loop and removes the .alive file."""
         self._stop_event.set()
         self._thread.join(timeout=2)
         try:
@@ -61,7 +52,7 @@ class HeartbeatThread:
             pass
 
     def _run(self) -> None:
-        """Touch the .alive file until the pass ends, by whatever means."""
+        """Touches the .alive file in a loop until the stop event is set."""
         while True:
             try:
                 self.alive_path.write_text(self.owner, encoding="utf-8")

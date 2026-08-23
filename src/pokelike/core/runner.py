@@ -1,12 +1,7 @@
 """Playing one run with a bot, in one place.
 
-This loop used to exist three times — in `bench.py`, in the CLI, and in the
-prompt comparison — which is the kind of duplication that does not announce
-itself. Add a hook to `Bot` and you update two of the three copies; the third
-quietly stops calling it, and nothing fails, it just does less.
-
-It lives in the package rather than in `experiments/` because the package needs
-it too: the benchmark and the `bot` command are built on it.
+The `play_run` function is the single loop that plays a full run. The benchmark,
+the CLI, and the bot commands all use it.
 """
 
 from __future__ import annotations
@@ -18,10 +13,7 @@ from .browser import REGIONS, normalise_region, region_name
 from .game import Game
 
 
-# The engine's own name for a node is not always the clearest one to read.
-# `question` is what the bundle calls it; what it means to a player is that the
-# node is unknown until you step on it. The engine's name stays the action key —
-# only the display changes, so logs read well without the encoding drifting.
+# Friendlier display names for node types in traces and logs.
 DISPLAY_NAMES = {
     "question": "unknown",
     "move_tutor": "tutor",
@@ -30,33 +22,19 @@ DISPLAY_NAMES = {
 
 
 def short_label(a: dict[str, Any]) -> str:
-    """A compact name for an action, for logs and traces.
-
-    Labels that carry row context read like "EQUIP — Ponyta Lv8 — empty — EQUIP".
-    The informative half is the context, not the button word, so keep both: five
-    identical "EQUIP" entries in a log tell you nothing about what was chosen.
-    """
+    """A compact name for an action, for logs and traces."""
     if a.get("kind") == "node":
-        # WITH the id, not only the kind. A layer often offers two nodes of the
-        # same kind, and without it the trace read `["tutor","tutor"]` -- two
-        # options a reader cannot tell apart, while the reason recorded beside them
-        # argues about where each one LEADS. The bot was choosing between things it
-        # could distinguish; only the log had stopped distinguishing them. This is
-        # the same rule the button labels below already follow.
+        # Include the id: a layer can offer two nodes of the same kind.
         kind = DISPLAY_NAMES.get(a["node"], a["node"])
         return f"{kind}#{a['id']}" if a.get("id") is not None else kind
     label = (a.get("label") or "").strip()
 
-    # Row context: "EQUIP — Ponyta Lv8 — empty — EQUIP". The informative half is
-    # the context, not the button word: five identical "EQUIP" entries in a log
-    # say nothing about what was chosen.
+    # Row context: keep the contextual part (e.g. "EQUIP:Ponyta Lv8").
     if "—" in label:
         parts = [p.strip() for p in label.split("—")]
         return f"{parts[0]}:{_name_and_level(parts[1])}"[:30]
 
-    # A Pokemon card reads "Squirtle Lv. 5 WATER SP.A 10 SPE 9 HP 19 ...", and
-    # the stats are already in `state["team"]` or on the catch screen. A log line
-    # wants the identity, not the sheet.
+    # A Pokemon card label has the full stat line; just keep name and level.
     short = _name_and_level(label)
     return short[:30] or f"slot{a.get('idx', 0)}"
 
@@ -85,22 +63,14 @@ def play_run(
 ) -> dict[str, Any]:
     """Plays one run start to finish and returns what happened.
 
-    `on_step(obs, steps)` is called before each decision, which is how the CLI
-    saves a screenshot per turn without this function knowing what a screenshot
-    is. `on_decision(entry)` is called right after one, with the trace entry, so
-    a log can stream as the run happens instead of arriving once it is over.
-
-    The metrics come from `last_alive` rather than the final observation on
-    purpose: at game over the engine wipes `state`, so the team and the badge
-    count are gone by the time the run ends.
+    `on_step(obs, steps)` fires before each decision. `on_decision(entry)` fires
+    after each decision with the trace entry. Metrics come from `last_alive`
+    because the engine wipes state at game over.
     """
     obs = game.reset(seed=seed, region=region)
     bot.reset(seed)
     trace: list[dict[str, Any]] = []
-    # `_settle` gives up after 90 seconds and flags the state rather than raising,
-    # because one wedged turn should not throw away the runs already played. But
-    # nothing read the flag, so a run that spent a minute and a half stuck looked
-    # exactly like a run that ended. Carried out with the result instead.
+    # Track if _settle ever timed out, so the result can report the stall.
     stalled = False
 
     while not obs.get("done") and obs.get("actions") and game.steps < max_steps:
@@ -109,9 +79,7 @@ def play_run(
         if on_step:
             on_step(obs, game.steps)
 
-        # Free actions come first: reordering does not consume the turn, so the
-        # state handed to `choose` must already show the team as the bot wants
-        # it. A bot that does not implement the hook is unaffected.
+        # Reorder first: it does not consume the turn, so act() sees the final order.
         swapped = None
         if obs.get("can_reorder"):
             try:
@@ -124,16 +92,14 @@ def play_run(
                     obs = game.reorder(int(a), int(b))
                     swapped = [int(a), int(b)]
                 except Exception:  # noqa: BLE001
-                    # An illegal swap is the bot's mistake, not the run's: the
-                    # turn still has a move to make, so play on and let the
-                    # trace show that nothing moved.
+                    # An illegal swap is non-fatal; the turn still proceeds.
                     swapped = None
 
         options = list(obs["actions"])
         chosen = bot.act(obs)
 
-        # Recorded for every bot alike, in the shared loop rather than in each
-        # bot, so the log means the same thing whatever is playing.
+        # Trace entry recorded here (not in the bot) so the log format is
+        # identical regardless of which bot is playing.
         run = obs.get("run") or {}
         team = obs.get("team") or []
         trace.append({
@@ -187,19 +153,13 @@ def play_campaign(
     on_decision=None,
     on_region=None,
 ) -> dict[str, Any]:
-    """Plays one region after another with the same bot, stopping when one is lost.
+    """Plays regions in sequence with the same bot, stopping at the first loss.
 
-    In: the game, the bot, the seed, and which regions in what order (all four by
-    default). Out: one result covering the whole campaign, with the per-region
-    results under `regions`.
+    Returns one result covering the whole campaign, with per-region results
+    under `regions`.
     """
-    # A region is a whole GAME: the game keeps nothing between them, a new starter
-    # is picked and the badge count restarts, which is why this is a sequence of
-    # runs rather than a longer one. What crosses is the BOT: its notes, and
-    # whatever `region_cleared` chooses to tell the next region.
-    #
-    # Stopping at the first region not won is the point of a campaign. Carrying on
-    # after a loss would measure four independent regions and call it progress.
+    # Each region is a full independent game (new starter, badge count resets).
+    # Only the bot's memory crosses. Stops at the first region not won.
     order = list(regions or REGIONS)
     runs: list[dict[str, Any]] = []
     opening: str | None = None
@@ -224,25 +184,16 @@ def play_campaign(
             on_region(done)
         if not won or done["next"] is None:
             break
-        # ASKED BEFORE THE FORGETTING, so a bot that wants its own model to write
-        # the summary still has the region in front of it when it does.
+        # Called before reset_memory so the bot still has the region's context.
         opening = bot.region_cleared(done)
         bot.reset_memory()
 
     def total_of(key: str) -> int:
         return sum(r.get(key) or 0 for r in runs)
 
-    # BUILT FROM THE LAST REGION'S ROW, not typed out fresh. A campaign has to
-    # answer every column a run answers, or a table that reads a row shows a blank
-    # where a number belongs, and the first version of this did exactly that: it
-    # listed the keys it happened to be thinking about and quietly dropped `score`,
-    # `kos`, `faints`, `maps`, `final_state` and the rest. Starting from the run and
-    # overriding the totals means a key added to `play_run` is answered here too.
-    #
-    # INHERITED is about where the campaign ENDED (region, final_state, score_detail,
-    # team, ending): it stops at the region it did not win, so that row is its
-    # outcome. REPLACED is summed across the regions, the way badges are, because
-    # one bot earned all of it. The per-region rows stay under `regions`.
+    # Start from the last region's result and override with campaign totals.
+    # Fields about where the campaign ended (region, final_state, team, ending)
+    # come from the last run; numeric fields are summed across all regions.
     out = dict(runs[-1]) if runs else {}
     out.update({
         "seed": seed,
@@ -257,10 +208,7 @@ def play_campaign(
         "regions": runs,
         "regions_played": len(runs),
         "regions_cleared": sum(1 for r in runs if r.get("ending") == "win-screen"),
-        # The flattened trace runs four regions together, so each entry says which
-        # one it came from, or the concatenation cannot be read. The per-region
-        # traces under `regions` are left exactly as play_run wrote them, which is
-        # what keeps a single-region decision log what it has always been.
+        # Flattened trace tags each entry with its region for readability.
         "trace": [{**e, "region": r["region"]} for r in runs
                   for e in (r.get("trace") or [])],
     })

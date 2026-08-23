@@ -1,4 +1,4 @@
-"""The shared game logic. CLI, API and bots are all thin faces over this class.
+"""The shared game logic. The CLI, the API, and every bot are thin faces over this class.
 
 The model is a turn-based environment:
 
@@ -8,10 +8,9 @@ The model is a turn-based environment:
     g.step(1)      -> apply action 1, return the new state
     g.score()      -> score computed with the game's own formula
 
-Between one decision and the next the engine does plenty on its own (plays out
-the battle, shows level-ups, banners). Those are not player choices, so
-`_settle()` runs them through and only hands control back when there really is
-more than one option, or the run is over.
+Between decisions the engine runs non-player transitions (battles, level-ups,
+banners) autonomously. The `_settle` method waits those out and returns control
+only when the player has a real choice or the run is over.
 """
 
 from __future__ import annotations
@@ -35,15 +34,13 @@ class Game:
     max_delay: int = 1
     scoring: bool = True
     load_images: bool = True
-    # Passed straight to the Session. A harness under llm-bench/ hands over its own
-    # frozen copies so that improving the shared ones cannot reach a recorded score.
+    # Frozen llm-bench harnesses pass their own copies here to isolate from changes.
     bridge: Path | None = None
     init: Path | None = None
 
     session: Session | None = field(default=None, repr=False)
     seed: int | None = None
-    # 1-4. Set by `reset`, and declared here so `state()` before one does not
-    # raise: a fresh Game is Kanto until told otherwise, like the game itself.
+    # 1-4. Set by `reset`; defaults to Kanto so `state()` before a reset does not raise.
     region: int = 1
     steps: int = 0
     score_hook: dict[str, Any] | None = field(default=None, repr=False)
@@ -75,15 +72,12 @@ class Game:
     def reset(self, seed: int = 0, region: int | str = 1) -> dict[str, Any]:
         """Starts a run in Story mode, classic rules, in the region asked for.
 
-        In: the seed, and the region as a number (1-4) or a name (kanto, johto,
-        hoenn, sinnoh). Out: the first observation.
+        Accepts the seed and the region as a number (1-4) or a name (kanto,
+        johto, hoenn, sinnoh). Returns the first observation.
 
-        Picking the trainer and the starter is NOT done here: those stay player
-        decisions and show up as the first two turns.
-
-        The seed is checked BEFORE anything is played: an unusable one used to
-        surface only at the end, when the finished run was handed to the
-        registry, so the whole run was lost to a mistake known at step zero.
+        Picking the trainer and the starter is not done here: those are player
+        decisions and appear as the first two turns. The seed is validated
+        before anything is played, so an invalid seed fails immediately.
         """
         seed = normalise_seed(seed)
         gen = normalise_region(region)
@@ -91,43 +85,22 @@ class Game:
             self.open()
         assert self.session is not None
 
-        # The normalised value, not the one passed in: what gets recorded has to
-        # be the seed that will actually reproduce this run.
+        # Record the normalised value: what reproduces this run.
         self.seed = seed
         self.region = gen
         self.steps = 0
         self.last_alive = None
         page = self.session.load(seed)
 
-        # Into Story mode. These used to be two flat 300 ms sleeps; measured, the
-        # region buttons appear after 17 ms and the first decision 17-21 ms after
-        # that, so 600 ms of every run was spent waiting for something that had
-        # already happened.
-        #
-        # Both predicates only READ, which is what makes them safe to hand to a
-        # poller. The loud warning on `_settle` is about `__pk_pump`, which clicks:
-        # a poller calls its predicate an unpredictable number of times, so clicks
-        # inside one would land at different moments and the engine would draw its
-        # seeded randomness in a different order.
+        # Into Story mode. Both predicates below only read (no clicks), so they
+        # are safe to use in a poller. Clicking inside a polled predicate would
+        # fire an unpredictable number of times and desync the engine's PRNG.
         if gen != 1:
-            # THE GAME LOCKS EVERY REGION BUT KANTO until you have won one, and it
-            # decides that from the Hall of Fame in localStorage:
-            #
-            #   locked(gen 2)    = !hasStoryWin(1)
-            #   locked(gen 3, 4) = !hasAnyStoryWin()
-            #   hasStoryWin(g)   = getHallOfFame().some(r => !r.endless
-            #                                            && hofEntryGen(r) === g)
-            #
-            # `init.js` clears localStorage on every load so that no saved state
-            # leaks between runs, which also means we have never won anything and
-            # Johto is shut. Written back HERE, after the load, rather than by
-            # editing that file: every frozen harness carries its own copy of
-            # `init.js` and a recorded result hashes it, so this is the only way to
-            # let v0-v5 play a second region without touching them.
-            #
-            # It is a claim about a past run, not about this one: the entry says a
-            # Kanto game was won, which is what the lock asks, and nothing else in
-            # the engine reads it during play.
+            # The game locks every region except Kanto until a Hall of Fame entry
+            # exists in localStorage. Since init.js clears localStorage on every
+            # load, a fake Kanto win must be written back here after the page loads.
+            # This is done from Python rather than in init.js because each frozen
+            # harness hashes its own init.js, and this approach avoids editing those.
             page.evaluate(
                 "() => { try { localStorage.setItem('poke_hall_of_fame',"
                 " JSON.stringify([{endless: false, gen2Mode: false, gen3Mode: false,"
@@ -139,28 +112,22 @@ class Game:
             " return b && b.getBoundingClientRect().width > 0; }",
             timeout=10_000,
         )
-        # The cards are in region order, so the index IS the generation. A locked
-        # card is a click that does nothing, which is why the Hall of Fame goes in
-        # first: better to refuse loudly below than to start Kanto while the caller
-        # believes it asked for Johto.
+        # The cards are in region order, so the index is the generation number.
+        # A locked card ignores the click; the Hall of Fame entry above prevents that.
         page.evaluate(
             "(i) => { const b = document.querySelectorAll('.history-region-btn')[i];"
             " if (b) b.dispatchEvent(new MouseEvent('click', {bubbles: true})); }",
             gen - 1,
         )
         try:
-            # The run has started when there is something to decide. Waiting for a
-            # positive signal rather than a duration, because arriving early is
-            # worse than arriving late: `_settle` would still be looking at the
-            # menu, and `__pk_advance` presses a lone button on whatever it finds.
+            # Wait for the run to reach a real decision point with multiple options.
             page.wait_for_function(
                 "() => window.__pk_point() === 'decision'"
                 " && window.__pk_choices().length > 1",
                 timeout=10_000,
             )
         except Exception:  # noqa: BLE001
-            # Never fail a run over the wait itself: fall back to the duration
-            # this used to use and let `_settle` sort out what it finds.
+            # Fallback: let _settle sort out whatever screen is showing.
             page.wait_for_timeout(300)
 
         if self.scoring:
@@ -172,20 +139,9 @@ class Game:
 
         obs = self._settle()
 
-        # A new run starts at zero, always: measured, a fresh reset lands on the
-        # trainer screen with no badges and no team. So if there are badges here,
-        # the click into Story mode did not take and we are still standing in the
-        # PREVIOUS run.
-        #
-        # That used to pass silently, and it is the worst kind of silence: the
-        # caller plays on, the old run continues, and every badge it earns is
-        # filed under this seed. One benchmark row came out at 66 steps, 114 KOs
-        # and 8 badges -- about three runs fused into one -- and it could not be
-        # reproduced afterwards, which is exactly what an unrepeatable hiccup
-        # looks like once it has been written down as a result.
-        #
-        # Loud is the only safe behaviour: a run that began mid-game is not this
-        # seed's run, and a score built from it describes nothing.
+        # A fresh run starts at zero badges with one team member. If badges are
+        # present here, the Story-mode click did not land and the game is still
+        # in the previous run, so any score recorded would belong to the wrong seed.
         run = obs.get("run") or {}
         if run.get("badges") or len(obs.get("team") or []) > 1:
             raise RuntimeError(
@@ -206,15 +162,11 @@ class Game:
         obs = self.session.page.evaluate("() => window.__pk_obs()")
         obs["steps"] = self.steps
         obs["seed"] = self.seed
-        # Which region this run is in. In the observation and not only in the
-        # log, because a model that can be sent to Johto has to be able to know
-        # it is there: the gyms and the species are different.
+        # Include the region so a model knows which game it is playing.
         obs["region"] = region_name(self.region)
         obs["done"] = self._is_terminal()
         self._last = obs
-        # On the game-over screen the engine wipes `state`: empty team, no
-        # badges. Keep the last snapshot taken while the run was alive, or the
-        # end-of-run summary would have nothing to report.
+        # At game over the engine wipes state, so keep the last living snapshot.
         if obs.get("team"):
             self.last_alive = obs
         return obs
@@ -234,25 +186,17 @@ class Game:
             )
         choice = actions[index]
         applied = self.session.page.evaluate("c => window.__pk_apply(c)", choice)
-        # `false` on refusal; otherwise a dict carrying what the screen looked
-        # like just before the click. An older bridge returned a bare `true`,
-        # which is still truthy here and simply leaves nothing to wait for.
+        # Returns false on refusal; otherwise a dict with a pre-click signature.
         if not applied:
             raise IllegalAction(f"the engine refused the action: {choice}")
         self.steps += 1
 
-        # Wait for the engine to LEAVE that decision point, rather than sleeping
-        # a flat 70 ms and hoping. The sleep was not about redraws: without some
-        # wait, `_settle` reads the screen before the engine has moved off it,
-        # finds the old decision still standing and hands back a stale state, so
-        # the caller chooses twice on the same turn. Measured, the page reacts in
-        # 0.4 ms median against the 70 ms we used to spend — a fifth of a whole
-        # run — and waiting for the change is both faster and correct on hardware
-        # slower than this.
+        # Wait for the engine to leave the current decision point before reading
+        # the next state. Without this, _settle can read a stale screen and hand
+        # back the same decision twice.
         #
-        # Guarded because bridge.js is re-read from disk on every run while this
-        # module is imported once: a process that pulls mid-run can be holding a
-        # bridge older than this line.
+        # Guarded because bridge.js is re-read from disk on every run, so a
+        # running process may hold a bridge version without __pk_await_change.
         sig = applied.get("sig") if isinstance(applied, dict) else None
         if sig:
             self.session.page.evaluate(
@@ -266,12 +210,8 @@ class Game:
     def reorder(self, a: int, b: int) -> dict[str, Any]:
         """Swaps two team slots and returns the new state.
 
-        Slot 0 leads, so this is a genuine decision and not decoration. It is
-        deliberately NOT one of `step`'s actions: reordering does not consume
-        the turn, and a team of six would otherwise add fifteen swap pairs to
-        the list at every single map node, drowning the actual moves.
-
-        `steps` does not advance, for the same reason.
+        Reordering does not consume the turn and does not advance `steps`.
+        Slot 0 leads the next battle.
         """
         assert self.session is not None and self.session.page is not None
         team = (self._last or self.state()).get("team") or []
@@ -304,11 +244,9 @@ class Game:
     # --------------------------------------------------------------- internals
 
     def screenshot(self, path: str | Path) -> Path:
-        """Saves an image of the current screen.
+        """Saves a PNG of the current screen to `path`.
 
-        This is not a screen capture — there is no screen. It is the browser's
-        rendering engine drawing into memory on request and handing us the PNG
-        bytes. It works exactly the same headless.
+        Works identically headless: the browser renders into memory on request.
         """
         if self.session is None or self.session.page is None:
             raise RuntimeError("no run open")
@@ -322,17 +260,12 @@ class Game:
         return self.session.page.evaluate("() => window.__pk_point()") == "terminal"
 
     def _settle(self, timeout_s: float = 90.0) -> dict[str, Any]:
-        """Runs through everything that is not a choice, then returns the state.
+        """Runs non-choice transitions in one JS call, then returns the state.
 
-        The loop lives in the page (`__pk_settle`) and is driven in ONE call.
-        The previous version made three round-trips per iteration and slept
-        100 ms between them, so a battle spent most of its time with Python
-        waiting on a fixed tick.
-
-        It is deliberately not a `wait_for_function` predicate: that pumps an
-        unpredictable number of times, and since pumping clicks things, the
-        engine ends up consuming its seeded RNG in a different order and the
-        same seed stops replaying the same run.
+        Uses `__pk_settle` in the page. Must not be wrapped in a
+        `wait_for_function` predicate, because the pump clicks elements and a
+        predicate can fire an unpredictable number of times, which would desync
+        the engine's seeded PRNG.
         """
         assert self.session is not None and self.session.page is not None
         settled = self.session.page.evaluate(

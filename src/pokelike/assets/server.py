@@ -1,11 +1,11 @@
 """Static server that serves the game from disk.
 
-In normal use it is fully offline: it only reads from `site/` and never touches
-the network. When a file is missing it records it in `missing` and answers 404 —
-that is how the mirror tool discovers what it overlooked.
+In normal use the server is fully offline: it only reads from site/ and never
+touches the network. When a file is missing it records the path in `missing`
+and answers 404.
 
-With `upstream` set (only while mirroring) it downloads the missing file, saves
-it and serves it: the copy fills itself in by playing.
+With `upstream` set (only while mirroring) the server downloads the missing
+file, saves it, and serves it, so the copy fills itself in by playing.
 """
 
 from __future__ import annotations
@@ -100,9 +100,7 @@ class AssetServer:
                 try:
                     self.wfile.write(data)
                 except (BrokenPipeError, ConnectionResetError):
-                    # The browser hung up mid-response. Normal when a page is
-                    # torn down between runs, and nothing we can do about it, so
-                    # do not spew a traceback into the middle of a training log.
+                    # Normal when the browser tears down a page between runs.
                     pass
 
         self._httpd = ThreadingHTTPServer(("127.0.0.1", self.port), Handler)

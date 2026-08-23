@@ -1,11 +1,14 @@
-"""llm-example2: everything harness generation 2 can do, one small thing at a time.
+"""The `llm-example2` bot shows everything harness generation 2 can do, one
+setting at a time.
 
     uv run pokelike bot run --bot llm-example2 --runs 1 -ddd
 
-Credentials come from `.env` at the repository root, so nothing goes on the command line.
+Credentials come from `.env` at the repository root, so nothing goes on the
+command line.
 
-A reference, not a contender. It changes everything at once, which shows the surface
-and ruins the score. Not benchmarked. Copy the parts you want.
+This bot is a reference, not a contender. It turns on every optional feature at
+once so each one is easy to see, which is a bad setup for an actual run. It is
+not benchmarked. Copy the parts you want.
 
 What one turn looks like:
 
@@ -14,12 +17,12 @@ What one turn looks like:
     user           the state now, plus its notes, its plan, and the journal
     tools          sent beside the messages, every turn, called or not
 
-Four memories, four lifetimes:
+Four memories with four lifetimes:
 
     scratch_turns   whole turns kept          dies with the run
     memory          one line per past turn    dies with the run
     plan_chars      its route for this map    dies with the map
-    notes_cap       notes it writes itself    CROSSES runs
+    notes_cap       notes it writes itself    crosses runs
 """
 
 from __future__ import annotations
@@ -34,8 +37,8 @@ class Example2Bot(LLMBot):
     name = "llm-example2"
 
     # ---------------------------------------------------------------- 1. the prompt
-    # GAME_RULES is the factual half. Added here: how to use its memory. A model
-    # given a notebook and not told to keep it will use it twice and forget it.
+    # The GAME_RULES constant is the factual half. This prompt adds instructions for
+    # using the notebook and plan.
 
     PROMPT = GAME_RULES + """
 YOUR MEMORY IS PART OF PLAYING
@@ -65,8 +68,9 @@ The turn ENDS at `play`, so anything called after it is thrown away. Call `plan`
 Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------------------- 2. its own tools
-    # @tool is the whole declaration: the name comes from the method, the parameters
-    # from the signature. The description is prompt, so say when NOT to call it too.
+    # The @tool decorator is the whole declaration: the name comes from the method,
+    # the parameters from the signature. The description is prompt text, so state
+    # when not to call the tool as well.
 
     @tool("Whether your team is healthy enough for a fight, and whether a pokecenter is reachable. One line. Call it before a battle, not on every screen.")
     def risk_check(self, state: dict[str, Any]) -> str:
@@ -98,7 +102,7 @@ Think briefly, then call `play`. Always call `play`."""
         return (f"super effective against {want}: {', '.join(good)}. "
                 f"`set_lead` is free, so put one in slot 0 first.")
 
-    # A bot may carry its own knowledge. The state does not contain this.
+    # A bot may carry its own knowledge; the state does not contain this table.
     STRONG_AGAINST = {
         "normal": set(), "fire": {"grass", "bug", "ice", "steel"},
         "water": {"fire", "ground", "rock"}, "grass": {"water", "ground", "rock"},
@@ -114,53 +118,49 @@ Think briefly, then call `play`. Always call `play`."""
     }
 
     # ------------------------------------------------------------------ 3. the knobs
-    # A generation-2 bot is mostly this block. None of it needs code.
+    # A generation-2 bot is mostly this block; none of these settings need code.
 
     config = LLMConfig(
         prompt=PROMPT,
 
-        temperature=0.3,        # low, not zero: zero is not reproducible either
+        temperature=0.3,        # low but not zero, because zero is not reproducible
+        reasoning_effort="low", # the model reasons before answering; None turns it off
         max_tokens=1200,        # a paragraph, a plan, and a play call
         max_rounds=6,           # this prompt asks for two or three tools before play
         retries=5,              # a 429 is not the model's fault, so try again
-        token_budget=1_000_000_000,    # about 3x a normal run. Hitting it ENDS the run,
-                                # on purpose: a runaway loop should stop, not creep
+        token_budget=1_000_000_000,    # about 3x a normal run; hitting the budget ends
+                                # the run on purpose to stop runaway loops
 
-        # state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
-        #                         # the only thing that reads this. "json" is 6x the tokens
+        # state_view="screen",    # ignored here: section 4 replaces render_state, which
+        #                         # is the only thing that reads this. "json" is 6x the tokens
 
-        memory=12,              # journal lines. -1 keeps every turn
-        scratch_turns=3,        # whole turns kept. -1 keeps all, and costs about 5x
-        # scratch_state="brief",  # IGNORED HERE: section 5 replaces render_scratch.
+        memory=12,              # journal lines; -1 keeps every turn
+        scratch_turns=3,        # whole turns kept; -1 keeps all, costs about 5x
+        # scratch_state="brief",  # ignored here: section 5 replaces render_scratch.
         #                         # line (a marker), brief (facts), full (the old screen)
-        notes_cap=10000,           # notes it may hold. 0 turns the notebook off
+        notes_cap=10000,           # max note storage; 0 turns the notebook off
         note_chars=100000,         # longer notes are cut, not refused
-        cross_run_memory=True,  # the point of generation 2: notes outlive the run
-        keep_across_regions=("notes",),   # what crosses into the NEXT region. The plan and
-                                          # the kept turns are about a map that will not
-                                          # exist there; a lesson might still hold
+        cross_run_memory=True,  # notes outlive the run
+        keep_across_regions=("notes",),   # what crosses into the next region; the plan
+                                          # and kept turns are about a map that will not
+                                          # exist there, but a general lesson might hold
         plan_chars=1000000,         # room for a route that names its nodes
 
-        bag_tool=True,          # a shared tool now, no code needed
-        # `what_lies_ahead` is the tool that says where each option leads. Section 4
-        # already prints that in the view, every turn, for free: keeping the tool too
-        # would be a round trip for something already on the screen.
+        bag_tool=True,          # a shared tool, no code needed
+        # The `what_lies_ahead` tool reports where each option leads. Section 4 already
+        # prints that in the view every turn for free, so the tool would just be a
+        # redundant round trip.
         drop_tools=("what_lies_ahead",),
     )
 
     # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
         """In: the state. Out: the text of this turn's user message."""
-        # REPLACES the built-in view, so `state_view` above is set but has no effect:
-        # it is the setting the built-in one reads, and this does not call it.
-        # HP as a percentage, because the model should not have to divide. Exits
-        # inline, because asking for them costs a round trip.
+        # Replaces the built-in view, so `state_view` above has no effect.
+        # HP as a percentage, exits inline to avoid a tool round trip.
         run = state.get("run") or {}
         team = state.get("team") or []
-        # The region goes here when it is not Kanto, exactly as the built-in view does
-        # it. Replacing the view means inheriting the job of saying WHERE you are: the
-        # built-in one carries the region in every mode it has, and a custom line that
-        # leaves it out is a model playing Johto believing it is in Kanto.
+        # Include the region when it is not Kanto, matching the built-in view.
         where = state.get("region") or "kanto"
         out = [f"TURN {state.get('steps', 0)}   map {run.get('map', 0)}   "
                f"{run.get('badges', 0)} badges   {len(team)} alive"
@@ -192,10 +192,8 @@ Think briefly, then call `play`. Always call `play`."""
     # ------------------------------------------------------- 5. a kept turn's slot
     def render_scratch(self, state: dict[str, Any]) -> str:
         """In: the state of a turn being kept. Out: the one line it shows."""
-        # REPLACES the built-in one, so `scratch_state` above is set but has no
-        # effect, for the same reason as `state_view`. The old screen is not sent
-        # again: it is stale, and the current one is in the fresh message. Only what
-        # changed is worth a line.
+        # Replaces the built-in render, so `scratch_state` above has no effect.
+        # Only what changed is worth a line; the current screen is in the fresh message.
         run = state.get("run") or {}
         team = state.get("team") or []
         low = min((p["hp"] / p["max_hp"] for p in team if p.get("max_hp")), default=1.0)
@@ -206,14 +204,9 @@ Think briefly, then call `play`. Always call `play`."""
     # ----------------------------------------------------------- 6. between regions
     def region_cleared(self, done: dict[str, Any]) -> str | None:
         """In: the region result. Out: what the next region opens with."""
-        # Called with the memory STILL INTACT, which is what makes this possible: the
-        # model reads its own journal and its last exchanges and writes the summary
-        # itself, instead of taking ours. The forgetting happens after this returns.
+        # Called with the memory still intact, so the model can read its own journal
+        # and write the summary itself. The forgetting happens after this returns.
         try:
-            # The ASK GOES LAST. With it in the system message the model answered by
-            # repeating it back, summary and instruction in one paragraph, which is
-            # what then reached the next region. A model looks for the task in the
-            # last user turn, so that is where it belongs, with the memory as context.
             reply = self.call_model([
                 {"role": "system", "content":
                     "You are playing a Pokemon roguelike, one region at a time."},
@@ -224,16 +217,15 @@ Think briefly, then call `play`. Always call `play`."""
                     f"{done['next']}: a new starter, new gyms, badges from zero, and only "
                     f"your notes come with you. Write at most five short lines of what you "
                     f"learned that will STILL BE TRUE there. No preamble, just the lines."},
-            ], tools=[])       # prose, not a tool call: with tools attached it plays
+            ], tools=[])       # prose only, not a tool call
             return (reply.get("content") or "").strip() or super().region_cleared(done)
         except Exception:      # noqa: BLE001
-            # A summary is a nicety: a failed call must not end a campaign that is
-            # going well. Fall back to the standard sentence.
+            # A failed summary must not end a campaign that is going well.
             return super().region_cleared(done)
 
     # -------------------------------------------------------------- 7. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """In: nothing. Out: my own facts, written beside the score."""
-        # Only what nothing else could know. The model, the harness generation, the
-        # view and whether the tools are the stock set are already recorded.
+        # Only what nothing else could know; model, harness generation, view, and
+        # stock-tools flag are already recorded elsewhere.
         return {"tuned_for": "gemini-class models", "notes_policy": "one per run"}

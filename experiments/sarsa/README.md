@@ -1,12 +1,12 @@
 # SARSA(λ) with linear function approximation
 
-Sutton & Barto, 2nd edition: **chapter 10** "On-policy Control with
-Approximation" for the semi-gradient control update, **section 12.7** for the
-SARSA(λ) form.
+Sutton & Barto, 2nd edition, chapter 10, "On-policy Control with
+Approximation," covers the semi-gradient control update. Section 12.7 covers
+the SARSA(λ) form.
 
     q̂(s, a, w) = wᵀ x(s, a)
 
-**Contents**
+Contents
 - [Why, after Dyna-Q](#why-after-dyna-q)
 - [What changes](#what-changes)
 - [No neural network, on purpose](#no-neural-network-on-purpose)
@@ -24,8 +24,8 @@ SARSA(λ) form.
 ## Why, after Dyna-Q
 
 Tabular Dyna-Q was given a fair run: 400 episodes, encoding v2, 50 planning
-steps, 465k updates. Evaluated greedily on 20 held-out seeds against random on
-the same seeds:
+steps, 465k updates. It was evaluated greedily on 20 held-out seeds against
+random on the same seeds:
 
 ```
                mean score   median   worst   best
@@ -43,62 +43,64 @@ It lost. And the detailed log said why long before the evaluation did:
       |    Q: slot0=6.3, slot1=6.2, slot2=6.3
 ```
 
-Three values within a rounding error of each other, because the encoding shows
-the agent three indistinguishable slots. A player sees a Grass/Poison starter, a
-Fire one and a Water one, each with different stats. **No number of episodes
-fixes that: the information never reaches the table.**
+The three values sit within a rounding error of each other, because the
+encoding shows the agent three indistinguishable slots. A player sees a
+Grass/Poison starter, a Fire one and a Water one, each with different stats.
+No number of episodes fixes that: the information never reaches the table.
 
-So the problem was never the algorithm. It was that the agent could not see.
+So the problem was the representation, not the algorithm: the agent could not
+distinguish situations that needed different moves.
 
 ## What changes
 
-**It can see.** Features carry what is on screen, so a candidate's types, whether
-they are new to the team, its bulk against the other two on offer, where a map
-node leads. `features/groups.py` parses the Pokemon card text the tabular agent threw
-away.
+The agent can see. Features carry what is on screen: a candidate's types,
+whether they are new to the team, its bulk against the other two on offer, and
+where a map node leads. The `features/groups.py` module parses the Pokemon
+card text the tabular agent threw away.
 
-**It generalises.** Weights are shared, so "catch something that adds a type I
-lack" is learned once and applies everywhere, instead of being relearned in each
-table cell. That matters here more than usual: every real step costs half a
-second of browser, so the sample budget is a few thousand transitions, not
-millions.
+The agent generalises. Weights are shared, so "catch something that adds a
+type I lack" is learned once and applies everywhere, instead of being
+relearned in each table cell. That matters here more than usual: every real
+step costs half a second of browser, so the sample budget is a few thousand
+transitions, not millions.
 
-**Credit reaches back.** Badges arrive many decisions after the choices that
-earned them. A one-step backup moves credit one step per visit; λ = 0.9 spreads
-it down the whole chain at once.
+Credit reaches back. Badges arrive many decisions after the choices that
+earned them. A one-step backup moves credit one step per visit; λ = 0.9
+spreads it down the whole chain at once.
 
-**Actions stay distinct.** It drives `Game` by action index rather than by key,
-so the five EQUIP buttons are five actions with five feature vectors. The tabular
-agent collapsed them into one `btn:equip` and could not choose *who* to equip.
+Actions stay distinct. The agent drives `Game` by action index rather than by
+key, so the five EQUIP buttons are five actions with five feature vectors. The
+tabular agent collapsed them into one `btn:equip` and could not choose *who*
+to equip.
 
-**It decides the team order** (feature set v2). Slot 0 leads the next battle, and
-reordering costs no turn, so it is modelled as an extra **state** in the MDP with
-reward 0, not an extra action in the existing one. Its options are "leave it" plus
-"bring slot j to the front", scored by the same q̂ and the same weights, and
-SARSA(λ)'s traces carry the credit back through the swap on their own. Available
-in about 61% of turns.
+The agent decides the team order (feature set v2). Slot 0 leads the next
+battle, and reordering costs no turn, so the reorder decision is modelled as an
+extra state in the MDP with reward 0, not an extra action in the existing one. The state's
+options are "leave it" plus "bring slot j to the front", scored by the same q̂
+and the same weights, and SARSA(λ)'s traces carry the credit back through the
+swap on their own. Reordering is available in about 61% of turns.
 
 Every `order:` feature is a difference against the current leader, or an
 interaction with the leave-it option, because one that read the same for every
 option would cancel in the argmax and decide nothing.
 
-**It can read an item and a move.** v2 also added the `item:` and `tutor:`
-groups. Without them, item and tutor screens are invisible to the vector:
-q-values come out identical across a Red Card, a Moon Stone and an Assault
-Vest, and the agent chooses among them at random.
+The agent can read an item and a move. Feature set v2 also added the `item:`
+and `tutor:` groups. Without them, item and tutor screens are invisible to the
+vector: q-values come out identical across a Red Card, a Moon Stone and an
+Assault Vest, and the agent chooses among them at random.
 
-`item:` reads the two things the engine actually keeps structured, the item id,
-and `TYPE_ITEM_MAP`, which turns eighteen near-identical "+40% X-type damage"
-items into one question: does this boost a type I field. It deliberately encodes
-no magnitudes: those live inline in the battle code keyed by id, so a table of
-them would have to be copied out of the bundle and would keep reporting the old
-numbers after any upstream rebalance, silently.
+The `item:` group reads the two things the engine actually keeps structured:
+the item id, and `TYPE_ITEM_MAP`, which turns eighteen near-identical "+40%
+X-type damage" items into one question: does this boost a type I field. The
+group deliberately encodes no magnitudes: those live inline in the battle code
+keyed by id, so a table of them would have to be copied out of the bundle and
+would keep reporting the old numbers after any upstream rebalance, silently.
 
-`tutor:` compares the offer against what that Pokemon already uses. The button
-text carries neither power nor type, but the engine builds it with
+The `tutor:` group compares the offer against what that Pokemon already uses.
+The button text carries neither power nor type, but the engine builds it with
 `getBestMove(..., moveTier + 1, ...)`, so asking the same question gives the
-offer with both: Bulbasaur uses Magical Leaf at 40, the tutor offers Energy Ball
-at 90.
+offer with both: Bulbasaur uses Magical Leaf at 40, and the tutor offers
+Energy Ball at 90.
 
 That makes 100 features, in index order: `context` 9, `node` 12, the three node
 crosses 36, `lookahead` 4, `screen` 7, `mon` 7, `slot` 3, `button` 3, `item` 7,
@@ -106,19 +108,21 @@ crosses 36, `lookahead` 4, `screen` 7, `mon` 7, `slot` 3, `button` 3, `item` 7,
 
 ## No neural network, on purpose
 
-Not modesty, arithmetic. An episode is ~20 transitions, so 300 episodes is a few
-thousand transitions, and a DQN's usual budget is 10⁵-10⁶: on the order of an hour
-for the low end once collection runs in parallel processes, and a long day for the
-high end. The binding constraint is samples, not model capacity, and hand-built
-features plus a linear model is what that budget buys.
+The reason is a sample budget constraint. An episode is about 20 transitions, so
+300 episodes is a few thousand transitions, and a DQN's usual budget is
+10⁵-10⁶: on the order of an hour for the low end once collection runs in
+parallel processes, and a long day for the high end. The binding constraint is
+samples, not model capacity, and hand-built features plus a linear model is
+what that budget buys.
 
-If the features turn out to carry the day, that is the evidence that would
-justify learning a representation instead of writing one.
+If hand-built features turn out to be sufficient, that result is the evidence
+that would justify learning a representation instead of writing one.
 
 ## Results
 
-300 episodes, reward `progress`, 98 minutes, 5988 updates. Then greedy on seeds
-40000-40024, which training never touched, against random on those same seeds:
+This run used 300 episodes with reward `progress`, took 98 minutes, and
+produced 5988 updates. Evaluation then ran greedily on seeds 40000-40024,
+which training never touched, against random on those same seeds:
 
 ```
             badges~  badges+   steps~  faints~   score~
@@ -129,10 +133,11 @@ paired: sarsa wins 15, draws 10, loses 0 out of 25
 mean difference: +0.88 badges per run       t = 4.18
 ```
 
-Not one loss in 25, and the draws are nearly all 0-0 on seeds where both runs
-die early. Same environment, same reward, same held-out protocol on which
-tabular Dyna-Q went **backwards** (−3.8 against random's 7.0). The change was
-the representation, and that was the hypothesis.
+There was not one loss in 25, and the draws are nearly all 0-0 on seeds where
+both runs die early. This evaluation used the same environment, the same
+reward, and the same held-out protocol on which tabular Dyna-Q went backwards
+(−3.8 against random's 7.0). The change was the representation, and that was
+the hypothesis.
 
 The learning curve says the same thing about sample cost:
 
@@ -144,18 +149,18 @@ ep  75-99   1.20
 ep 275-299  1.12
 ```
 
-Badges per episode, in blocks of 25, from `output/runs/sarsa_v1_history.json`.
-It arrives in about 50 episodes, roughly 1000 transitions, and then not only
-flattens but drifts back down as epsilon anneals. Dyna-Q had 400 episodes and
-never left the floor.
+The numbers above show badges per episode, in blocks of 25, from
+`output/runs/sarsa_v1_history.json`. The gain arrives in about 50 episodes,
+roughly 1000 transitions, and then not only flattens but drifts back down as
+epsilon anneals. Dyna-Q had 400 episodes and never left the floor.
 
-**The largest weights cannot change a single choice, and that is not a flaw.**
-`team_size`, `bias`, `map_index` and `badges`, which carry the heaviest weights, are all
-state-only: they shift every action in a state by the same amount and cancel in
-the argmax. They stay in the feature set because they carry the *level* of the
-return, which the bootstrapped target is built out of; measured, cutting them
-does not help (the comparison below). Being unable to change a decision
-directly is not the same as being useless.
+The largest weights cannot change a single choice, but this is expected and not
+a flaw. The features `team_size`, `bias`, `map_index` and `badges`, which carry the
+heaviest weights, are all state-only: they shift every action in a state by
+the same amount and cancel in the argmax. They stay in the feature set because
+they carry the *level* of the return, which the bootstrapped target is built
+out of; measured, cutting them does not help (the comparison below). These
+features still contribute to learning even though they cannot decide.
 
 ## Layout
 
@@ -170,43 +175,44 @@ sarsa/
 └── output/           weights and histories (gitignored)
 ```
 
-`features/` is its own package because of what Dyna-Q taught: the update rule was
-never the problem, the vector was. Keeping it separate makes it possible to
-switch a group off and leave everything else meaning the same thing.
+The `features/` directory is its own package because the Dyna-Q experiment
+showed that the feature vector matters more than the update rule. Keeping the
+features separate makes it possible to switch a group off and leave everything
+else meaning the same thing.
 
 ## Which features actually decide anything
 
-Train a variant by naming its groups, then measure it like everything else.
-the official benchmark, from wherever the weights are:
+Train a variant by naming its groups, then measure it like everything else,
+against the official benchmark, from wherever the weights are:
 
 ```bash
 uv run python -m experiments.sarsa.train --episodes 300 --groups node,mon,lookahead --out candidate.json
 uv run pokelike bot bench --bot experiments/mine --dry-run
 ```
 
-Every variant is a question with an answer you can be wrong about, written down
-in `features/variants.py` **before** the run, so the result cannot be
-reinterpreted afterwards into whatever happened.
+Every variant is a question with an answer you can be wrong about, written
+down in `features/variants.py` before the run, so the result cannot be
+reinterpreted after the fact.
 
-One training run is about 100 minutes. At that price you test two ideas and
-stop, which is how a plateau gets blamed on the step size. So variants train at
-the same time, one process and one browser each.
+One training run is about 100 minutes. At that cost a serial experiment tests
+two ideas and stops, so running variants in parallel matters. Each variant runs
+in its own process with its own browser.
 
-The parallelism is deliberately **between** runs and never inside one. SARSA is
+The parallelism is deliberately between runs and never inside one. SARSA is
 on-policy with eligibility traces: splitting episode collection across several
-environments would draw updates from a behaviour distribution the traces do not
-describe, which is a different algorithm wearing the same name. Whole
-independent runs sidestep that, and comparing variants is exactly the case where
-that is all you need.
+environments would draw updates from a behaviour distribution the traces do
+not describe, which would make it a different algorithm despite the same code.
+Whole independent runs sidestep that, and comparing variants is exactly the case
+where that is all you need.
 
-A variant that drops features and does **not** get worse is the interesting
+A variant that drops features and does not get worse is the interesting
 result, not a disappointing one: it means those features were never doing the
 work their weights suggested.
 
 ### What the variants measure, and what they cannot
 
-Five feature sets, 300 episodes each, all sharing `--alpha-norm 9.0`, measured
-paired against random on the same seeds:
+Five feature sets were trained for 300 episodes each, all sharing
+`--alpha-norm 9.0`, and measured paired against random on the same seeds:
 
 ```
 variant           feats   badges~   vs random      t
@@ -226,10 +232,10 @@ variance in it than badges over a whole run.
 
 Two rules follow, and both are load-bearing:
 
-- **Only the official benchmark ranks a model.** The same `full` weights score
+- Only the official benchmark ranks a model. The same `full` weights score
   1.60 on 25 seeds chosen during development and 1.10 on the official 50, a
   gap wider than any in the table.
-- **Runs being compared share `--alpha-norm`.** The default step normalisation
+- Runs being compared share `--alpha-norm`. The default step normalisation
   divides by the count of active features, which is a property of the feature
   set (9.0 per (s, a) for `full`, 1.2 for `minimal`): without a shared
   constant, two variants differ in feature set *and* effective learning rate,
@@ -253,11 +259,11 @@ uv run pokelike bot bench --bot experiments/mine --dry-run    # measure: officia
 | `--groups` | feature groups to keep, comma separated | all |
 | `--alpha-norm` | shared step divisor, same value across runs you compare | per-feature |
 
-`--out` deliberately does not default to a name a submitted bot reads. Both
-[`bots/sarsa-v1/`](../../bots/sarsa-v1/) and
+The `--out` flag deliberately does not default to a name a submitted bot
+reads. Both [`bots/sarsa-v1/`](../../bots/sarsa-v1/) and
 [`bots/sarsa-v2/`](../../bots/sarsa-v2/) load `artifacts/weights.json` from
 inside their own folder and nowhere else, so a training run cannot silently
-replace a policy that is on the leaderboard.
+replace a policy that is on the standings.
 
 ## Measuring a candidate
 
@@ -276,8 +282,8 @@ another bot's name.
 
 ## You can read what it learned
 
-The point of a linear model. Training prints the weights it leaned on hardest,
-and they are named:
+This is the point of a linear model. Training prints the weights the model
+leaned on hardest, and they are named:
 
 ```
 what it leaned on:
@@ -290,21 +296,21 @@ what it leaned on:
   mon_best_stats               17.706
 ```
 
-That is a policy you can argue with, which a value table of 400 opaque cells is
-not. The first three depend on the state and not the action, so they add the
-same number to every option and cancel in the argmax, see the weights note
-under *Results* for why they stay anyway.
+Those are named weights you can argue with, unlike a value table of 400 opaque
+cells. The first three depend on the state and not the action, so they add
+the same number to every option and cancel in the argmax. See the weights
+note under *Results* for why they stay anyway.
 
 ## Where to look if it stalls
 
-**The features, before the hyperparameters.** If two situations that need
-different moves produce the same vector, no step size will separate them.
-`feature_names()` is the whole vocabulary the agent has.
+Look at the features before the hyperparameters. If two situations that need
+different moves produce the same vector, no step size will separate them. The
+`feature_names()` function is the whole vocabulary the agent has.
 
-**α is normalised per active feature** so that adding features does not silently
+α is normalised per active feature, so that adding features does not silently
 multiply the effective learning rate. That mistake looks exactly like the
 algorithm being unstable.
 
-**Linear approximation plus bootstrapping can diverge** (chapter 11, the deadly
-triad). SARSA is on-policy, which removes one leg of it, but if weights start
-growing without bound the step size is the first suspect.
+Linear approximation plus bootstrapping can diverge (chapter 11, the deadly
+triad). SARSA is on-policy, which removes one leg of the triad, but if weights
+start growing without bound the step size is the first suspect.

@@ -1,13 +1,7 @@
 """Progress logging for a running pass: one line per finished run, flushed live.
 
-A benchmark can run for hours. A progress bar is fine while you are watching it
-and worth nothing afterwards: come back to a finished terminal and there is no
-answer to "what did it do for three hours", "when did it start failing", or
-"how much did that cost". So every pass writes a log beside its results.
-
-Deliberately a readable text file rather than JSON. The rows themselves are
-already stored, in full, in the result: this is the thing you `tail -f` from
-another terminal, so it is aligned columns and nothing else.
+The log is a readable text file with aligned columns, suitable for `tail -f`.
+Full structured data lives in the result; this file is the human-readable view.
 """
 
 from __future__ import annotations
@@ -20,26 +14,19 @@ from typing import Any
 
 from .heartbeat import HeartbeatThread
 
-# How many runs at each end of a pass make up the learning comparison. Ten of
-# fifty: long enough to average out a lucky seed, short enough that the two
-# ends are actually early and late rather than two halves of the same curve.
+# Number of runs at each end of a pass used for the learning comparison.
 LEARN_K = 10
 
 
 class PassLog:
     """One line per finished run, flushed as it happens.
 
-    In: folder, file stem, seed list, worker count, header lines, optional
-    memory flag and done/fail callbacks. Out: call run() per row, decision()
-    per trace entry, done()/fail()/close().
-
-    The constructor accepts the generalised form (folder, stem, seeds, workers,
-    header_lines, memory) AND the legacy positional form (version, model, seeds,
-    workers) used by the model benchmark, so existing call sites need no change.
+    Accepts both the generalised form (folder, stem, seeds, workers,
+    header_lines, memory) and the legacy positional form (version, model,
+    seeds, workers) used by the model benchmark.
     """
-    # Flushed per line on purpose: a log that buffers tells you nothing about a run
-    # still in progress, which is the only time you need it, and loses the ending if
-    # the process dies: which is exactly the ending worth reading.
+    # Flushed per line: a buffered log is useless for in-progress monitoring
+    # and loses the ending if the process dies.
 
     COLUMNS = ("  seed  badges   score  steps        in       out  fell  retry     secs")
     COLUMNS_MEMORY = COLUMNS + "  notes"
@@ -49,23 +36,20 @@ class PassLog:
     def __init__(self, version: str, model: str, seeds: list[int], workers: int,
                  memory: bool = False, folder: Path | None = None,
                  attempt: int = 1,
-                 # Generalised parameters: when these are given the caller owns
-                 # the vocabulary. When absent, the legacy model-benchmark
-                 # defaults are used.
+                 # Generalised parameters: when given, the caller owns the
+                 # vocabulary. Otherwise legacy model-benchmark defaults apply.
                  stem: str | None = None,
                  header_lines: list[str] | None = None,
                  done_summary: Any = None,
                  notebook_header: str | None = None,
                  plan_header: str | None = None,
                  region: str | None = None) -> None:
-        # Legacy: if folder is not provided, use session_dir(version) from the
-        # model benchmark. Deferred import so the package stays neutral.
+        # Legacy default: use the model benchmark's session directory.
         if folder is None:
             from ..harness.llmbench.command import session_dir
             folder = session_dir(version)
 
-        # File naming: the stem is either provided explicitly (generalised) or
-        # built from the model slug and attempt number (legacy model benchmark).
+        # Stem: provided explicitly, or built from the model slug + attempt.
         if stem is None:
             from ..harness.llmbench.versions import slug
             stem = f"{slug(model)}-pass{attempt}"
@@ -77,8 +61,7 @@ class PassLog:
         self.total = len(seeds)
         self.badges: list[int] = []
         self.memory = memory
-        # Region column: shown only when the pass is not plain kanto, so a kanto
-        # pass's log stays byte-identical to what it was before regions existed.
+        # Region column: shown only when the pass is not Kanto.
         self.region = region
         self.model = model
         self.book: list[str] = []
@@ -97,14 +80,11 @@ class PassLog:
         self.rf: Any = None
         self._last_book: list[str] | None = None
         self._last_plan: str | None = None
-        # Caller-provided headers for the notebook/plan files.
         self._notebook_header = notebook_header
         self._plan_header = plan_header
-        # Caller-provided summary callback (called from done()).
         self._done_summary = done_summary
 
-        # Write the header. When header_lines are provided, use them directly;
-        # otherwise produce the legacy model-benchmark header.
+        # Header: use caller-provided lines, or the legacy model-benchmark default.
         if header_lines is not None:
             for line in header_lines:
                 self._say(line)
@@ -124,31 +104,25 @@ class PassLog:
 
     @property
     def stamp(self) -> str:
-        """The pass's own name: its log directory.
-
-        In: nothing. Out: the directory name string (e.g. '20260821-162048-1435').
-        """
+        """The pass's directory name, used as its identifier."""
         return self.path.parent.name
 
     def _say(self, line: str) -> None:
         self.fh.write(line + "\n")
 
     def _columns_header(self) -> str:
-        """The column header, with region only when the pass is not plain kanto."""
+        """Returns the column header, including the region column when not Kanto."""
         if self.region and self.region != "kanto":
             return self.COLUMNS_REGION_MEMORY if self.memory else self.COLUMNS_REGION
         return self.COLUMNS_MEMORY if self.memory else self.COLUMNS
 
     def run(self, row: dict[str, Any]) -> None:
-        """Records one finished run to the log.
-
-        In: the run's result dict. Out: a line is written and flushed.
-        """
+        """Records one finished run to the log and flushes immediately."""
         self.n += 1
         self.badges.append(row.get("badges") or 0)
         self.spent[row.get("seed")] = (row.get("tokens_in") or 0,
                                        row.get("tokens_out") or 0)
-        # Region column: shown only when the pass is not plain kanto.
+        # Region column: shown only when the pass is not Kanto.
         region_cell = ""
         if self.region and self.region != "kanto":
             region_cell = f"{(row.get('region') or self.region)[:7]:>9}"
@@ -184,10 +158,7 @@ class PassLog:
             )
 
     def done(self, one_pass: dict[str, Any]) -> None:
-        """Writes the summary line at the end of a successful pass.
-
-        In: the assembled pass dict. Out: summary lines written to the log.
-        """
+        """Writes the summary line at the end of a successful pass."""
         # If a custom done_summary callable was given, delegate to it.
         if self._done_summary is not None:
             self._done_summary(self, one_pass)
@@ -220,16 +191,13 @@ class PassLog:
                 self._say(f"  [{i}] {note}")
 
     def _write_run_row(self, row: dict[str, Any]) -> None:
-        """One JSON line per finished run, the row as the result will hold it.
-
-        In: the run's result dict. Out: a line appended to `<pass>-runs.jsonl`.
-        """
+        """Appends one JSON line per finished run to `<pass>-runs.jsonl`."""
         if self.rf is None:
             self.rf = self.runs_path.open("w", encoding="utf-8", buffering=1)
         self.rf.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def _write_notebook(self, row: dict[str, Any]) -> None:
-        """One block per run: the notes as they stood when that run ended."""
+        """Writes the notes as they stood when this run ended."""
         book = row.get("notebook")
         if book is None:
             return
@@ -251,7 +219,7 @@ class PassLog:
             self._last_book = list(book)
 
     def _write_plan(self, row: dict[str, Any]) -> None:
-        """One block per run: the route it had committed to when the run ended."""
+        """Writes the route the bot had committed to when this run ended."""
         plan = row.get("plan")
         if plan is None:
             return
@@ -271,11 +239,7 @@ class PassLog:
         self._last_plan = plan
 
     def decision(self, e: dict[str, Any]) -> None:
-        """Writes one decision as JSON to the trace file.
-
-        In: decision dict (seed, step, screen, chose, options, why, etc.).
-        Out: one JSON line appended to the .jsonl trace.
-        """
+        """Writes one decision as a JSON line to the trace file."""
         seed = e.get("seed")
         run_in, run_out = e.get("run_in") or 0, e.get("run_out") or 0
         was_in, was_out = self.spent.get(seed, (0, 0))
@@ -296,8 +260,7 @@ class PassLog:
             "swapped": e.get("swapped"),
             "why": e.get("why"),
             "team": e.get("team"),
-            # Only when there IS one, which the enrichment does only outside Kanto:
-            # a Kanto trace line stays exactly the line it has always been.
+            # Optional fields: included only when the enrichment provides them.
             **({"region": e["region"]} if e.get("region") else {}),
             **({"tools": e["tools"]} if e.get("tools") else {}),
             **({"map_view": e["map_view"]} if e.get("map_view") else {}),
@@ -310,24 +273,15 @@ class PassLog:
         }, ensure_ascii=False) + "\n")
 
     def fail(self, why: str) -> None:
-        """Records a failure line to the log.
-
-        In: a description of the failure. Out: the line is written.
-        """
+        """Records a failure line to the log."""
         self._say(f"FAILED after {self.n} runs: {why}")
 
     def stopped(self, why: str) -> None:
-        """Records that the pass was stopped on purpose, not that it broke.
-
-        In: what asked it to stop. Out: the line is written.
-        """
+        """Records that the pass was stopped intentionally, not by an error."""
         self._say(f"STOPPED after {self.n} runs: {why}")
 
     def close(self) -> None:
-        """Stops the heartbeat and closes all open file handles.
-
-        In: nothing. Out: .alive removed, all handles closed.
-        """
+        """Stops the heartbeat and closes all open file handles."""
         self._heartbeat.stop()
         for fh in (self.fh, self.tf, self.bf, self.pf, self.rf):
             if fh is not None and not fh.closed:

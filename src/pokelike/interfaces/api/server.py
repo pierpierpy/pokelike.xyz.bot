@@ -11,8 +11,8 @@ Endpoints:
     GET  /screenshot            a PNG of the current screen
     GET  /schema                what the state contains, described from itself
 
-The browser stays alive between calls: that is why this needs a running process
-rather than a command that starts and dies each time.
+The browser stays alive between calls. The server is single-threaded because
+Playwright's sync API is bound to the thread that created it.
 """
 
 from __future__ import annotations
@@ -91,8 +91,7 @@ def _handler(game: Game):
             elif route == "/score":
                 self._json(game.score() or {"error": "score not available"})
             elif route == "/screenshot":
-                # A remote client is otherwise blind: it can read the state but
-                # never see the game. Rendered in memory, no window involved.
+                # Rendered in memory; no window involved.
                 self._png(game)
             elif route == "/schema":
                 from ...core.schema import describe
@@ -105,9 +104,7 @@ def _handler(game: Game):
             route = self.path.split("?")[0].rstrip("/") or "/"
             body = self._body()
             if route == "/new":
-                # A seed is client input, so a bad one must come back as 400.
-                # Letting it raise would answer 500 and, on a server that is
-                # single-threaded by necessity, take the run down with it.
+                # Bad seeds return 400 rather than raising into a 500.
                 try:
                     obs = game.reset(seed=int(body.get("seed", 1)))
                 except (ValueError, TypeError) as e:
@@ -125,10 +122,7 @@ def _handler(game: Game):
                     return
                 self._json(self._with_view(obs))
             elif route == "/reorder":
-                # Slot 0 leads the next battle, so the order is a decision. It
-                # is its own endpoint rather than an entry in /actions because
-                # it does not consume the turn: after this, /actions is
-                # unchanged and the same move is still waiting to be made.
+                # Reorder does not consume the turn; /actions stays unchanged.
                 if "a" not in body or "b" not in body:
                     self._json({"error": "missing fields 'a' and 'b'"}, 400)
                     return
@@ -148,22 +142,19 @@ def _handler(game: Game):
 
 
 def create_api(game: Game, port: int = 8423) -> HTTPServer:
-    """Builds the server without starting it.
+    """Build the server without starting it.
 
-    Lets callers stop it from code: `httpd.shutdown()` is safe from another
-    thread, while `serve_forever()` must stay on the thread that owns the game
-    (see the note below).
+    Call `httpd.shutdown()` from another thread to stop it;
+    `serve_forever()` must stay on the thread that owns the game.
     """
     return HTTPServer(("127.0.0.1", port), _handler(game))
 
 
 def serve(game: Game, port: int = 8423) -> None:
-    """Serves requests until a ctrl-c arrives.
+    """Serve requests until Ctrl-C.
 
-    Single-threaded out of necessity, not laziness: Playwright's sync API is
-    bound to the thread that created it, so handlers must run on the same thread
-    as the game. Serving from a different thread fails with
-    `greenlet.error: Cannot switch to a different thread`.
+    Single-threaded because Playwright's sync API is bound to the thread that
+    created it.
     """
     httpd = create_api(game, port)
     try:

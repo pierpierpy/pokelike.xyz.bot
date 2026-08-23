@@ -1,16 +1,9 @@
 """Parsing a pass's trace into Run and Pass records.
 
-In: the path to a pass directory. Out: a Pass record with its runs and totals.
-
-In-process, from the files on disk. No conversation with the running process, so it
-works on a container, on a pass started in another terminal, and on one that finished
-last week. It also cannot slow a run down or, worse, change what the model was asked.
-
-`<model>-passN.jsonl` is the source for everything except two things. One decision per
-line, so the last line is where the model is right now, and grouping by seed gives the
-finished runs without parsing the columns of the human log. The two exceptions are
-whether the pass ended, which is a word in the `.log`, and the notes a harness before
-v4 was holding, which only the notebook file records.
+Reads the files on disk without contacting the running process. The decision trace
+(`<model>-passN.jsonl`) is the primary source: one line per decision, grouped by seed
+for finished runs. The `.log` supplies whether the pass ended, and the notebook file
+supplies notes for harnesses before v4.
 """
 
 from __future__ import annotations
@@ -26,9 +19,7 @@ from typing import Any
 
 from .liveness import _alive_fresh
 
-# What a pass calls the file of finished runs, written beside the trace. Named
-# here because two things need it: skipping it when looking for the trace, and
-# finding it when looking for the scores.
+# Suffix for the finished-runs file written beside the trace.
 RUNS_SUFFIX = "-runs.jsonl"
 
 
@@ -42,9 +33,7 @@ class Run:
     seed: int
     steps: int = 0
     badges: int = 0
-    # The engine's own points_no_time, known only once the run is over, so it
-    # arrives from the pass's runs file rather than from the decision trace. None
-    # while the run is in flight, and on passes older than that file.
+    # The engine's points_no_time, known only once the run ends. None while in flight.
     score: int | None = None
     map: int = 0
     fell: int = 0
@@ -102,26 +91,17 @@ class Pass:
 
 
 def newest_trace(folder: Path) -> Path | None:
-    """The pass's decision trace, which is not the only .jsonl beside it.
-
-    In: a pass directory. Out: the trace path, or None when there is none.
-    """
-    # A pass also writes `<pass>-runs.jsonl`, one line per FINISHED run, and that
-    # file is written last, so picking "the newest .jsonl" would eventually pick it
-    # and read the wrong file as the trace. The suffix is excluded here, in one
-    # place, rather than at each of the four sites that look for a trace.
+    """The pass's decision trace (the most recent .jsonl that is not the runs file)."""
+    # Exclude the runs file, which is also .jsonl.
     traces = [f for f in folder.glob("*.jsonl") if not f.name.endswith(RUNS_SUFFIX)]
     return max(traces, key=lambda f: f.stat().st_mtime, default=None)
 
 
 def read(folder: Path, up: list[str] | None = None) -> Pass | None:
-    """Everything the dashboard shows, from the files in one pass directory.
+    """Build a Pass record from the files in one pass directory.
 
-    In: a pass directory path, optional container name list. Out: a Pass or None.
-
-    `up` is the current container list; pass it and a pass with no heartbeat but a
-    live container still reads as running (the pre-heartbeat fallback). Omit it and
-    liveness rests on the heartbeat alone.
+    The `up` list is the current container names; pass it so a pass with no heartbeat
+    but a live container still reads as running (pre-heartbeat fallback).
     """
     trace = newest_trace(folder)
     if trace is None:
@@ -133,8 +113,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         except json.JSONDecodeError:
             cmd = {}
 
-    # `openai--gpt-4o-mini-pass1.jsonl` back to a model id. The command file names
-    # every model of the sweep, so it cannot say which one this file is.
+    # Extract model id from the trace filename.
     stem = trace.stem.rsplit("-pass", 1)[0]
     p = Pass(
         folder=folder,
@@ -154,8 +133,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         try:
             e = json.loads(line)
         except json.JSONDecodeError:
-            # The last line can be half written. Nothing to fix, it arrives whole
-            # a moment later.
+            # The last line can be half written; skip it.
             continue
         seed = e.get("seed")
         if seed is None:
@@ -171,55 +149,38 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         r.tokens_out = int(e.get("run_out") or 0)
         r.last_at = e.get("at", "") or r.last_at
         r.screen = e.get("screen") or ""
-        # Carried forward: the enrichment only writes it on a non-Kanto turn, and a
-        # turn without it is not a turn that went back to Kanto.
+        # Carried forward: absence does not mean Kanto.
         r.region = e.get("region") or r.region
         r.why = e.get("why") or ""
         r.tools = e.get("tools") or []
-        # Kept for the whole run, not just the last turn: the notes as they stand now
-        # are the last finished notebook with this run's operations applied.
+        # Accumulate notebook operations for the whole run.
         r.ops.extend(c for c in (e.get("tools") or [])
                      if c.get("tool") in ("remember", "revise", "forget"))
         r.team = e.get("team") or r.team
-        # Written only when it changed, so the last one seen is the current one. Kept
-        # per run, because a run that ends leaves its own last map behind it.
+        # Written only when it changed; keep the last seen per run.
         r.map_view = e.get("map_view") or r.map_view
         if str(e.get("why") or "").startswith("(fell back"):
             r.fell += 1
 
-    # Whether it is still going is a word in the human log, and nowhere else: a
-    # trace that stops looks the same whether the pass finished or the container
-    # was killed. Failing that, the clock.
+    # Terminal state comes from the human log: a trace that simply stops gives no
+    # indication whether the pass finished or was killed.
     log = trace.with_suffix(".log")
     text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
     if "\nFAILED" in text or text.startswith("FAILED"):
         p.state = "FAILED"
     elif "\nSTOPPED" in text or text.startswith("STOPPED"):
-        # Ended on purpose (`model stop`, `docker stop`, Ctrl-C). Its own word, so
-        # it is not read as a failure and not read as a finished pass either: the
-        # seeds it did not play were never played.
+        # Ended on purpose (`model stop`, `docker stop`, Ctrl-C).
         p.state = "stopped"
     elif "\ndone " in text:
         p.state = "done"
     elif _alive_fresh(trace) and not _owner_gone(trace, up):
-        # The pass is still touching its heartbeat: running. The heartbeat is the
-        # signal, and it stops the instant the process does, however it stopped.
-        #
-        # The one addition is not a guess: a pass WRITES who is playing it into that
-        # file, so when it names a container that is no longer up, the pass is over
-        # now rather than in five minutes' time. That matters after `model stop`,
-        # where the container's own files are root-owned and the heartbeat cannot be
-        # removed from outside, so without this the pass would sit in `model watch`
-        # looking alive until the mtime aged out.
+        # The heartbeat is fresh and the owner process is not provably gone.
         p.state = "running"
     else:
-        # Not finished, and not touching its heartbeat: it stopped and nothing said
-        # so (a kill, an OOM, a power cut, a removed container). Not running.
+        # No terminal state in the log and no fresh heartbeat: stalled.
         p.state = "stalled"
 
-    # Never fewer than have been played. `--seeds` takes a range as two numbers in
-    # some older command files, and a pass that says it wanted 2 and played 50 reads
-    # as a bug in the pass rather than in the file it was read from.
+    # Ensure wanted is never less than what was actually played.
     _add_scores(trace, p)
     p.wanted = max(p.wanted, len(p.runs))
 
@@ -230,20 +191,11 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
 
 
 def _replay(p: Pass) -> list[str]:
-    """The notes as they stand THIS turn, not as they stood when a run last ended.
+    """The notes as they stand this turn, with mid-run ops applied on top.
 
-    In: a Pass record. Out: the list of live notes with mid-run ops applied.
-
-    The notebook file is written per finished run, so a note written five turns ago sat
-    in a dashboard that said "nothing written yet" until the run ended. Under v4 every
-    operation is in the trace with the text, so the current state is the last finished
-    notebook with this run's operations applied on top.
-
-    Refused operations are skipped, which is the whole reason `refused` is recorded: a
-    `remember` against a full notebook changed nothing and must not read as if it did.
-
-    A harness that does not record its operations gets the per-run notebook and nothing
-    else, which is all there is to have.
+    The notebook file is written per finished run, so this applies the current run's
+    operations on top of the last persisted notebook. Refused operations are skipped.
+    A harness that does not record operations gets only the per-run notebook.
     """
     r = p.current
     if r is None:
@@ -263,14 +215,7 @@ def _replay(p: Pass) -> list[str]:
 
 
 def _notes(folder: Path, trace: Path) -> list[str]:
-    """The notes as of the last finished run, from the notebook file.
-
-    In: pass directory and trace path. Out: list of note strings.
-
-    Read from the file rather than rebuilt from the trace, because a harness before
-    v4 does not record what it did to its notes, only what it was holding when a run
-    ended. What v4 did THIS run is in the current turn instead.
-    """
+    """The notes as of the last finished run, read from the notebook file."""
     f = folder / f"{trace.stem}-notebook.log"
     if not f.is_file():
         return []
@@ -280,19 +225,14 @@ def _notes(folder: Path, trace: Path) -> list[str]:
             if "unchanged" not in line:
                 block = []
         elif line.startswith("  ["):
-            # The file writes `  [1] a note`. The number is stripped here and put
-            # back by whoever draws it, so a replayed operation and a note read
-            # from the file are numbered by the same thing.
+            # Strip the `[1]` prefix; numbering is applied at display time.
             _, _, text = line.strip().partition("] ")
             block.append(text or line.strip())
     return block
 
 
 def _plan(folder: Path, trace: Path) -> str:
-    """The last plan line from the plan log file.
-
-    In: pass directory and trace path. Out: the plan string (empty if none).
-    """
+    """The last plan line from the plan log file."""
     f = folder / f"{trace.stem}-plan.log"
     if not f.is_file():
         return ""
@@ -304,15 +244,8 @@ def _plan(folder: Path, trace: Path) -> str:
 
 
 def _add_scores(trace: Path, p: "Pass") -> None:
-    """Fills in each finished run's score from the pass's runs file.
-
-    In: the trace path (the runs file sits beside it) and the Pass to complete.
-    Out: nothing, the runs are updated in place.
-    """
-    # A pass writes one JSON line per finished run, which is the only place the
-    # score exists while the pass is still playing: the decision trace is per
-    # decision, and a score is not known until the run ends. Absent for passes
-    # started before this file existed, and the score simply stays None there.
+    """Fill in each finished run's score from the pass's runs file."""
+    # The runs file holds one JSON line per finished run with the score.
     path = trace.with_name(trace.stem + RUNS_SUFFIX)
     if not path.is_file():
         return
@@ -336,23 +269,15 @@ def _add_scores(trace: Path, p: "Pass") -> None:
 
 
 def _owner_gone(trace: Path, up: list[str] | None) -> bool:
-    """Whether the pass's own process is provably no longer there.
+    """True when the pass's owner process is provably no longer there.
 
-    In: the trace path (the heartbeat sits beside it) and the containers up now.
-    Out: True only when the pass said who was playing it and that is demonstrably
-    gone.
+    Returns True only when the heartbeat file names an owner (hostname/pid or
+    container id) that is demonstrably gone. Returns False for anything unknown.
     """
-    # Conservative by construction, because a false True hides a pass that is
-    # genuinely playing, which is exactly what it did on the first attempt: a pass
-    # running OUTSIDE a container writes this machine's hostname, that can never
-    # appear in a list of container names, and so every local pass looked dead the
-    # moment any container happened to be up.
-    #
-    # So the two cases are told apart rather than lumped together:
-    #   this machine  -> the pid is in OUR namespace and can be asked directly
-    #   anything else -> a container id, which is gone when it is not up
-    # Anything unknown (no owner line, an older pass, no docker) leaves the
-    # heartbeat as the only signal, exactly as before.
+    # Two cases:
+    #   local host  -> check the pid directly
+    #   container   -> check if the container id is still up
+    # Anything unknown leaves the heartbeat as the only signal.
     alive = trace.with_suffix(".alive")
     try:
         text = alive.read_text(encoding="utf-8", errors="replace")
@@ -367,10 +292,7 @@ def _owner_gone(trace: Path, up: list[str] | None) -> bool:
         pid = owner.get("pid", "")
         if not pid.isdigit():
             return False
-        # A pid that no longer exists is the fastest honest answer there is. One
-        # that does is trusted, and it does not matter that pids are eventually
-        # reused: a reused pid means a live process, and the heartbeat it is being
-        # judged with was fresh anyway.
+        # A dead pid means the process is gone.
         try:
             os.kill(int(pid), 0)
         except ProcessLookupError:

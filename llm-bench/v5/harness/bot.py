@@ -1,150 +1,21 @@
-"""The frozen harness for the model benchmark, v4: memory the model runs itself.
+"""Frozen harness for the model benchmark, v5 (HARNESS = 6 internally).
 
-WHAT THIS IS. v2's agent loop, with three corrections to what the model can see and
-one change to what it is asked to do with its memory. Every model measured under v4
-was asked exactly the questions this file asks.
+This file is a self-contained LLM bot that inherits from Bot (not LLMBot),
+because importing the shared library would let improvements there silently
+change what recorded scores mean. Once a result exists under ../results/,
+this file must not be edited; a new idea belongs in a new version directory.
 
-WHY IT IS A VERSION AND NOT A FIX. Every change here alters what the model reads, so a
-v2 row and a v4 row are answers to different questions, and the only honest way to hold
-both is a separate directory. v2's four rows stay valid under v2.
+The harness asks one model call per turn, carries a cross-run notebook the
+model is told to maintain, shows node tooltips, gates the move-tutor block
+on the tutor screen, separates what was done from what was said in the
+journal, records every tool call per decision, and answers the play() call
+before storing the exchange. The note cap is settable with --set notes=N.
 
-WHAT HAPPENED TO v1 AND v3. Deleted, both unmeasured. v1 introduced the notebook and no
-model ever played it; v3 introduced the tooltips, the tutor gate and the journal, all
-three of which are in this file, and its one pass was abandoned unfinished. A version
-directory exists to keep recorded rows meaningful, and a version with no rows keeps
-nothing: it is a copy of the code with a number on it. The numbering is not compacted,
-because `HARNESS` is written into every result and 3 and 4 were real for a while.
-
-WHAT CHANGED FROM v2, AND WHY EACH.
-
-  1. THE MODEL IS TOLD TO USE ITS MEMORY, AND SHOWN HOW. `remember`, `revise` and
-     `forget` were callable on any turn under v1, v2 and v3 too, and were barely
-     called: two of the four models measured under v2 called `remember` ZERO times in
-     fifty runs. v2's prompt said to write "a lesson you want to have in the NEXT run,
-     not a reminder for later this turn", which is an instruction not to use the
-     notebook while playing, and there is no end-of-run hook it could have used
-     instead. A run stops the moment the team is wiped out, so a lesson held back for
-     the end is a lesson thrown away.
-
-     Here the prompt says the notebook is part of playing, asks for at least one note
-     per run and a plan on every map, gives five examples of a note worth keeping and
-     four of a note that wastes the space, and lists when to write. The closing lines
-     ask for both before the turn is played if neither has happened yet.
-
-     WHAT THAT COSTS, SAID PLAINLY. A prompt that tells a model to call a tool measures
-     how well it follows that instruction as much as how well it plays. The reason to
-     take it anyway is that the silent version could only ever produce one of the two
-     findings: "memory does not help" and "the models never touched the memory" are
-     different results, and v0 to v3 could not tell them apart. This can.
-
-  2. THE NODE TOOLTIPS, from v3. The game puts text under the pointer on every map
-     node: the trainer's archetype and which types they use, a gym leader's roster with
-     levels, what a trade does. `Officer — +2 Levels — Fire Pokemon`.
-     `Brock — Rock Gym | Geodude Lv12 | Onix Lv14`. Under v0 to v2 none of it was in
-     the state at all, so the benchmark measured how well a model plays half blind.
-     Read by calling the engine's own `getNodeLabel`, so it cannot drift from what is
-     displayed, and unrevealed nodes are skipped.
-
-  3. THE MOVE TUTOR BLOCK, ONLY AT THE TUTOR, from v3. Under v0 to v2 it was printed
-     every turn, because the bridge fills `offered_moves` unconditionally and nothing
-     gated on the screen. On seed 10000 it was on 11 of the first 13 turns and not one
-     of them was a tutor: 187 characters a turn describing an exchange not on offer.
-
-  4. THE JOURNAL SEPARATES WHAT WAS DONE FROM WHAT WAS SAID, from v3. v0 to v2 recorded
-     the model's own sentence under a heading reading YOUR RECENT MOVES, so a plan came
-     back as a record of events one turn later with nothing to tell the two apart. It
-     matters more here than it would have under v0, because v2 also carries the last
-     three turns verbatim: two channels for the model's reasoning, one labelled as fact.
-
-  5. THE CAP IS A SETTING. `NOTES_MAX` is still 12, and is now settable per pass with
-     `--set notes=N`, so how much memory helps becomes a question the instrument can
-     ask rather than a constant nobody chose deliberately. The prompt carries the real
-     number instead of the word "twelve", so what the model is told and what the tool
-     enforces cannot drift apart.
-
-  6. EVERY TOOL CALL IS IN THE RECORD, IN ORDER. Each decision in the trace carries
-     the calls the model made to reach it: which tools, and for the ones that change
-     something, what they changed, refusals included. Before this a pass recorded
-     that a turn had happened and what it chose, and the eight tools were invisible:
-     a model that never once asked what was ahead looked identical to one that asked
-     every turn. The notebook was saved once per run on top of that, so a note added
-     and dropped inside one run left no trace at all.
-
-     THIS ONE IS NOT v4's ANY MORE. It started here and v0 and v2 were given the
-     same recorder afterwards, because a list appended to in the dispatch loop is an
-     observation: the request, the reply the model reads and every branch are
-     untouched. Their eleven recorded passes were re-fingerprinted with the old
-     hashes and that reason kept beside them. What arrives in a version and belongs
-     to all of them goes to all of them; that is the difference between watching a
-     benchmark and changing one.
-
-  7. THE PLAY CALL IS ANSWERED. v2 stored the exchange that ended the turn with the
-     `play` call in it and no reply to that call, because the turn returns the moment
-     it is seen. From the second turn on, every request carried an assistant message
-     with an unanswered `tool_call_id`. Providers that do not check the pairing accept
-     it; OpenAI's API refuses the whole request, so no model served by OpenAI could be
-     measured under v2 at all. `openai/gpt-4o-mini` fell back on 12 of 13 turns, each
-     one an HTTP 400. Here every call in the exchange is answered before it is stored.
-
-WHAT DID NOT CHANGE FROM v2. The eight tools themselves, the scratchpad of three turns,
-six tool rounds, 4000 tokens an answer, temperature 0. Everything v2 said about why
-those are what they are still stands.
-
-WHAT DELIBERATELY DID NOT CHANGE, THOUGH IT COULD HAVE. `team_details` still shows a
-move by name and power and not by TYPE, and shows no base stats, so the special-attack
-number the engine keeps is not in front of the model under any harness up to here. It
-is a fair thing to fix and it is not in this version: v4 moves what the model does with
-its memory, and adding a change to what it can see would put two variables in one
-table. That one is v5.
-
-SO WHAT DOES A v4 ROW MEAN. "How well does this model play when it sees what a person
-sees, is told how to use the loop, and is told to run its own memory while it plays."
-
-WHAT TO EXPECT, WRITTEN DOWN FIRST SO IT CANNOT BE ADJUSTED AFTERWARDS. Notes written
-in most runs, where v2 had two models out of four writing none at all, and `learn` not
-much larger. The reason to expect that gap: being told to write does not make what is
-written worth reading. If `learn` does move, the number to read is not the badges, it is
-how many operations a run it took to get there, which the trace now carries.
-
-THIS IS AN EXPERIMENT, NOT AN IMPROVEMENT. v2's rows stay valid under v2.
-
-**DO NOT EDIT THIS FILE.** Once a result exists under `../results/`, editing it makes
-every one of those rows a claim about code that no longer exists. The next idea is
-`llm-bench/v5/harness/bot.py`, a fresh directory, and these rows stay valid under v4
-where they were earned. That is why the version is in the path and not in a variable.
-
-The counterpart of that rule: a version that never recorded a row is keeping nothing,
-and v1 and v3 were deleted rather than kept as directories nobody could compare with.
-
-WHY IT IS A COPY AND NOT AN IMPORT. The shared harness in `src/pokelike/bot/llm.py`
-is meant to evolve -- it serves the submissions in `bots/`, and a good idea found
-there should reach every future LLM bot. That is the opposite of what a benchmark
-needs. If this file imported the shared one, the next improvement made for a
-submission would silently change what every recorded model score meant.
-
-WHAT ELSE IS FROZEN IN THIS DIRECTORY. Three more files, and the reason is the same
-one:
-
-  render.py   the text the model reads. Used to be `pokelike.core.render`, shared
-              with the CLI and merely fingerprinted, on the argument that copying it
-              would be worse than the problem. That failed the first time the shared
-              renderer had a defect: the MOVE TUTOR bug above could not be fixed for
-              the person at the terminal without marking every score ever recorded.
-  bridge.js   what is in the state at all, and the ORDER `actions` come in. A bot
-              answers with an index into that list, so reordering does not change
-              what the model sees, it changes what its answer means.
-  init.js     the seeded Math.random and the pinned clock. The run seed is built
-              from both, so moving a constant here does not mark a recorded score,
-              it voids it: every seed would map to a different run.
-
-WHAT IS STILL SHARED, AND HOW THAT IS CAUGHT. `browser.py`, `game.py` and
-`runner.py` drive the game, and freezing them too would mean each harness carrying
-its own browser plumbing. Every result records a sha256 of the four frozen files and
-of those three, plus the name and hash of the game bundle, and the table marks a row
-when any of them stops matching what is on disk. Drift is reported rather than
-absorbed.
-
-Generated mechanically from v3, never transcribed by hand.
+Three companion files are frozen beside this one for the same reason:
+render.py (what the model reads), bridge.js (what is in the state and the
+action order), and init.js (the seeded PRNG and pinned clock). The shared
+browser.py, game.py, and runner.py are still imported; their hashes are
+recorded in every result and drift is reported rather than absorbed.
 """
 
 from __future__ import annotations
@@ -162,13 +33,10 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# The renderer is the COPY beside this file, loaded by path rather than imported.
-#
-# Two reasons it cannot be a plain import. `load_class` runs a harness with
-# `spec_from_file_location` and no parent package, so `from . import render` has
-# nothing to be relative to. And every harness directory is named `harness`, so
-# all three versions would land on the same name in `sys.modules` and shadow one
-# another; the version directory is what makes this one unique.
+# The renderer is the frozen copy beside this file, loaded by path.
+# A relative import fails because load_class uses spec_from_file_location with
+# no parent package, and all harness directories share the name "harness" so they
+# would collide in sys.modules.
 _HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location(
     f"pokelike_harness_{_HERE.parent.name}_render", _HERE / "render.py"
@@ -177,40 +45,17 @@ render = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = render
 _spec.loader.exec_module(render)
 
-# How a decision is made here. Written into every result; a row measured under a
+# The harness version written into every result. A row measured under a
 # different number is marked as such rather than ranked as if it were the same.
-#
-#   1  agentic loop with team_details / what_lies_ahead / set_lead / play,
-#      situation rendered by core.render.screen, prose index as a last resort
-#   2  the above plus remember / revise / forget, notes carried between runs,
-#      six tool rounds instead of four
-#   3  the above plus a scratchpad of the last few turns carried within a run,
-#      a `plan` tool for the route through the map, and 4000 tokens an answer
-#   4  the above, with the node tooltips a person can read, the tutor block only
-#      at the tutor, and a journal that separates what was done from what was
-#      said about it. Was v3, which is deleted; the number is kept because it is
-#      written into results that were recorded while it existed
-#   5  the above, with the model TOLD to run its memory rather than merely
-#      allowed to, a settable cap on it, every tool call recorded per decision,
-#      and the `play` call answered so the stored exchange is a valid
-#      conversation any provider accepts
 HARNESS = 6
 
 
 # ---------------------------------------------------------------- what is true
 #
-# The rules are shared, the strategy is not. The split matters: everything below
-# is a FACT about the game, several of them read out of the bundle rather than
-# guessed, and a benchmark where each bot restates the facts measures who copied
-# them correctly instead of who plays better.
-#
-# The two that are easy to get wrong, and were:
-#
-#   * BADGES ARE THE GOAL. The engine's score formula was written for the Battle
-#     Tower and two of its six terms never fire in Story mode, so a prompt that
-#     chases "maps cleared" points the model at something that is always zero.
-#     An earlier version of this prompt did exactly that.
-#   * Choosing a node CLOSES the others on that layer, forever.
+# The game rules below are facts shared identically across all bots. Kept here
+# so the benchmark measures play quality, not who copied the rules correctly.
+# Badges are the goal (the engine's score formula targets Battle Tower, not
+# Story mode), and choosing a node closes the others on that layer permanently.
 
 GAME_RULES = """You are playing Pokelike, a Pokemon roguelike autobattler.
 
@@ -381,13 +226,9 @@ Then call `play` with your chosen index. Always call `play`."""
 
 # ---------------------------------------------------------------------- tools
 #
-# Shared by default for the same reason the rules are: a model given a tool
-# another model was not is not being compared, it is being helped.
-#
-# A bot may still add its own, or replace these outright -- see `tools()` and
-# `run_tool()` on HarnessV3. What it may not do is hide that it did: the tool names
-# go into every result and a bot whose set differs from the shared one is
-# marked in the standings, so its row is read as the different question it is.
+# Shared tools: every bot gets the same set by default. A bot that adds or
+# removes tools is marked in the standings so its row is read as a different
+# question.
 
 TOOLS = [
     {
@@ -535,21 +376,16 @@ class LLMError(RuntimeError):
 class LLMConfigError(LLMError):
     """The setup is wrong and every call will fail the same way.
 
-    A bad token, a model name the endpoint does not serve, a URL that is not an
-    OpenAI-compatible API. Falling back on these would play a whole run on the
-    backup heuristic and report it as an LLM result, which, in a benchmark, puts
-    an entry on the leaderboard labelled `llm` that no model ever played.
-    So these stop the run instead.
+    Falling back on these would play a whole run on the backup heuristic and
+    file it as an LLM result no model ever played, so these stop the run.
     """
 
 
 class LLMBudgetError(LLMError):
-    """The run asked for more tokens than the bot allowed itself.
+    """The run exceeded its declared token budget (TOKEN_BUDGET).
 
-    Only raised when a bot sets `TOKEN_BUDGET`. A model that thinks ten times
-    longer than the others is not straightforwardly better than them, and over
-    fifty runs the difference is money, so a bot may declare a ceiling and be
-    held to it rather than discovering the bill afterwards.
+    Raised so the run stops cleanly rather than silently handing the rest to
+    the backup heuristic.
     """
 
 
@@ -559,70 +395,38 @@ class LLMBudgetError(LLMError):
 class HarnessV4(Bot):
     """A bot that asks a model what to do, one call per turn.
 
-    Subclass it and set `PROMPT`. Everything else has a working default.
+    Subclass and set `PROMPT`. Everything else has a working default.
 
     | attribute      | what it decides                                        |
     |----------------|--------------------------------------------------------|
-    | `PROMPT`       | the system prompt: **this is your submission**          |
-    | `MODEL`        | model id, or None to take `$MODEL_ID`                   |
-    | `TEMPERATURE`  | sampling                                               |
+    | `PROMPT`       | the system prompt (this is the submission)             |
+    | `MODEL`        | model id, or None to take `$MODEL_ID`                  |
+    | `TEMPERATURE`  | sampling temperature                                   |
     | `MAX_TOKENS`   | ceiling on one answer                                  |
-    | `MAX_ROUNDS`   | tool rounds before the turn is given up on             |
+    | `MAX_ROUNDS`   | tool rounds before the turn is given up                |
     | `MEMORY`       | how many past turns are shown back to the model        |
     | `TOKEN_BUDGET` | tokens per run, 0 for no ceiling                       |
-    | `EXTRA_TOOLS`  | tools of your own, on top of the shared eight           |
-    | `STATE_VIEW`   | **what the model reads each turn**                      |
+    | `EXTRA_TOOLS`  | tools on top of the shared eight                       |
+    | `STATE_VIEW`   | what the model reads each turn                         |
 
-    `STATE_VIEW` is the one to think hardest about, because it decides what the
-    model is looking at rather than what it is told to do:
+    `STATE_VIEW` options:
 
     | value | what the model gets | roughly |
     |---|---|--:|
-    | `"screen"` | the ASCII view a person sees. The default | 880 chars |
+    | `"screen"` | the ASCII view a person sees (default) | 880 chars |
     | `"json"` | the whole state dict, compact JSON | 5900 chars |
     | `"both"` | the view, then the dict under it | 6800 chars |
     | `["team", "actions"]` | just those keys, as JSON | varies |
 
-    Six times the tokens is the price of `"json"`, and it is not only money:
-    filling the context with a map the turn does not need takes room from the
-    reasoning it was about to do. The default drops real things -- the engine's
-    type/item table, the map edges, raw base stats -- because it renders what a
-    person would look at, not everything that is true. Which of those matters is
-    an experiment, which is why this is a knob and not our decision.
+    Override `render_state(state)` for anything the settings do not cover.
 
-    `view(state)` is the escape hatch when none of the settings fit. Override it and
-    return whatever string you like; the journal and the "pick an index"
-    instruction are added around it by the harness, so you cannot break them by
-    forgetting them.
+    To add tools, declare them in `EXTRA_TOOLS` and answer them in
+    `answer_tool`. Replacing the shared set entirely is `tools()`. Both are
+    recorded: a bot with its own tools is answering a different question, and
+    the standings say so.
 
-    To give the model something the shared tools do not offer, declare it in
-    `EXTRA_TOOLS` and answer it in `run_tool`:
-
-        class MyBot(HarnessV4):
-            EXTRA_TOOLS = [{
-                "type": "function",
-                "function": {
-                    "name": "bag",
-                    "description": "What you are carrying.",
-                    "parameters": {"type": "object", "properties": {}},
-                },
-            }]
-
-            def answer_tool(self, name, args, state):
-                if name == "bag":
-                    return ", ".join(state.get("bag") or []) or "(empty)"
-                return super().answer_tool(name, args, state)
-
-    Replacing the shared set entirely is `tools()`. Both are allowed and both
-    are recorded: a bot with its own tools is answering a different question
-    from one without, and the standings say so rather than ranking them as
-    though they had been asked the same thing.
-
-    On `MODEL`: pin it in the bot file if you want a leaderboard row that means
-    one specific model. The id is not a secret, and pinning it puts it inside
-    the fingerprint, so swapping the model shows as a changed bot. Leave it None
-    and the bot plays whatever `$MODEL_ID` names, which is what you want while
-    experimenting and what the four prompt bots shipped in `bots/` do.
+    Pinning `MODEL` in the bot file puts the model id inside the fingerprint.
+    Leaving it None means the bot plays whatever `$MODEL_ID` names.
     """
 
     name = "llm-bench-v2"
@@ -631,39 +435,27 @@ class HarnessV4(Bot):
     PROMPT = GAME_RULES + CLOSING
     MODEL: str | None = None
     TEMPERATURE = 0.0
-    # No practical ceiling: the model may think and write as much as it wants. A
-    # low cap (1500 in v0/v1) once DISQUALIFIED a model rather than measuring it,
-    # gpt-5-nano fell back on 45% of turns because it ran out of room to finish, so
-    # this is set high enough that output length never ends a turn.
+    # High ceiling so output length never ends a turn.
     MAX_TOKENS = 16000
-    # Six, not v0's four. Three more tools means a model may spend rounds
-    # curating notes before it gets to play(), and a turn that runs out of rounds
-    # falls back -- which would be counted against the model for doing exactly
-    # what this version asks of it.
+    # Six rounds so the model can curate notes before calling play() without
+    # exhausting its rounds and falling back.
     MAX_ROUNDS = 6
     MEMORY = 6
     TOKEN_BUDGET = 0
-    # Attempts after the first, for failures that are worth trying again: rate
-    # limits and the 5xx family. Not a nicety once runs go in parallel -- a 429
-    # would otherwise be counted as a turn the model failed to answer, which is
-    # exactly the column that decides whether a benchmark row means anything.
+    # Retries for transient failures (rate limits, 5xx). Without retries a 429
+    # would count as a turn the model failed to answer.
     RETRIES = 4
-    # THE POINT OF THIS VERSION. Notes survive on_start, so they cross from one
-    # run into the next; they are reset only by building a new bot, which happens
-    # once per pass. A pass is therefore one lifetime of fifty runs.
+    # Notes survive on_start, crossing from one run into the next. A pass is
+    # therefore one lifetime of fifty runs.
     CROSS_RUN_MEMORY = True
     NOTES_MAX = 12
     NOTE_CHARS = 160
-    # How many finished exchanges travel to the next turn, verbatim. Three because
-    # the loop already costs several times a plain chat and this multiplies the
-    # request: at three the model sees the shape of what it just tried, and the
-    # turns before that are still in the journal as one line each.
+    # How many finished exchanges travel to the next turn verbatim. Three keeps
+    # recent context without unbounded request growth; older turns appear in the
+    # journal as one-line summaries.
     SCRATCH_TURNS = 3
-    # The route it means to take through THIS map. Per run, not per turn: the map
-    # is visible ahead and a choice closes every other node on its layer forever,
-    # which is the condition where deciding in advance beats reacting -- and it is
-    # where these models lose, arriving at the second gym under-levelled because of
-    # a choice made twenty moves earlier.
+    # The route the model commits to for the current map. Per run, not per turn:
+    # the map is visible ahead and each choice closes a layer permanently.
     PLAN_CHARS = 1200
     EXTRA_TOOLS: list[dict[str, Any]] = []
     STATE_VIEW: Any = "screen"
@@ -687,12 +479,10 @@ class HarnessV4(Bot):
                 '  export MODEL_ID="gpt-4o-mini"'
             )
 
-        # Per-instance copies of the class settings, so a caller can override one
-        # without editing the bot: create("llm-survivor") uses the declared ones,
-        # HarnessV4(temperature=0) in a notebook does not.
-        # The cap first, because the prompt has to state the real number. Written
-        # in with a placeholder and not str.format: a prompt is prose that ends up
-        # full of braces the moment anyone pastes a tool schema into it.
+        # Per-instance copies of the class settings, so a caller can override
+        # without editing the bot file. The prompt uses %NOTES% as a placeholder
+        # for the cap, substituted with str.replace (not str.format, because
+        # prompts contain braces).
         self.notes_max = int(overrides.pop("notes", None) or self.NOTES_MAX)
         if self.notes_max < 1:
             raise LLMConfigError("notes must be at least 1")
@@ -702,21 +492,17 @@ class HarnessV4(Bot):
         self.max_tokens = overrides.pop("max_tokens", self.MAX_TOKENS)
         self.max_rounds = overrides.pop("max_rounds", self.MAX_ROUNDS)
         self.memory = overrides.pop("memory", self.MEMORY)
-        # Settable here as well as on the class so an experiment can put four
-        # views on the same seeds without four bot folders. A SUBMISSION should
-        # still declare it on the class: the fingerprint covers the class, and a
-        # row whose view was chosen by the caller does not say what it played.
+        # Settable per instance so experiments can compare views on the same
+        # seeds. A submission should declare it on the class so the fingerprint
+        # covers it.
         self.state_view = overrides.pop("view", None) or self.STATE_VIEW
         self.token_budget = overrides.pop("token_budget", self.TOKEN_BUDGET)
         if overrides:
             raise TypeError(f"unknown settings: {', '.join(sorted(overrides))}")
         self.verbose = verbose or bool(os.environ.get("POKELIKE_VERBOSE"))
 
-        # Checked once, here, rather than discovered fifty runs in. Without
-        # `play` there is no way for the model to end a turn, so every turn
-        # exhausts its rounds and falls back -- a whole benchmark of our backup
-        # heuristic, filed under the model's name, with nothing that looks wrong
-        # until you read fallback_rate.
+        # Without `play` the model cannot end a turn, so every turn would exhaust
+        # its rounds and fall back silently.
         names = self.tool_names()
         if "play" not in names:
             raise LLMConfigError(
@@ -739,17 +525,14 @@ class HarnessV4(Bot):
         self.retries = 0
         self.fallbacks = 0
         self.journal: list[str] = []
-        # The notes. Deliberately NOT cleared by on_start -- see
-        # CROSS_RUN_MEMORY. Not called `memory`: that name is taken by v0's
-        # journal-trim size, and `_commit` slices the journal with it.
+        # Cross-run notebook. Not cleared by on_start (CROSS_RUN_MEMORY).
         self.notebook: list[str] = []
-        # Every tool call since the last decision was logged, in the order made,
-        # drained by `tool_calls_made`. Not cleared per turn from in here: the
-        # model can also be called during `rearrange`, which runs before `choose`,
-        # and a call dropped because of where it happened is the one worth seeing.
+        # Tool calls since the last decision was logged, drained by
+        # tool_calls_made(). Not cleared per turn because reorder() runs before
+        # act() and its calls belong to the same decision.
         self.tool_log: list[dict[str, Any]] = []
-        # Per RUN, both of them: the plan is about this map, and the scratchpad is
-        # this episode's reasoning. Only the notebook crosses a run boundary.
+        # Per-run state: the plan is about this map, the scratchpad is this
+        # episode's reasoning. Only the notebook crosses a run boundary.
         self.plan: str = ""
         self.scratch: list[list[dict[str, Any]]] = []
         self._last_why = ""
@@ -760,11 +543,9 @@ class HarnessV4(Bot):
 
     def reset(self, seed: int) -> None:
         self.seed = seed
-        # `journal` is within-run and goes. `memory` is the whole point of v1 and
-        # STAYS: it is what the model carries from the last run into this one.
+        # The journal is within-run; the notebook stays (CROSS_RUN_MEMORY).
         self.journal = []
-        # A new map and a new episode: the route it planned and the exchanges it
-        # had are about the run that just ended. The notebook is not.
+        # Per-run state resets. The notebook is not touched.
         self.plan = ""
         self.scratch = []
         self._pending = None
@@ -773,12 +554,10 @@ class HarnessV4(Bot):
         self._last_why = ""
 
     def metadata(self) -> dict[str, Any]:
-        """Ends up in the run registry, and in the result a benchmark records.
+        """Data written into the run registry and into a benchmark result.
 
-        `fallback_rate` is the honest column of an LLM benchmark. Every fallback
-        is a turn the model did not decide, played by the backup heuristic under
-        the model's name, so a row with a high one is measuring our heuristic,
-        not the model, and should be read as a broken run rather than a bad one.
+        The `fallback_rate` column is the honest signal: each fallback is a turn
+        the backup heuristic played under the model's name.
         """
         return {
             "model": self.model,
@@ -789,30 +568,22 @@ class HarnessV4(Bot):
             "tokens": self.tokens_used,
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
-            # Transient failures that were retried rather than counted
-            # against the model. High means the provider was struggling.
+            # Transient failures that were retried.
             "retries": self.retries,
             "fallbacks": self.fallbacks,
-            # Saved with EVERY run, not just at the end of a pass: the interesting
-            # object here is how the notes change, and a single final snapshot
-            # cannot show a lesson being learned and then revised away.
+            # Saved with every run so note evolution is visible.
             "notebook": list(self.notebook),
             "notes_kept": len(self.notebook),
-            # The cap this pass ran under. Settable, so a row that does not say
-            # which number it played against cannot be compared with one that does.
+            # The cap this pass ran under (settable, so it must be recorded).
             "notes_max": self.notes_max,
-            # What it committed to on this map, and how much of its own reasoning
-            # it was carrying. Both are per run, so both belong in the run's row.
+            # Per-run plan and scratchpad depth.
             "plan": self.plan,
             "scratch_turns": len(self.scratch),
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
             "temperature": self.temperature,
-            # False means this bot answers a different question from the others:
-            # it gave the model tools they did not have, or took some away.
+            # False if the bot uses non-standard tools.
             "stock_tools": self.tool_names() == _STOCK_TOOL_NAMES,
-            # What the model was looking at. Two rows with different views are
-            # not answering the same question, any more than two with different
-            # tools are.
+            # Two rows with different views are not comparable.
             "state_view": self.view_name(),
             "reproducible": False,
         }
@@ -821,12 +592,10 @@ class HarnessV4(Bot):
         return [t["function"]["name"] for t in self.tools()]
 
     def artifacts(self) -> list:
-        """What a submission of this bot carries.
+        """The prompt and model reference carried by a submission of this bot.
 
-        The prompt and the model reference, never the key. An LLM result cannot
-        be reproduced exactly (providers change models behind a fixed name and
-        sampling is stochastic), so the least we can do is record precisely what
-        was asked of which model, under which harness.
+        LLM results are not exactly reproducible (providers change models behind
+        a fixed name and sampling is stochastic), so these record what was asked.
         """
         from pokelike.arena.leaderboard import Artifact
 
@@ -870,16 +639,12 @@ class HarnessV4(Bot):
         return self._last_why
 
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
-        """Who leads, decided in the SAME model call as the move.
+        """Decide the lead in the same model call as the move.
 
-        The run loop asks for this before `choose`, so the whole turn is thought
-        about once: `_agentic_round` runs here, the chosen action is cached, and
-        `choose` returns it without a second request. One HTTP call per turn, and
-        the model simply gets one more tool.
-
-        Offered only on the map screen. Elsewhere the options ARE the team (the
-        swap screen, the equip modal), so reordering underneath would change what
-        an index means between deciding and playing.
+        The run loop calls reorder() before act(), so the agentic round runs
+        here. The chosen action is cached and act() returns it without a second
+        request. Offered only on the map screen, because elsewhere the options
+        ARE the team and reordering would change what an index means.
         """
         self._pending = None
         if state.get("screen") != "map-screen" or not state.get("can_reorder"):
@@ -894,9 +659,7 @@ class HarnessV4(Bot):
         if lead is None or not 0 < lead < len(team):
             self._pending = (state.get("steps"), index, why)
             return None
-        # Carried into the turn's explanation rather than set here: `choose`
-        # overwrites `_last_why` with the move reason, so a lead decision set
-        # here was performed and then never shown.
+        # The lead decision is merged into the act() explanation.
         why = f"lead {team[lead]['name']} | {why}"
         self._pending = (state.get("steps"), index, why)
         return (0, lead)
@@ -904,8 +667,7 @@ class HarnessV4(Bot):
     def act(self, state: dict[str, Any]) -> int:
         self.turns += 1
         n = len(state["actions"])
-        # Already decided in rearrange, this same turn. `steps` guards it: a
-        # cached index must never be replayed against a different turn.
+        # Already decided in reorder() for this same step.
         if self._pending and self._pending[0] == state.get("steps"):
             _, index, why = self._pending
             self._pending = None
@@ -934,22 +696,9 @@ class HarnessV4(Bot):
         return index
 
     def _journal_entry(self, state: dict[str, Any], index: int, why: str) -> str:
-        """One past turn, with the action separated from the talk about it.
-
-        v0 to v2 recorded `why` alone, the model's own sentence, under a heading
-        reading YOUR RECENT MOVES. So a model was handed its own guesses back as a
-        record of events: "a second Pokemon matters more than one more fight this
-        early" is a plan, and one turn later it reads as a thing that happened.
-        Nothing distinguished them and the model had no way to.
-
-        This matters more here than it would have under v0, because v2 added a
-        scratchpad: the model now sees its own words from the last three turns
-        VERBATIM as well, so there were two channels carrying its reasoning and one
-        of them was labelled as fact.
-
-        What was done comes from `state["actions"][index]`, the harness's own data.
-        The sentence is kept, because it is how a model notices it has spent five
-        turns on one idea; it is just not evidence.
+        """One past turn for the journal: the action taken (from the state) and
+        the model's own sentence (labelled separately so the model can tell fact
+        from its own reasoning).
         """
         actions = state.get("actions") or []
         act = actions[index] if 0 <= index < len(actions) else {}
@@ -971,12 +720,10 @@ class HarnessV4(Bot):
         return self.fallback_move(state)
 
     def fallback_move(self, state: dict[str, Any]) -> int:
-        """Backup choice when the model does not answer or gets it wrong.
+        """Backup choice when the model does not answer or returns an invalid index.
 
-        Not random: it prefers what keeps the team alive, healing first if someone
-        is hurt, otherwise widen the team. Override it if your bot would rather
-        fail differently, but count on it being used: over fifty runs, something
-        times out.
+        Prefers what keeps the team alive: healing first if someone is hurt,
+        otherwise widening the team.
         """
         actions = state["actions"]
         team = state.get("team") or []
@@ -995,18 +742,8 @@ class HarnessV4(Bot):
                        allow_lead: bool = False) -> tuple[int, str, int | None]:
         """One turn of thinking. Returns (action index, reason, lead or None)."""
         lead: int | None = None
-        # THE CHANGE THAT MAKES v2. v0 and v1 opened a fresh two-message
-        # conversation every turn, so whatever the model worked out at turn 12 by
-        # reading its team and the exits was gone at turn 13: all that crossed the
-        # boundary was six one-line journal entries saying WHAT it chose, never why
-        # or what it had seen. Twenty independent decisions glued together, not an
-        # agent reasoning about an episode.
-        #
-        # Now the last SCRATCH_TURNS exchanges come along verbatim, its own words
-        # included. Bounded rather than unbounded because the alternative is a
-        # request that grows all run and prices itself out -- a loop of this kind
-        # already costs several times a plain chat, and the older turns are still
-        # summarised in the journal.
+        # The last SCRATCH_TURNS exchanges come along verbatim so the model sees
+        # its own recent reasoning. Bounded to avoid unbounded request growth.
         history: list[dict[str, Any]] = [m for turn in self.scratch for m in turn]
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system},
@@ -1041,18 +778,9 @@ class HarnessV4(Bot):
                 self._note_call(name, args)
 
                 if name == "play":
-                    # The turn ends, so its exchange joins the scratchpad -- with
-                    # the play call in it, because "I chose 2 and here is why" is
-                    # the most useful line the next turn can read.
-                    #
-                    # Every call in it is answered first, this one included, and
-                    # anything asked for after it. v2 and v3 stored the exchange as
-                    # it stood, so the assistant message carried a `tool_call_id`
-                    # nothing had replied to, and from the next turn on the request
-                    # was one OpenAI refuses outright: "An assistant message with
-                    # 'tool_calls' must be followed by tool messages responding to
-                    # each 'tool_call_id'". Lenient providers accepted it, which is
-                    # why it went unseen through two versions.
+                    # The turn ends. Every call in the exchange is answered first
+                    # (including this one and any after it), so the stored exchange
+                    # is a valid conversation any provider accepts.
                     answered = {m.get("tool_call_id") for m in this_turn
                                 if m.get("role") == "tool"}
                     for other in calls:
@@ -1067,10 +795,7 @@ class HarnessV4(Bot):
                     return args.get("index"), str(args.get("why", "")), lead
 
                 if name == "set_lead":
-                    # Recorded, not applied here: the bot has no handle on the
-                    # game, and the run loop is what performs the swap. Kept even
-                    # when not allowed, so the model gets told why rather than
-                    # silently ignored.
+                    # Recorded; the run loop performs the actual swap.
                     want = args.get("index")
                     if allow_lead and isinstance(want, int):
                         lead = want
@@ -1089,28 +814,17 @@ class HarnessV4(Bot):
                 messages.append(answer)
                 this_turn.append(answer)
 
-        # Rounds exhausted: the turn is lost to the fallback, and its exchange is
-        # kept anyway. A turn that ran out of ideas is exactly what the next turn
-        # should be able to see, rather than repeating it.
+        # Rounds exhausted. The exchange is kept so the next turn can see what
+        # went wrong rather than repeating it.
         self._remember_turn(this_turn)
         raise LLMError(f"no call to play() within {self.max_rounds} rounds")
 
     def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
-        """Adds one finished exchange to the scratchpad, oldest dropped first.
+        """Adds one finished exchange to the scratchpad, dropping the oldest.
 
-        The screen it was looking at is replaced by one line before the turn is
-        kept, and that line is most of what makes this version affordable. Measured
-        on three seeds with the whole turn kept: 269k input tokens for ONE run
-        against 41k under v0 -- six and a half times, because every kept turn
-        dragged another full render of team, map and actions along with it. Four
-        copies of the screen in a request, and the model's own reasoning, which is
-        the entire point of the scratchpad, as the crumbs.
-
-        It is also wrong on its own terms and not merely dear. A stale screen
-        invites the model to reason about a map that has already changed, while the
-        CURRENT one is right there in the fresh user message. What cannot be
-        reconstructed from anywhere else is what it said and what the tools told it.
-        That is what stays.
+        The user message (the screen render) is replaced by a placeholder before
+        storage, because a stale screen would invite the model to reason about a
+        map that has already changed and the current one is in the fresh message.
         """
         kept = [
             {"role": "user",
@@ -1124,21 +838,19 @@ class HarnessV4(Bot):
     # ------------------------------------------------------------------ tools
 
     def tools(self) -> list[dict[str, Any]]:
-        """The tools this bot offers the model, in OpenAI function-calling form.
+        """The tools offered to the model, in OpenAI function-calling form.
 
-        The shared eight plus whatever `EXTRA_TOOLS` declares. Override to drop
-        or replace them, but `play` has to survive: it is how a turn ends, and
-        a model with no way to end the turn falls back on every single one.
+        The shared eight plus EXTRA_TOOLS. Override to replace, but `play` must
+        survive or every turn falls back.
         """
         return [*TOOLS, *self.EXTRA_TOOLS]
 
     def answer_tool(self, name: str, args: dict[str, Any], state: dict[str, Any]) -> str:
-        """Answers one tool call. Whatever this returns is shown to the model.
+        """Answers one tool call; the return value is shown to the model.
 
-        Override for your own tools and call `super()` for the shared ones. An
-        unknown name gets a message rather than an exception: a model that
-        invents a tool should be told so and allowed to carry on, not have the
-        turn thrown away and played by the fallback.
+        Override for custom tools and call super() for the shared ones. An
+        unknown name gets an error message rather than an exception, so the
+        model can try again.
         """
         if name == "team_details":
             return render.team_view(state.get("team")) or "(empty team)"
@@ -1148,8 +860,7 @@ class HarnessV4(Bot):
             return self._remember(name, args)
 
         if name == "plan":
-            # Truncated rather than refused, like a note: a plan cut to 300
-            # characters is still a plan, an error message is a wasted round.
+            # Truncated rather than refused: a truncated plan is still useful.
             route = str(args.get("route") or "").strip().replace("\n", " ")
             if not route:
                 return "nothing to plan: `route` was empty."
@@ -1161,15 +872,10 @@ class HarnessV4(Bot):
     # --------------------------------------------------------------- memory
 
     def _remember(self, verb: str, args: dict[str, Any]) -> str:
-        """The three memory verbs. Every answer states the cap, on purpose.
+        """Handle the three memory verbs (remember, revise, forget).
 
-        A model that cannot see how full its notes are will keep calling
-        `remember` and be silently refused, then behave as though the lesson were
-        saved. Telling it the count every time makes `revise` and `forget` visibly
-        useful rather than decorative.
-
-        Notes are truncated rather than rejected for being long: a lesson cut to
-        160 characters is still a lesson, while an error message is a wasted round.
+        Every reply states the current count so the model knows capacity.
+        Notes are truncated rather than rejected when too long.
         """
         note = str(args.get("note") or "").strip().replace("\n", " ")
         note = note[: self.NOTE_CHARS]
@@ -1188,9 +894,8 @@ class HarnessV4(Bot):
             return (f"noted as [{len(self.notebook)}]. "
                     f"{len(self.notebook)}/{self.notes_max} notes used.")
 
-        # revise and forget both address a note by the number the model was shown,
-        # which is 1-based. An out-of-range id is answered rather than raised: the
-        # model should be told and carry on, not lose the turn to the fallback.
+        # The id is 1-based (matching what the model is shown). Out-of-range
+        # ids are answered with an error message rather than raised.
         try:
             i = int(args.get("id"))
         except (TypeError, ValueError):
@@ -1221,15 +926,10 @@ class HarnessV4(Bot):
     # ------------------------------------------------------------ the record
 
     def _note_call(self, name: str, args: dict[str, Any]) -> None:
-        """One tool call, as it is made, before it is run.
+        """Record one tool call as it is made, before it executes.
 
-        Recorded here and not inside `run_tool`, because `play`, `set_lead` and a
-        name the model invented never reach `run_tool`, and those are three of the
-        things worth knowing about a turn.
-
-        The arguments kept are the ones that decide something. A read-only tool
-        takes none, and the reply it produced is reconstructible from the state,
-        which is already in the trace.
+        Recorded here (not in answer_tool) so that play, set_lead, and
+        invented names are also captured.
         """
         entry: dict[str, Any] = {"tool": name}
         for k in ("index", "id", "slot", "note", "route", "why"):
@@ -1246,36 +946,23 @@ class HarnessV4(Bot):
                 {k: str(v)[: self.NOTE_CHARS] for k, v in what.items() if v})
 
     def _refused(self, why: str, reply: str) -> str:
-        """Marks it as refused, and answers the model.
-
-        Both in one place because the two must not disagree. A refusal that was not
-        recorded reads afterwards as a model that never tried, which is the opposite
-        of what happened, and under v1 to v3 that is exactly what `remember` against
-        a full notebook looked like: nothing at all.
-        """
+        """Mark the last tool call as refused and return the error message."""
         if self.tool_log:
             self.tool_log[-1]["refused"] = why
             self.tool_log[-1]["kept"] = len(self.notebook)
         return reply
 
     def tool_calls_made(self) -> list[dict[str, Any]]:
-        """Every call since this was last asked, and forget them.
+        """Return and clear all tool calls since last asked.
 
-        Drained rather than read, and per DECISION rather than per turn, because the
-        caller is the logger and a decision is what it writes a line for. Draining
-        is also what makes it right across `rearrange`, which can call the model,
-        and whose calls belong to the decision that follows them.
+        Drained per decision (not per turn) because reorder() can also make
+        calls that belong to the same decision.
         """
         out, self.tool_log = self.tool_log, []
         return out
 
     def _memory_block(self) -> list[str]:
-        """The notes as the model sees them: numbered, so it can revise and forget.
-
-        Numbered from 1 because the ids appear in prose the model reads back, and
-        an off-by-one between what it is shown and what the tool accepts would look
-        to it like the tool being broken.
-        """
+        """The notes as the model sees them, numbered 1-based for revise/forget."""
         if not self.notebook:
             return ["", "WHAT YOU HAVE LEARNED SO FAR: nothing yet. Use `remember` "
                     "when you learn something that will still be true next run."]
@@ -1284,11 +971,7 @@ class HarnessV4(Bot):
                 *(f"  [{i}] {n}" for i, n in enumerate(self.notebook, 1))]
 
     def _plan_block(self) -> list[str]:
-        """The route it committed to, or the invitation to commit to one.
-
-        Shown every turn on purpose. A plan the model has to be asked for is a plan
-        it forgets; a plan in front of it is one it can notice itself breaking.
-        """
+        """The model's committed route for this map, shown every turn."""
         if not self.plan:
             return ["", "YOUR PLAN FOR THIS MAP: none yet. Use `plan` to write the "
                     "route you mean to take, before the first choice closes options "
@@ -1299,15 +982,10 @@ class HarnessV4(Bot):
     # ---------------------------------------------------------------- context
 
     def render_state(self, state: dict[str, Any]) -> str:
-        """What the model reads each turn. THE hook for changing that.
+        """What the model reads each turn, controlled by STATE_VIEW.
 
-        Reads `STATE_VIEW` (or whatever was passed as `view=`). Override it
-        outright for anything the four settings do not cover -- the harness adds
-        the journal and the instruction line around whatever this returns, so
-        replacing it wholesale cannot silently cost the bot its memory or leave
-        the model without the range of legal indices. That was the shape of the
-        old private `_situation`, where the thing you wanted to change and the
-        plumbing you must not break lived in one method.
+        Override for anything the four presets do not cover. The harness adds
+        the journal and the instruction line around whatever this returns.
         """
         spec = self.state_view
         if isinstance(spec, str) and spec == "screen":
@@ -1320,10 +998,7 @@ class HarnessV4(Bot):
         if isinstance(spec, (list, tuple)):
             missing = [k for k in spec if k not in state]
             if missing:
-                # Not an error: a key can be absent on one screen and present on
-                # the next -- `map` is gone during a battle. Saying so beats a
-                # view that quietly shrinks and a run that gets worse for reasons
-                # nobody can see.
+                # A key can be absent on some screens (e.g. `map` during battle).
                 if self.verbose:
                     print(f"   [llm] STATE_VIEW: no {', '.join(missing)} on this screen")
             return json.dumps({k: state[k] for k in spec if k in state},
@@ -1341,16 +1016,11 @@ class HarnessV4(Bot):
             "keys:" + ",".join(self.state_view)
 
     def _situation(self, state: dict[str, Any]) -> str:
-        """The whole user message: the view, plus what the harness owns.
-
-        Deliberately not the hook. The journal is what stops a bot walking the
-        same loop forever, and the instruction line is what tells the model how
-        many options there are -- neither is a choice a bot should be able to
-        drop by accident while changing something else.
+        """The full user message: the rendered view, memory, plan, journal, and
+        instruction line. Not intended as an override point; use render_state().
         """
         parts = [self.render_state(state)]
-        # Before the journal: what was learned across runs outranks what happened
-        # in the last six turns of this one.
+        # Notes before journal: cross-run lessons outrank recent within-run turns.
         parts += self._memory_block()
         parts += self._plan_block()
         if self.journal:
@@ -1398,9 +1068,7 @@ class HarnessV4(Bot):
             "tool_choice": "auto",
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
-            # Best effort only. Providers that honour it get closer to repeatable
-            # runs; most ignore it, and none of them promise it. Nothing here
-            # depends on it working. See `reproducible: False` in the artifacts.
+            # Best-effort reproducibility seed. Most providers ignore it.
             "seed": self.seed,
         }).encode("utf-8")
 
@@ -1412,13 +1080,8 @@ class HarnessV4(Bot):
                 "Content-Type": "application/json",
             },
         )
-        # Retried, with backoff, for the failures that are transient. A rate limit
-        # is not the model failing to answer: counted as a fallback it would show
-        # up as the model being bad at the game, and it is the first thing that
-        # happens when runs go in parallel.
-        #
-        # Auth and model-not-found are NOT retried -- they fail identically
-        # forever, so trying again just wastes the run more slowly.
+        # Retried with backoff for transient failures. Auth and model-not-found
+        # are not retried because they fail identically every time.
         answer: dict[str, Any] | None = None
         for attempt in range(self.RETRIES + 1):
             try:
@@ -1456,12 +1119,7 @@ class HarnessV4(Bot):
 
         self.calls += 1
         usage = answer.get("usage") or {}
-        # Split, not just the total. Input and output are priced differently --
-        # output several times higher -- so a single total cannot be turned into
-        # money afterwards, and a model that thinks in long answers costs quite
-        # unlike one that reads a long prompt. Kept as counts and nothing else:
-        # prices change, and a measurement should not go stale because a provider
-        # ran a promotion. Cost is a function of these two numbers applied later.
+        # Input and output tracked separately because they are priced differently.
         self.tokens_in += usage.get("prompt_tokens", 0)
         self.tokens_out += usage.get("completion_tokens", 0)
         self.tokens_used += usage.get(

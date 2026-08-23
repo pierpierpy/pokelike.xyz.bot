@@ -189,10 +189,8 @@ def cmd_schema(args) -> int:
     if args.json:
         print(json.dumps(obs, indent=1))
     elif args.markdown:
-        # Written into STATE.md rather than into the README. It is 420 lines of
-        # generated reference, which is longer than everything a reader needs to
-        # decide whether the project is for them, and it pushed the rest of the
-        # page out of reach.
+        # Written into STATE.md rather than the README because it is ~420 lines
+        # of generated reference.
         out = Path(__file__).resolve().parents[5] / "STATE.md"
         text = out.read_text(encoding="utf-8")
         begin, end = text.find(STATE_BEGIN), text.find(STATE_END)

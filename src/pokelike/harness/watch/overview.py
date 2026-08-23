@@ -1,8 +1,8 @@
 """The overview tables: `pokelike model watch --all` and `pokelike model watch -o`.
 
-Two views that answer "what is on this machine":
-  overview()  -- every pass on disk, one row each, newest first
-  monitor()   -- only the running passes, with live progress bars, refreshed in place
+The overview() function shows every pass on disk, one row each, newest first. The
+monitor() function shows only the running passes with live progress bars, refreshed
+in place.
 """
 
 from __future__ import annotations
@@ -21,12 +21,7 @@ from .read import read
 
 
 def overview(version: str | None = None) -> int:
-    """Every pass on disk, one row each, newest first.
-
-    The other half of the question. The live view answers "what is it doing", this
-    answers "what is on this machine and which of it is still moving", which is what
-    you want after an hour away and before you kill anything.
-    """
+    """Every pass on disk, one row each, newest first."""
     from rich.console import Console
     from rich.table import Table
 
@@ -68,12 +63,9 @@ def overview(version: str | None = None) -> int:
 
 
 def _running_table(version: str | None):
-    """The `pick` list, live: one row per running pass, plus a bar and some stats.
+    """One row per running pass, with a progress bar and summary stats.
 
-    Same shape you choose from (number, version, model, runs, stamp), with a
-    tqdm-style progress bar and the numbers worth glancing at while it runs:
-    mean badges so far, tokens in/out, fallbacks, and a rough ETA. Returns
-    (table, n).
+    Returns (table, n) where n is the number of running passes.
     """
     from rich.table import Table
 
@@ -82,11 +74,8 @@ def _running_table(version: str | None):
     def toks(n: int) -> str:
         return f"{n / 1e6:.1f}M" if n >= 1e6 else (f"{n / 1e3:.0f}k" if n else "0")
 
-    # What the tokens already counted would cost at today's list price, fetched once
-    # and cached because this table redraws every couple of seconds. A model the
-    # list does not know (a self-hosted endpoint, say) prints a dash: not free,
-    # unknown. Money is never stored in a result, only derived here, so a price
-    # change cannot rewrite what a pass measured.
+    # Estimated cost at today's list price, fetched once and cached. A model
+    # the list does not know prints a dash.
     price = cached_prices()
 
     up = _get_containers()
@@ -117,8 +106,7 @@ def _running_table(version: str | None):
         tin = sum(r.tokens_in for r in finished)
         tout = sum(r.tokens_out for r in finished)
         fell = sum(r.fell for r in finished)
-        # Cents, not dollars: a flash model twenty runs in is often under a dollar,
-        # and "$0" would read as free rather than as cheap.
+        # Dollar value of tokens consumed so far.
         spent = cost(tin, tout, price.get(p.model))
         money = f"${spent:.2f}" if spent is not None else "[dim]-[/dim]"
         left = "[dim]-[/dim]"
@@ -134,12 +122,10 @@ def _running_table(version: str | None):
 
 
 def monitor(version: str | None = None, every: float = 2.0) -> int:
-    """Every RUNNING pass at once, each with a live progress bar (`model watch -o`).
+    """All running passes at once, refreshed in place (`model watch -o`).
 
-    The list from `pick()`, but drawn in place and refreshed, and never asking which
-    to follow: it follows all of them. Only running passes appear, so a finished or
-    killed one drops off the list the moment its heartbeat stops. Exits on its own
-    when nothing is left running.
+    Only running passes appear; a finished or killed pass drops off when its
+    heartbeat stops. Exits on its own when nothing is left running.
     """
     from rich.console import Console
     from rich.live import Live
@@ -150,7 +136,7 @@ def monitor(version: str | None = None, every: float = 2.0) -> int:
         console.print("nothing is running right now.")
         console.print("everything on disk:  uv run pokelike model watch --all")
         return 1
-    # Piped or no terminal: draw the snapshot once, do not spin.
+    # When piped or not a terminal, draw the snapshot once.
     if not console.is_terminal:
         console.print(table)
         return 0

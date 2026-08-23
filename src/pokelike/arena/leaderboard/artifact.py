@@ -1,12 +1,8 @@
 """The Artifact dataclass and the fingerprint that ties a result to its code.
 
-In: a bot directory. Out: a hex digest over bot.py and artifacts/.
-
-WHAT THE FINGERPRINT IS FOR
-A score means nothing without the code it came from. `result.json` records a
-sha256 over `bot.py` and every artifact, so a result and the thing that produced
-it cannot drift apart unnoticed: `pokelike bot board` says `stale` beside any
-row whose files have changed since it was measured.
+The fingerprint is a sha256 over `bot.py` and every file in `artifacts/`. The
+`pokelike bot board` command compares the current hash against the recorded one
+and marks stale rows.
 """
 
 from __future__ import annotations
@@ -18,8 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# What an artifact is FOR, so a reader knows what they are looking at without
-# opening it. Anything else is archived too, with a note.
+# Known artifact kinds, so a reader knows what each file is without opening it.
 KINDS = {
     "weights-json": "a trained policy, as JSON",
     "weights-remote": "weights hosted elsewhere, with a url and a sha256",
@@ -33,16 +28,9 @@ KINDS = {
 class Artifact:
     """Something a bot needs, archived beside it.
 
-    Give it `path` to copy a file, `data` to write a JSON document, or `text`
-    to write it out as it is. A bot declares these from `artifacts()`, and the
+    Provide `path` to copy a file, `data` to write JSON, or `text` to write
+    prose (such as a prompt). A bot declares these from `artifacts()`, and the
     benchmark stores them.
-
-    `text` exists because a prompt is prose. Putting one through `data` writes a
-    JSON string, escapes every newline, and produces a prompt.md nobody can
-    read, which is the opposite of why it is archived. The LLM harness had
-    been passing `text=` to a dataclass with no such field since it was written,
-    and nothing noticed because artifacts() is only called by a complete
-    benchmark and no LLM bot had ever finished one.
     """
 
     name: str
@@ -55,18 +43,11 @@ class Artifact:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def write_into(self, folder: Path) -> dict[str, Any]:
-        """Writes this artifact into the given folder.
-
-        In: the target folder. Out: the manifest entry dict.
-        """
+        """Writes this artifact into the given folder and returns the manifest entry."""
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / self.name
         if self.path is not None:
-            # A bot's artifacts already live in its own folder, so "archiving"
-            # them means copying a file onto itself, which shutil refuses. It
-            # is not an error: the file IS the artifact and it is already where
-            # it belongs. It only became reachable when bots stopped being
-            # copied into an archive and started being the archive.
+            # When path == target (the bot's folder is already the archive), skip the copy.
             if Path(self.path).resolve() != target.resolve():
                 shutil.copy2(self.path, target)
             elif not target.is_file():
@@ -93,24 +74,17 @@ class Artifact:
 
 
 def sha256_of(path: Path) -> str:
-    """Hashes a single file with SHA-256.
-
-    In: the file path. Out: the hex digest.
-    """
+    """Returns the SHA-256 hex digest of a file."""
     h = hashlib.sha256()
     h.update(Path(path).read_bytes())
     return h.hexdigest()
 
 
 def fingerprint(bot_dir: Path) -> str:
-    """One hash over the bot's code and everything it carries.
+    """Returns a single hash over bot.py and every file in artifacts/.
 
-    In: the bot directory. Out: the hex digest over bot.py and artifacts/.
-
-    Covers `bot.py` and every file under `artifacts/`, each hashed with its name
-    so that renaming a file changes the fingerprint too. This is what makes a
-    recorded score checkable: re-hash the folder, compare, and you know whether
-    the row still describes what is on disk.
+    Each file is hashed together with its relative path, so renaming a file
+    changes the fingerprint.
     """
     h = hashlib.sha256()
     files = [bot_dir / "bot.py", *sorted((bot_dir / "artifacts").glob("**/*"))]

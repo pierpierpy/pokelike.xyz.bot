@@ -1,9 +1,7 @@
 """The notebook: remember, revise, forget.
 
 A capped list of notes the model writes for itself and sees every turn. Notes
-survive across runs when cross_run_memory is on, which is what makes the notebook
-a strategy rather than a scratchpad: a lesson learned the run before reaches the
-run after.
+survive across runs when cross_run_memory is on.
 """
 
 from __future__ import annotations
@@ -12,11 +10,7 @@ from typing import Any
 
 
 class Notebook:
-    """A capped, numbered list of notes the model manages through tool calls.
-
-    In: the cap (how many notes fit) and the character limit per note.
-    Out: a notebook you drive with remember/revise/forget.
-    """
+    """A capped, numbered list of notes the model manages through tool calls."""
 
     def __init__(self, cap: int, note_chars: int) -> None:
         self.cap = cap
@@ -30,15 +24,9 @@ class Notebook:
         self.notes = []
 
     def handle(self, verb: str, args: dict[str, Any]) -> str:
-        """Dispatches one memory verb and returns the answer shown to the model.
-
-        In: the verb (remember/revise/forget) and the arguments dict.
-        Out: the text the model reads back, always stating the current count.
-        """
-        # Every answer states how full the notebook is, on purpose. A model that
-        # cannot see the cap keeps calling `remember` and behaves as though the
-        # lesson were saved. Telling it the count every time makes `revise` and
-        # `forget` visibly useful rather than decorative.
+        """Dispatches one memory verb (remember/revise/forget) and returns the answer."""
+        # Every answer states how full the notebook is, so the model knows
+        # when to use revise/forget instead of remember.
         note = str(args.get("note") or "").strip().replace("\n", " ")
         note = note[: self.note_chars]
 
@@ -51,11 +39,7 @@ class Notebook:
         return f"unknown notebook verb: {verb}"
 
     def view_block(self) -> list[str]:
-        """The notes as the model sees them: numbered, with cap shown.
-
-        In: nothing. Out: lines to insert into the user message (empty list if
-        there are no notes and nothing to say about the notebook).
-        """
+        """Returns the notes as numbered lines for insertion into the user message."""
         if not self.notes:
             return ["", "WHAT YOU HAVE LEARNED SO FAR: nothing yet. Use `remember` "
                     "when you learn something that will still be true next run."]

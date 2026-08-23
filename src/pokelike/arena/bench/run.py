@@ -1,7 +1,4 @@
-"""The benchmark loop: plays the seed list and collects results.
-
-In: a game, a bot, and a seed list. Out: the complete result document.
-"""
+"""The benchmark loop: plays the seed list and returns the result document."""
 
 from __future__ import annotations
 
@@ -30,11 +27,7 @@ def run_benchmark(
     region: int | str = 1,
     campaign: bool = False,
 ) -> dict[str, Any]:
-    """Plays the seed list and returns the result document.
-
-    In: the game instance, bot instance, bot name, site path, and optional
-    callbacks. Out: the full result dict ready for record_result().
-    """
+    """Plays the seed list and returns the result document."""
     from ... import __version__
     from ...core.browser import region_name as _rname, normalise_region
 

@@ -21,12 +21,9 @@ def team_view(team: list[dict] | None) -> str:
         bar = "#" * max(0, filled) + "." * max(0, 10 - filled)
         item = f"  [{p['item']}]" if p.get("item") else ""
         shiny = " *" if p.get("shiny") else ""
-        # Slot 0 is the Pokemon that enters the next battle. The numbers were
-        # already here but read as decoration; saying so makes the order legible
-        # as the decision it is.
+        # Slot 0 leads the next battle.
         lead = "  <- leads" if i == 0 and len(team) > 1 else ""
-        # What it actually attacks with. The engine knows; nothing on screen says
-        # it, so a player reading only the terminal was choosing blind too.
+        # The move the Pokemon actually attacks with (not shown in-game).
         mv = p.get("move") or {}
         move = f"  {mv['name']} {mv.get('power', '?')}" if mv.get("name") else ""
         rows.append(

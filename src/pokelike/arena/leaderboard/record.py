@@ -1,7 +1,4 @@
-"""Writing and reading bot results.
-
-In: a bot name and a result dict. Out: the result.json file on disk.
-"""
+"""Writing and reading bot results."""
 
 from __future__ import annotations
 
@@ -15,11 +12,7 @@ from .artifact import KINDS, fingerprint
 
 def record_result(name: str, result: dict[str, Any], bot: Any,
                   root: Path | None = None) -> Path:
-    """Writes `result.json` into the bot's own folder, artifacts included.
-
-    In: the bot name, the result dict, and the bot instance. Out: the path to
-    the bot folder.
-    """
+    """Writes `result.json` and artifacts into the bot's folder."""
     d = folder(name, root)
     if not (d / "bot.py").is_file():
         raise FileNotFoundError(
@@ -37,7 +30,7 @@ def record_result(name: str, result: dict[str, Any], bot: Any,
     document = {
         **result,
         "bot": slugify(name),
-        # Written LAST, over the artifacts as they now are on disk.
+        # Written after the artifacts, so the fingerprint covers their final state.
         "fingerprint": fingerprint(d),
         "artifacts": manifest,
     }
@@ -46,10 +39,7 @@ def record_result(name: str, result: dict[str, Any], bot: Any,
 
 
 def load_results(root: Path | None = None) -> list[dict[str, Any]]:
-    """Reads every result.json under the bots directory.
-
-    In: an optional root path. Out: a list of result dicts with staleness checks.
-    """
+    """Reads every result.json under the bots directory, adding staleness flags."""
     base = Path(root) if root else BOTS
     if not base.is_dir():
         return []
@@ -60,17 +50,12 @@ def load_results(root: Path | None = None) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             print(f"  warning: {f} is not valid JSON, skipping")
             continue
-        # The folder IS the name. A `bot` field left over from somewhere else
-        # would let a row claim to be a bot it is not.
+        # The folder name is authoritative; ignore any `bot` field in the file.
         r["bot"] = f.parent.name
-        # Recomputed every time it is read, so a row cannot claim a score for
-        # code that has since been edited without saying so.
+        # Recomputed on every read so edits after a benchmark are detected.
         #
-        # A result with NO fingerprint is not clean, it is unchecked: it
-        # predates the mechanism, or was hand-written. Reported separately rather
-        # than folded into either bucket: calling it stale would be a claim we
-        # cannot support, and calling it fine would be the silence the
-        # fingerprint exists to prevent.
+        # A missing fingerprint is "unverified", not "stale": the result
+        # predates the mechanism or was hand-written.
         r["unverified"] = not r.get("fingerprint")
         r["stale"] = bool(r.get("fingerprint")) and r["fingerprint"] != fingerprint(f.parent)
         out.append(r)

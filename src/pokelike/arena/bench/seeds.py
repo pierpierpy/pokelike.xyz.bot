@@ -1,7 +1,4 @@
-"""The fixed seed list and scoring helpers for the standard benchmark.
-
-In: a list of run results. Out: summary statistics (mean, stdev, best, etc.).
-"""
+"""The fixed seed list and scoring helpers for the standard benchmark."""
 
 from __future__ import annotations
 
@@ -10,19 +7,14 @@ import statistics
 from pathlib import Path
 from typing import Any
 
-# The official seed list. Fifty runs is enough to see past the luck without
-# taking all afternoon, and it is held well away from the seeds used elsewhere
-# in the project so nobody trains on the benchmark by accident.
+# Fifty fixed seeds, far from those used elsewhere, so nobody trains on them.
 STANDARD_SEEDS = list(range(10_000, 10_050))
 
 CATEGORIES = ("rules", "rl", "llm", "human", "other")
 
 
 def bundle_fingerprint(site: Path) -> dict[str, str]:
-    """Identifies the exact version of the game that was played.
-
-    In: the site directory. Out: a dict with the bundle filename and sha256.
-    """
+    """Returns the bundle filename and sha256 for the game version on disk."""
     bundle = next(Path(site).glob("js/bundle*.js"), None)
     if bundle is None:
         return {"file": "unknown", "sha256": "unknown"}
@@ -33,10 +25,7 @@ def bundle_fingerprint(site: Path) -> dict[str, str]:
 
 
 def summarise(runs: list[dict[str, Any]]) -> dict[str, Any]:
-    """Computes summary statistics over a list of finished runs.
-
-    In: the list of run dicts. Out: a summary dict with means, medians, bests.
-    """
+    """Computes summary statistics (means, medians, bests) over finished runs."""
     scores = [r["score"] for r in runs if r.get("score") is not None]
     if not scores:
         return {"runs": len(runs)}

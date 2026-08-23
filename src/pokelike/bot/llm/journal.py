@@ -1,9 +1,7 @@
 """The turn journal: what happened, what the model said, and how much to keep.
 
-Building and trimming the per-turn record, and assembling the user message that
-wraps it around the state view. The journal is what stops a bot walking the same
-loop forever, and the "pick an index" line is what tells the model how many
-options there are.
+Builds per-turn records and assembles the user message that wraps them around
+the state view.
 """
 
 from __future__ import annotations
@@ -12,17 +10,10 @@ from typing import Any
 
 
 def journal_entry(state: dict[str, Any], index: int, why: str) -> str:
-    """Builds one past-turn record from the action taken and the model's reason.
-
-    In: the state dict at the moment of the decision, the chosen index, and the
-    model's own sentence about it. Out: a formatted string with the game's record
-    on the first line and the model's reasoning (labelled as such) beneath it.
-    """
-    # What was actually done comes from state["actions"][index], which is the
-    # harness's own data, not the model's guess. The reasoning is worth keeping
-    # (it is how a model notices it has been trying the same idea for five turns)
-    # but it is not evidence. Separating them in the record is what lets a model
-    # tell plan from fact.
+    """Builds one past-turn record from the action taken and the model's reason."""
+    # The action comes from state["actions"][index] (harness data, not the
+    # model's guess). The reasoning is kept so the model can notice repeated
+    # patterns, but labelled as its own claim rather than verified fact.
     actions = state.get("actions") or []
     chosen = actions[index] if 0 <= index < len(actions) else {}
     if chosen.get("kind") == "node":
@@ -37,10 +28,9 @@ def journal_entry(state: dict[str, Any], index: int, why: str) -> str:
 def trim_journal(journal: list[str], memory: int) -> list[str]:
     """Applies the memory cap to the journal list.
 
-    In: the full journal and the memory setting (positive caps, negative keeps
-    all). Out: the trimmed list (or the original if memory < 0).
+    A negative memory value keeps every turn; a positive value keeps the last N.
     """
-    # memory == -1 keeps every turn: an unbounded, append-only memory.
+    # memory == -1 keeps every turn.
     if memory >= 0:
         return journal[-memory:]
     return journal
@@ -54,19 +44,10 @@ def build_user_message(
     notes_block: list[str] | None = None,
     plan_block: list[str] | None = None,
 ) -> str:
-    """Assembles the full user message: view, notes, plan, journal, instruction.
-
-    In: the rendered state view string, the journal list, the number of legal
-    actions, and optional notes/plan blocks. Out: the complete user-role message
-    for the model.
-    """
-    # Deliberately not the hook for bots. The journal separates what was done from
-    # what was said about it, and the heading says so. It used to read YOUR RECENT
-    # MOVES over a list of the model's own sentences, which is the one arrangement
-    # that turns a guess into a fact by doing nothing at all.
+    """Assembles the full user message: view, notes, plan, journal, instruction."""
+    # Notes and plan come before the journal: cross-run learning outranks
+    # recent turn history.
     parts = [state_view]
-    # Notes and plan come before the journal: what was learned across runs
-    # outranks what happened in the last six turns of this one.
     if notes_block:
         parts += notes_block
     if plan_block:

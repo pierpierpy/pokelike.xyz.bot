@@ -1,27 +1,21 @@
-"""The bots.
+"""The bot package: loading, building, and resolving bots by name.
 
-A bot is one thing: given the state, it says which action to take. Two places
-hold them, and the split is not arbitrary.
-
-**`bots/`, at the root of the repo, holds the bots.** One folder each, carrying
-its own code and its own weights, prompts or tables. That is where yours goes,
-and where every submitted one lives:
+Each bot lives in its own folder under `bots/` at the repo root:
 
     bots/<name>/
     ├── bot.py        one class inheriting from Bot, self-contained
     ├── artifacts/    whatever it needs to play
     └── result.json   what the benchmark measured
 
-**This package holds only what runs them**: the abstract `Bot` every bot
-implements, and `RandomBot`, which is the baseline everything is measured
-against and has to exist even in a checkout with no `bots/` folder at all.
+This package holds the abstract `Bot` interface and `RandomBot`, the baseline
+everything is measured against. The baseline must exist even in a checkout with
+no `bots/` folder at all, because `compare()` defaults to it.
 
     uv run pokelike bot new mine     # creates bots/mine/
     uv run pokelike bot run --bot mine
     uv run pokelike bot bench --bot mine
 
-Nothing here is imported by name from a registry any more. A bot is a directory,
-so someone can hand you one by handing you a directory.
+A bot is a directory, so someone can hand you one by handing you a directory.
 """
 
 from __future__ import annotations
@@ -48,12 +42,8 @@ def available() -> list[str]:
 def resolve(name: str) -> str:
     """The full name of the bot `name` refers to.
 
-    An exact name always wins. Failing that, a unique prefix is accepted, so
-    `--bot sarsa-v` finds `sarsa-v2` — but `--bot sarsa` with both versions on
-    disk is an ERROR naming them, not a guess. Picking one silently is how you
-    benchmark a bot for an afternoon and report the wrong one: the two share a
-    name precisely because they are variants of the same idea, so the result
-    would look entirely plausible.
+    An exact name always wins. A unique prefix is also accepted, so `--bot
+    sarsa-v` finds `sarsa-v2`. An ambiguous prefix is an error, not a guess.
     """
     from .catalogue import available as on_disk
     from .catalogue import slugify
@@ -78,11 +68,9 @@ def resolve(name: str) -> str:
 
 
 def create(name: str, seed: int = 0, **settings: Any) -> Bot:
-    """Builds a bot by name — a folder in `bots/`, the baseline — or by PATH.
+    """Builds a bot by name, from `bots/`, the baseline, or by path.
 
-    A path (anything with a separator in it) loads the bot where it lives, so
-    the bot you are writing inside your experiment folder can be played and
-    benchmarked without moving it:
+    A path (anything with a separator in it) loads the bot where it lives:
 
         uv run pokelike bot bench --bot experiments/mine --dry-run
 
@@ -90,8 +78,7 @@ def create(name: str, seed: int = 0, **settings: Any) -> Bot:
 
     `settings` are passed to the bot's constructor, which is how `--endpoint`,
     `--api-key` and `--model` reach an LLM bot without going through the
-    environment. Only what was actually given is passed, so a bot that reads
-    `$FW_ENDPOINT` keeps doing exactly that when no flag is used.
+    environment.
     """
     from .catalogue import available as on_disk
     from .catalogue import load, load_class
@@ -114,10 +101,8 @@ def create(name: str, seed: int = 0, **settings: Any) -> Bot:
 def build(cls: type[Bot], seed: int = 0, **settings: Any) -> Bot:
     """Constructs a bot class, refusing settings it cannot take.
 
-    Checked against the signature rather than by catching TypeError: a
-    constructor that raises TypeError for its own reasons would otherwise be
-    reported as "this bot does not accept an endpoint", which sends the reader
-    looking in the wrong place entirely.
+    The check uses signature inspection rather than catching TypeError, so a
+    constructor that raises TypeError for its own reasons is not misreported.
     """
     import inspect
 

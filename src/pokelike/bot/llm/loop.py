@@ -1,9 +1,7 @@
 """The multi-round agentic loop that drives one turn of thinking.
 
-A single turn: build the initial messages, call the model up to `max_rounds`
-times, dispatch tool calls, and return when `play()` is called or raise when the
-budget is exhausted. Everything stateful (counters, journal) stays on the bot;
-this module is the pure conversation logic.
+Calls the model up to `max_rounds` times, dispatches tool calls, and returns
+when `play()` is called or raises when the budget is exhausted.
 """
 
 from __future__ import annotations
@@ -30,9 +28,7 @@ def run_turn(
 ) -> tuple[int | None, str, int | None, list[dict[str, Any]]]:
     """Executes one turn of the agentic loop until play() is called.
 
-    In: the state, config flags, callback functions for model calls, tool
-    answers, and index parsing, and an optional history of previous exchanges.
-    Out: (action index or None, reason, lead or None, this_turn exchange).
+    Returns (action index or None, reason, lead or None, this_turn exchange).
     Raises LLMError if the model never calls play() within max_rounds.
     """
     lead: int | None = None
@@ -41,8 +37,7 @@ def run_turn(
         *(history or []),
         {"role": "user", "content": user_message},
     ]
-    # What this turn adds to the scratchpad, kept apart from `messages` so the
-    # system prompt and the older turns are not copied into it again.
+    # What this turn adds to the scratchpad, separate from the full messages list.
     this_turn: list[dict[str, Any]] = [messages[-1]]
 
     for _ in range(max_rounds):
@@ -69,20 +64,14 @@ def run_turn(
                 args = json.loads(c["function"].get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
-            # Recorded HERE, before the dispatch, because `play`, `set_lead` and a
-            # name the model invented all return or continue without reaching
-            # `answer_tool`, and those are three of the things worth knowing about a
-            # turn. Only the arguments that decide something are kept: a read-only
-            # tool takes none, and its answer is reconstructible from the state,
-            # which the trace already holds.
+            # Record before dispatch: play, set_lead, and unknown names all
+            # return or continue without reaching answer_tool.
             if record_call_fn is not None:
                 record_call_fn(name, args)
 
             if name == "play":
-                # The turn ends. Every call in the assistant message must have a
-                # tool answer, this one included: an assistant message with
-                # `tool_calls` followed by nothing is a malformed request under
-                # every provider, and would break the scratchpad on the next turn.
+                # Every tool_call in the assistant message needs a tool response,
+                # including this one; fill stubs for any remaining calls.
                 answered = {m.get("tool_call_id") for m in this_turn
                             if m.get("role") == "tool"}
                 for other in calls:
@@ -105,10 +94,7 @@ def run_turn(
                 )
 
             if name == "set_lead":
-                # Recorded, not applied here: the bot has no handle on the
-                # game, and the run loop is what performs the swap. Kept even
-                # when not allowed, so the model gets told why rather than
-                # silently ignored.
+                # The run loop performs the swap; here we just record the intent.
                 want = args.get("index")
                 if allow_lead and isinstance(want, int):
                     lead = want

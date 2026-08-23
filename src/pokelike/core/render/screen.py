@@ -21,8 +21,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     head = (
         f"step {obs.get('steps', 0)}   screen: {obs.get('screen')}   "
         f"map {run.get('map', '-')}   badges {run.get('badges', '-')}"
-        # Only when it is not the default, so every run recorded before regions
-        # existed still renders byte-identically and the header stays short.
+        # Only shown when the region is not Kanto (the default).
         + (f"   region: {obs['region']}" if obs.get("region") not in (None, "kanto") else "")
     )
     parts = ["=" * 72, head, "=" * 72]
@@ -76,9 +75,8 @@ def trace_view(trace: list[dict[str, Any]], detail: int = 1) -> str:
     detail 2: a block per decision, with the bot's own explanation
     detail 3: and the team at every step
 
-    Everything except the explanation is recorded by the shared run loop, so it
-    reads the same whatever was playing. The explanation is empty for bots that
-    have nothing to say, which is honest, not a gap.
+    Everything except the explanation is recorded by the shared run loop, so
+    the format is the same regardless of which bot played.
     """
     if not trace:
         return "  (no decisions recorded)"
@@ -116,11 +114,6 @@ def ending_view(final: dict[str, Any], alive: dict[str, Any] | None,
 
     In: the final obs, the last-alive snapshot, the score dict. Out: the block.
 
-    The trace stops one move short by construction: it records a decision and
-    then takes it, so the state that decision produced is only ever visible as
-    the header of the NEXT entry, and the last one has no next. So a log of a
-    losing run showed every choice and never the death.
-
     Reads the team from `last_alive`, because at game over the engine wipes
     `state` and the final observation has an empty team.
     """
@@ -131,10 +124,8 @@ def ending_view(final: dict[str, Any], alive: dict[str, Any] | None,
     out.append(f"      | {'the League is beaten' if won else 'the run ended here'}"
                f":  badges {run.get('badges', 0)}, map {run.get('map', 0)}")
 
-    # NOT the final team. At game over the engine wipes `state`, so this is the
-    # last snapshot taken while it was still populated, which is from BEFORE
-    # whatever ended the run. Saying "the team is out" over three Pokemon at 60%
-    # HP would be inventing a cause of death the log does not know.
+    # The team here is from last_alive (before the fatal fight), not from the
+    # final state, because the engine wipes the team at game over.
     team = (alive or {}).get("team") or []
     if team:
         out.append("      | team as of the last snapshot (before the final fight):")

@@ -1,7 +1,6 @@
 """Formatting benchmark results as terminal tables and Markdown for the README.
 
-Presentation only: no state is read or written here beyond the README file
-itself. All data comes from results.py (stats, load) and versions.py.
+Presentation only: all data comes from results.py and versions.py.
 """
 
 from __future__ import annotations
@@ -21,10 +20,7 @@ README_END = "<!-- END llm-bench -->"
 
 
 def format_table(version: str, price: dict[str, dict[str, float]] | None = None) -> str:
-    """Formats the leaderboard for terminal output.
-
-    In: harness version, optional price dict. Out: aligned multi-line string.
-    """
+    """Formats the standings for terminal output."""
     import sys
 
     from .results import stats
@@ -34,13 +30,10 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     rows = [stats(d, version) for d in _pkg.load(version)]
     rows = [r for r in rows if r.get("runs")]
     if not rows:
-        # Empty, not a sentence about being empty. Printed once for every version
-        # on disk, a paragraph each buried the one version that had results.
         return ""
     rows.sort(key=lambda r: -r["badges_mean"])
     money = bool(price)
-    # Only for a harness that keeps notes. On a memoryless version the first ten
-    # seeds against the last ten is noise with a suggestive name.
+    # Learn column only shown for harnesses with cross-run memory.
     learns = cross_run_memory(version)
     # Region column: shown only when at least one row is not kanto.
     show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
@@ -50,9 +43,6 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
             f"{'med':>5}{'best':>6}{'won':>5}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
             + (f"{'$':>8}{'$/run':>9}" if money else ""))
-    # One line, because it is read every time and says the same thing every time.
-    # It has to name what it ranks: `pokelike bot board` prints a `badges~` column
-    # too and answers a different question, so a pasted table must not be anonymous.
     out = [f"models on harness {version}, {len(STANDARD_SEEDS)} seeds a pass. "
            "Harnesses are not comparable.",
            "", head, "-" * len(head)]
@@ -76,9 +66,6 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
             + ("  <- fallback over 0.1: measuring the harness, not the model"
                if r["fallback_rate"] > 0.1 else "")
         )
-    # A legend, not an essay. Each column that can be misread gets one clause; what
-    # the numbers mean and why the version exists belongs in llm-bench/README.md,
-    # which is written once and read when the question comes up, not on every call.
     legend = ["±sem: rows within twice it are tied"]
     if learns:
         legend.append("learn: last 10 runs of a pass minus its first 10")
@@ -90,10 +77,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
 
 def markdown_table(version: str,
                    price: dict[str, dict[str, float]] | None = None) -> str:
-    """Formats the leaderboard as a Markdown table for the README.
-
-    In: harness version, optional price dict. Out: Markdown string.
-    """
+    """Formats the standings as a Markdown table for the README."""
     from .results import load, stats
 
     rows = [stats(d, version) for d in load(version)]
@@ -117,8 +101,6 @@ def markdown_table(version: str,
             d = lc.get("delta")
             cell = (f"| {'-' if d is None else f'{d:+.2f}'} "
                     f"| {r.get('notes_kept') if r.get('notes_kept') is not None else 'n/a'} ")
-        # Total and per-run side by side: the total says what this row cost, the
-        # per-run says what another pass of it will cost.
         each = None if usd is None else usd / r["runs"]
         out.append(
             f"| {i} | `{r['model']}`{flag} | {r['passes']} | {r['runs']} | "
@@ -136,26 +118,21 @@ def markdown_table(version: str,
 
 
 def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
-    """Regenerates the table block in llm-bench/README.md, newest harness first.
-
-    In: optional price dict. Out: path to the written README.
-    """
+    """Regenerates the standings block in llm-bench/README.md, newest harness first."""
     path = _bench() / "README.md"
     blocks = [markdown_table(v, price) for v in reversed(versions())]
     body = "\n\n".join(blocks) if blocks else "_Nothing measured yet._"
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():
         text = path.read_text(encoding="utf-8")
-        # Found by its opening words, not by the whole sentence. The marker names the
-        # command that writes it, so that sentence changes when the command does, and
-        # matching it in full meant the block went unfindable the moment it did.
+        # Match on the marker prefix, not the full sentence, so the marker stays
+        # findable even if the command name changes.
         i, j = text.find(README_BEGIN_MARK), text.find(README_END)
         if i != -1 and j > i:
             path.write_text(text[:i] + generated + text[j + len(README_END):],
                             encoding="utf-8")
         else:
-            # Appended, never substituted. Substituting is what this did when the
-            # markers were missing, which turned a 281-line document into a table.
+            # Markers not found; append rather than replace the whole file.
             path.write_text(text.rstrip("\n") + "\n\n" + generated + "\n",
                             encoding="utf-8")
         return path

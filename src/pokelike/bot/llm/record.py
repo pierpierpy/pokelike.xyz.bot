@@ -1,8 +1,4 @@
-"""Metadata and artifact generation for LLM bot submissions.
-
-What gets recorded alongside a benchmark result: the model reference, the prompt,
-the token counts, and whether the bot answered the same question as the others.
-"""
+"""Metadata and artifact generation for LLM bot submissions."""
 
 from __future__ import annotations
 
@@ -24,18 +20,13 @@ def build_metadata(
     retry_count: int,
     fallbacks: int,
     temperature: float,
+    reasoning_effort: str | None,
     tool_names: list[str],
     state_view_label: str,
 ) -> dict[str, Any]:
-    """Builds the metadata dict written into the run registry and result files.
-
-    In: all the counters and config from the bot instance. Out: a dict ready for
-    JSON serialization.
-    """
-    # `fallback_rate` is the honest column of an LLM benchmark. Every fallback
-    # is a turn the model did not decide, played by the backup heuristic under
-    # the model's name, so a row with a high one is measuring our heuristic,
-    # not the model.
+    """Builds the metadata dict written into the run registry and result files."""
+    # fallback_rate: fraction of turns decided by the backup heuristic rather
+    # than the model.
     return {
         "model": model,
         "harness": harness_version,
@@ -49,6 +40,7 @@ def build_metadata(
         "fallbacks": fallbacks,
         "fallback_rate": round(fallbacks / turns, 3) if turns else 0.0,
         "temperature": temperature,
+        "reasoning_effort": reasoning_effort,
         "stock_tools": tool_names == _STOCK_TOOL_NAMES,
         "state_view": state_view_label,
         "reproducible": False,
@@ -63,6 +55,7 @@ def build_artifacts(
     model_pinned: bool,
     harness_version: int,
     temperature: float,
+    reasoning_effort: str | None,
     max_tokens: int,
     max_rounds: int,
     memory: int,
@@ -70,15 +63,8 @@ def build_artifacts(
     tool_names: list[str],
     state_view_label: str,
 ) -> list:
-    """Builds the list of Artifact objects a submission carries.
-
-    In: the bot's configuration values. Out: a list of Artifact instances
-    (prompt and model-ref).
-    """
-    # The prompt and the model reference, never the key. An LLM result cannot
-    # be reproduced exactly (providers change models behind a fixed name and
-    # sampling is stochastic) so the least we can do is record precisely what
-    # was asked of which model, under which harness.
+    """Builds the list of Artifact objects a submission carries."""
+    # Records the prompt and model reference (never the key).
     from pokelike.arena.leaderboard import Artifact
 
     return [
@@ -97,6 +83,7 @@ def build_artifacts(
                 "pinned": model_pinned,
                 "harness": harness_version,
                 "temperature": temperature,
+                "reasoning_effort": reasoning_effort,
                 "max_tokens": max_tokens,
                 "max_rounds": max_rounds,
                 "memory": memory,

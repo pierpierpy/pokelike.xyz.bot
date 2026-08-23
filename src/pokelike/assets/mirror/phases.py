@@ -1,10 +1,10 @@
 """The five build phases that produce the offline copy of the game.
 
-1. STATIC   -- index.html, its CSS/JS, and every path named in the bundle.
-2. NUMBERED -- badges and map backgrounds addressed by number.
-3. SLUG     -- URLs built at runtime as prefix + id + ".png".
-4. PLAYED   -- actually plays a few runs, downloading what the game asks for.
-5. VERIFY   -- replays offline, counts what is missing, repairs, re-checks.
+1. STATIC: index.html, its CSS/JS, and every path named in the bundle.
+2. NUMBERED: badges and map backgrounds addressed by number.
+3. SLUG: URLs built at runtime as prefix + id + ".png".
+4. PLAYED: plays a few runs, downloading what the game asks for.
+5. VERIFY: replays offline, counts what is missing, repairs, re-checks.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ from .fetch import (
     clean,
 )
 
-# Folders whose URLs the game builds as prefix + slug + ".png"
-# (itemIconHtml does "img/sprites/items/" + item.id + ".png"). The slugs never
-# appear as a complete path, so they have to be tried one at a time.
+# Folders whose URLs the game builds as prefix + slug + ".png".
+# The slugs never appear as a complete path in the bundle, so they must be
+# tried one at a time.
 SLUG_FOLDERS = (
     "img/sprites/items/",
     "img/sprites/trainers/",
@@ -35,9 +35,8 @@ SLUG_FOLDERS = (
 RE_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 # Folders whose URLs are prefix + NUMBER + ".png" (badges, map backgrounds).
-# These need their own pass: the slug search looks for word-shaped names and
-# would never produce "2.png", which is how every badge past the first went
-# missing.
+# The slug search only finds word-shaped names, so numbered files need their
+# own pass.
 NUMBERED_FOLDERS = (
     "img/sprites/badges/",
     "img/maps/g1/", "img/maps/g2/", "img/maps/g3/", "img/maps/g4/",
@@ -46,10 +45,7 @@ MAX_NUMBER = 60
 
 
 def phase_static(root: Path, log=_log) -> dict[str, int]:
-    """Downloads index.html, what it references, and the assets named in the bundle.
-
-    In: the site root. Out: counts of referenced/downloaded/failed files.
-    """
+    """Downloads index.html, what it references, and the assets named in the bundle."""
     root.mkdir(parents=True, exist_ok=True)
 
     if not _fetch("index.html", root):
@@ -92,10 +88,7 @@ def phase_static(root: Path, log=_log) -> dict[str, int]:
 
 
 def phase_numbered(root: Path, log=_log) -> dict[str, int]:
-    """Tries the numbered paths until they run out.
-
-    In: the site root. Out: count of numbered files found.
-    """
+    """Tries the numbered paths until they run out."""
     found = 0
     for folder in NUMBERED_FOLDERS:
         n = 0
@@ -111,10 +104,7 @@ def phase_numbered(root: Path, log=_log) -> dict[str, int]:
 def phase_slug(root: Path, log=_log) -> dict[str, int]:
     """Tries every plausible slug from the bundle in the dynamic-URL folders.
 
-    In: the site root. Out: how many were tried and how many found.
-
-    Most attempts will 404 and that is fine: it is the price of not depending on
-    the luck of running into that item while playing.
+    Most attempts will 404; that is expected and harmless.
     """
     bundle = next(root.glob("js/bundle*.js"), None)
     if bundle is None:
@@ -135,8 +125,7 @@ def phase_slug(root: Path, log=_log) -> dict[str, int]:
     ]
     log(f"  to try: {len(to_try)} (404s are expected and normal)")
 
-    # Deliberately low concurrency: with 24 requests in flight the site cuts us
-    # off and *everything* fails silently, which is far worse than being slow.
+    # Low concurrency: with 24 requests in flight the site blocks us.
     found = 0
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {pool.submit(_fetch, p, root): p for p in to_try}
@@ -151,11 +140,8 @@ def phase_slug(root: Path, log=_log) -> dict[str, int]:
 def phase_repair(root: Path, missing: list[str], log=_log) -> dict[str, int]:
     """Downloads exactly the files the verification reported as missing.
 
-    In: the site root and the list of missing paths. Out: counts of repaired
-    and unrecoverable files.
-
-    Far more reliable than guessing wholesale: the list comes from the game
-    itself, and it downloads sequentially without risking a block.
+    The list comes from the game itself, so it is exact. Downloads are
+    sequential to avoid being blocked.
     """
     ok = failed = 0
     for m in missing:
@@ -169,10 +155,7 @@ def phase_repair(root: Path, missing: list[str], log=_log) -> dict[str, int]:
 
 
 def phase_played(root: Path, runs: int = 3, port: int = 8422, log=_log) -> dict[str, int]:
-    """Plays with auto-fill on, to capture the URLs built at runtime.
-
-    In: the site root, how many runs, and the port. Out: count of recovered files.
-    """
+    """Plays with auto-fill on, to capture the URLs built at runtime."""
     from ...core.game import Game
     from ..server import AssetServer
 
@@ -198,11 +181,7 @@ def phase_played(root: Path, runs: int = 3, port: int = 8422, log=_log) -> dict[
 
 
 def phase_verify(root: Path, runs: int = 2, port: int = 8423, log=_log) -> dict:
-    """Replays with the network closed. Zero missing means genuinely complete.
-
-    In: the site root, how many runs, and the port. Out: lists of missing files
-    and external requests.
-    """
+    """Replays with the network closed. Zero missing means the copy is complete."""
     from ...core.game import Game
     from ..server import AssetServer
 

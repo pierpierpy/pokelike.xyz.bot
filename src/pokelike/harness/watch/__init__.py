@@ -1,20 +1,12 @@
 """Watching a pass while it plays: `pokelike model watch`.
 
-WHY THIS READS THE TRACE AND NOTHING ELSE. A pass writes four files and this reads
-three of them, all of which are already on disk for other reasons. Nothing here talks
-to the running process, so it works the same on a container, on a pass started in
-another terminal, and on one that finished last week. It also cannot slow a run down
-or, worse, change what the model was asked.
+This package reads the trace files a pass writes to disk. Nothing here talks to the
+running process, so the watch works on a container, on a pass started in another
+terminal, and on one that finished last week.
 
-`<model>-passN.jsonl` is the source for everything except two things. One decision per
-line, so the last line is where the model is right now, and grouping by seed gives the
-finished runs without parsing the columns of the human log. The two exceptions are
-whether the pass ended, which is a word in the `.log`, and the notes a harness before
-v4 was holding, which only the notebook file records.
-
-WHAT IT DOES NOT DO. No history, no aggregate across passes, no cost. `pokelike model
-board` answers those, over recorded results, which is a different question from what is
-happening in the next two minutes.
+The decision trace (`<model>-passN.jsonl`) is the primary source: one line per
+decision, grouped by seed for finished runs. The `.log` supplies whether the pass
+ended, and the notebook file supplies notes for harnesses before v4.
 """
 
 # Keep the submodules reachable so that __setattr__ can forward patches.
@@ -45,9 +37,8 @@ from .overview import monitor, overview  # noqa: F401
 def __setattr__(name: str, value) -> None:
     """Forward attribute patches to the submodule that owns the name.
 
-    Tests monkeypatch names on the package (e.g. `watch.BENCH`, `watch._containers`),
-    and the functions that use them live in the submodules. This keeps the test contract
-    intact without editing the tests.
+    Tests monkeypatch names on the package (e.g. `watch.BENCH`), and the functions
+    that use them live in the submodules.
     """
     globals()[name] = value
     if hasattr(_discover_mod, name):

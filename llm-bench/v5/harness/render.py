@@ -1,40 +1,12 @@
-"""Text rendering of the game state, frozen beside the harness that uses it.
+"""Frozen text rendering of the game state for the v5 harness.
 
-A COPY of the part of `pokelike.core.render` this harness renders with, not an
-import of it. Same reason `bot.py` is a copy: the shared module is meant to
-improve, because the CLI reads it and so do the bots in `bots/`, and a benchmark
-needs the opposite. If this file imported that one, the next improvement made
-for a person reading a terminal would silently change what every recorded score
-on this harness meant.
+A copy of the rendering functions this harness uses, not an import of the
+shared pokelike.core.render module. Kept frozen so improvements to the shared
+renderer cannot silently change what recorded scores mean.
 
-So it is never edited once a result exists beside it. A new idea is a new
-harness directory, and the rows already recorded stay valid under the version
-that earned them.
-
-TWO THINGS DIFFER FROM THE COPY UNDER v0, v1 AND v2, and both are the point of
-this version:
-
-  1. `actions_view` prints each node's `tooltip`, the text the game shows a person
-     resting the pointer on it: the trainer's archetype and which types they use, a
-     gym leader's roster with levels, what a trade does. Under v0 to v2 the state
-     did not carry it at all, so those runs are not comparable to these.
-
-  2. `screen` shows the MOVE TUTOR block only on the tutor screen. Under v0 to v2
-     it appeared on EVERY turn, because the bridge fills `offered_moves`
-     unconditionally and nothing gated on the screen. 187 characters a turn, about
-     58k tokens across a pass, describing an exchange that was not on offer. Those
-     rows keep the old behaviour, which is why their copy keeps it too.
-
-What is here is what the harness calls, and nothing else: `screen()` and
-`team_view()`, plus the three block renderers and the two tables `screen()`
-needs. The shared module also carries `graph_view` (the drawn map), plus
-`score_view`, `trace_view` and `ending_view`. Those are read by a person at a
-terminal and by nothing in here, so copying them would have been 300 lines of
-code this file cannot reach.
-
-Everything is rebuilt from `state`, a JavaScript object read as JSON. No pixel is
-ever inspected: the map below is not read from an image, we draw it ourselves
-from the nodes and edges.
+Contains: screen(), team_view(), map_view(), actions_view(), tutor_view(), and
+the helpers they need. Everything is rebuilt from the state dict (a JavaScript
+object read as JSON); no pixels are inspected.
 """
 
 from __future__ import annotations
@@ -89,15 +61,9 @@ def team_view(team: list[dict] | None) -> str:
         bar = "#" * max(0, filled) + "." * max(0, 10 - filled)
         item = f"  [{p['item']}]" if p.get("item") else ""
         shiny = " *" if p.get("shiny") else ""
-        # Slot 0 is the Pokemon that enters the next battle. The numbers were
-        # already here but read as decoration; saying so makes the order legible
-        # as the decision it is.
+        # Slot 0 leads the next battle.
         lead = "  <- leads" if i == 0 and len(team) > 1 else ""
-        # What it actually attacks with, AND with what. v0-v4 showed the move's
-        # name and power but not its TYPE, so the one fact that decides a battle
-        # -- does this move's type beat what is in front of it -- was missing. Now
-        # it carries the type, whether it is physical or special, and STAB (a
-        # move matching the user's own type hits harder).
+        # Move type, category (physical/special), and STAB indicator.
         mv = p.get("move") or {}
         move = ""
         if mv.get("name"):
@@ -112,12 +78,10 @@ def team_view(team: list[dict] | None) -> str:
 
 
 def _exits_of(a: dict, m: dict[str, Any] | None) -> str:
-    """Where a map node leads on the next layer, read from the graph's edges.
+    """Where a map node leads on the next layer, from the graph's edges.
 
-    Folded into the view so the model sees the consequence of an irreversible
-    choice without spending a tool round on `what_lies_ahead`: picking a node
-    closes the others on that layer for good, and which KINDS of node it opens up
-    next is what makes one option worth more than another.
+    Shown inline so the model sees the consequence of an irreversible choice
+    without spending a tool round.
     """
     if not m or not m.get("edges") or a.get("id") is None:
         return ""
@@ -128,20 +92,10 @@ def _exits_of(a: dict, m: dict[str, Any] | None) -> str:
 
 
 def actions_view(actions: list[dict], m: dict[str, Any] | None = None) -> str:
-    """The numbered options, with what the game says each one is.
+    """The numbered legal actions with tooltips and exit connectivity.
 
-    The `tooltip` is the text the game puts on screen when the pointer rests on
-    that node: the trainer's archetype and which types they use, a gym leader's
-    roster with levels, what a trade does. Someone playing in a browser reads it
-    before choosing, so a terminal that left it out was the poorer view, not the
-    equal one.
-
-    v5 also appends where each node LEADS on the next layer (`-> next: ...`), the
-    connectivity that was only reachable through the `what_lies_ahead` tool
-    before.
-
-    Absent on anything that is not a map node, and absent on older recordings,
-    hence the `.get`.
+    The tooltip is the text the game shows on hover (trainer types, gym rosters,
+    trade details). Each map node also shows where it leads on the next layer.
     """
     if not actions:
         return "  (no actions)"
@@ -156,20 +110,11 @@ def actions_view(actions: list[dict], m: dict[str, Any] | None = None) -> str:
 
 
 def tutor_view(obs: dict[str, Any]) -> str:
-    """The tutor's offer against what that Pokemon already uses.
+    """The tutor's offer compared against each team member's current move.
 
-    The buttons read "→ SURF:Wartortle Lv35" and carry neither power nor type,
-    so the comparison that decides the choice is not on screen at all. It is in
-    the state (`team[i].move` and `offered_moves[i]`) and this is where it
-    becomes readable.
-
-    Renders whenever `offered_moves` is present, which is every turn: the bridge
-    asks the engine what the tutor WOULD offer each member unconditionally, so
-    the question can be answered before reaching a tutor. Gating on the screen is
-    therefore the caller's job, and `screen()` does it. Kept that way round on
-    purpose, since a bot that wants to plan several maps ahead has a reason to
-    call this off a tutor screen and no way to get it back if this function
-    refused.
+    Renders whenever offered_moves is present (the bridge fills it every turn).
+    Gating on the screen is the caller's job; screen() only renders this on the
+    tutor screen.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -203,8 +148,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking. Without it, "pick one of your team" is
-        # ambiguous between promoting and releasing.
+        # What the screen is asking (e.g. "choose a Pokemon to release").
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 

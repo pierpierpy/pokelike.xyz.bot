@@ -6,34 +6,16 @@ playing greedily.
 
     q̂(s, a, w) = wᵀ x(s, a)
 
-Trained by `experiments/lspi/train.py` (research folder, not shipped — see
-that experiment's README for the full derivation and measurements). Lagoudakis
-& Parr, "Least-Squares Policy Iteration", JMLR 4 (2003); Boyan (2002) for the
-lambda trace form of the policy-evaluation step this method's `w` is solved
-from.
+Trained by `experiments/lspi/train.py`. Lagoudakis & Parr, "Least-Squares Policy
+Iteration", JMLR 4 (2003); Boyan (2002) for the lambda trace form.
 
-WHAT THIS IS, BRIEFLY
-----------------------
-Same 100 hand-built linear features, same environment, same reward as
-`bots/sarsa-v2`. What differs is HOW `w` is estimated: LSTD-Q solves the exact
-linear fixed point of the projected Bellman equation from batch statistics
-accumulated over real transitions, then Least-Squares Policy Iteration
-re-solves periodically as the policy improves and more data arrives — rather
-than an incremental, step-size-driven update. Measured on the official
-50-seed benchmark: 1.44 badges mean, best single run 8 badges, against
-sarsa-v2's 1.36 and a freshly retrained copy of sarsa-v2's own algorithm at
-1.32 in the same session. Three other ways of reusing real transitions harder
-(replay, in three forms) were tried first and measured worse than plain
-SARSA(λ) — see `experiments/rl_sample_efficient/README.md`.
+Uses the same 100 linear features and reward as `bots/sarsa-v2`, with a different
+estimator: LSTD-Q solves the exact linear fixed point from batch statistics rather
+than an incremental step-size update.
 
-WHY THE FEATURE CODE IS COPIED IN HERE
---------------------------------------
-Same reasoning as `bots/sarsa-v2/bot.py` and every other bot in this project:
-a submission must stand on its own, and the representation here is UNCHANGED
-from `experiments/sarsa`'s — same 100 features, same encoding version, same
-index order. This experiment's whole question is whether a different
-estimator learns a better policy from the same real transitions, not whether
-a different feature vector would.
+The feature code is frozen in this file alongside the weights, not imported from
+the training code, so the submission remains valid regardless of changes to the
+experiments folder.
 """
 
 from __future__ import annotations
@@ -60,8 +42,8 @@ def find_weights() -> Path:
 
 # ---------------------------------------------- the frozen feature set, v2
 #
-# Byte-identical to experiments/sarsa/features/groups.py. Not imported, for
-# the reason above.
+# Identical to experiments/sarsa/features/groups.py; not imported so the
+# submission stays self-contained.
 
 TYPES = {
     "NORMAL", "FIRE", "WATER", "ELECTRIC", "GRASS", "ICE", "FIGHTING", "POISON",

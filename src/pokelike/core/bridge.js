@@ -1,19 +1,15 @@
 // Bridge between the game engine and Python.
 //
-// Injected into the page AFTER the game bundle has booted. It exposes a handful
-// of functions on `window`, and that is the entire surface Python uses:
+// Injected into the page after the game bundle has booted. Exposes functions
+// on `window` that Python uses:
 //
 //   __pk_layer()    which screen or modal is active right now
 //   __pk_choices()  the legal actions, as a stable ordered list
 //   __pk_apply(c)   perform one of them
 //   __pk_obs()      the full state, as plain JSON
-//
-// Worth stressing: no pixels are involved. `state` is a JavaScript object in
-// memory and the buttons are DOM objects, both of which exist perfectly well
-// without a window ever being drawn.
 (() => {
-  // The engine's names are globals declared with `let`/`function`: they live in
-  // the script's global scope, not on `window`, so they need eval to read.
+  // Engine globals are declared with `let`/`function` (script scope, not on
+  // `window`), so they require eval to read.
   const g = (n) => { try { return eval(n); } catch (e) { return undefined; } };
 
   const CFG = window.__PK_CFG;
@@ -26,7 +22,7 @@
     return r.width > 0 && r.height > 0;
   };
 
-  // Where each screen keeps its choices; falls back to the screen itself.
+  // Where each screen keeps its choices; falls back to the screen element itself.
   const CONTAINERS = {
     'starter-screen': '#starter-choices',
     'trainer-screen': '#trainer-choices',
@@ -34,27 +30,19 @@
     'item-screen': '#item-choices',
     'passive-screen': '#passive-choices',
     'swap-screen': '#swap-choices',
-    // The branching-evolution overlay keeps its options in their own container,
-    // same as the screens do.
     'eevee-choice-overlay': '#eevee-choices',
   };
 
   const NOISE = /run-menu|btn-shop|pokechain|settings|typechart|pokedex|achievements|credits|patch/i;
 
-  // Interactive layers the engine builds straight onto document.body, which are
-  // NOT `.screen` elements and therefore invisible to anything that only walks
-  // `.screen`. The item-equip modal was the first of these we hit; it was fixed
-  // by name, and the lesson did not generalise — `#eevee-choice-overlay` (a real
-  // 2-8 way evolution choice) and `#egg-overlay` are the same trap. Both are
-  // `await`ed by the engine, so they do not merely hide a choice, they stall the
-  // run until something clicks.
+  // Interactive layers the engine builds directly onto document.body, outside
+  // any `.screen` element. These include the item-equip modal,
+  // `#eevee-choice-overlay` (a 2-8 way evolution choice), and `#egg-overlay`
+  // (tap to continue). All are `await`ed, so they stall the run until clicked.
   //
-  // Matched by SHAPE rather than by id, so the next one is caught too: a visible
-  // element sitting directly under <body>, painted over the page. The named
-  // exclusions are the decorative layers that are not interactive.
-  // `tutorial` is ours: browser.py hides that layer outright, and a hidden
-  // element cannot be a decision. Listed anyway so the two never depend on each
-  // other's ordering again.
+  // Matched by shape (visible, fixed/absolute, overlay in id/class) rather than
+  // by id, so new overlays are caught automatically. Named exclusions below are
+  // decorative layers that are not interactive.
   const OVERLAY_SKIP = /weather|maint|typechart|tutorial|^sl-/;
 
   const overlays = () => [...document.body.children].filter((e) => {
@@ -67,8 +55,7 @@
   });
 
   window.__pk_layer = () => {
-    // Overlays sit on top of everything, so they are read first: whatever screen
-    // is behind one is not what the player is being asked about.
+    // Overlays sit on top of everything, so they take priority over screens.
     const ov = overlays()[0];
     if (ov) return { kind: 'overlay', id: ov.id || 'overlay' };
     for (const id of CFG.modals) {
@@ -79,8 +66,8 @@
     return { kind: 'screen', id: s ? s.id : '(none)' };
   };
 
-  // Single source of truth for the action list: __pk_apply indexes into exactly
-  // this array, so a choice can never end up pointing at a different button.
+  // Single source of truth for the action list: __pk_apply indexes into this
+  // array, so a choice always points at the correct button.
   const choiceElements = () => {
     const L = window.__pk_layer();
     if (L.kind === 'screen' && L.id === 'map-screen') return { L, nodes: true };
@@ -93,17 +80,13 @@
       '.poke-card, .choice-card, .trainer-card, .item-card, .equip-pokemon-row button, button'
     )].filter((e) => shown(e) && !e.disabled && !NOISE.test(e.id + ' ' + e.className));
 
-    // Nothing matched, but the layer is one the player may be expected to act
-    // on. The engine does not always build options out of buttons or known
-    // classes: the branching-evolution options are bare `div`s made with inline
-    // styles, and the elite-prep bag is a row of `span.item-badge`.
+    // Nothing matched, but the layer may require player input. The engine does
+    // not always use buttons or known classes for options (e.g. branching-evolution
+    // choices are bare divs with inline styles).
     //
-    // Falling back to every visible child is too greedy, and it showed: the
-    // evolution ANIMATION (`#evo-overlay`) has children too, so a random bot was
-    // offered "What? Squirtle is evolving!" and "slot1" as a choice and spent a
-    // decision on it. What separates a real option is that the engine made it
-    // clickable — `cursor: pointer` is in the inline style it writes for the
-    // branching choice, and absent from anything merely being animated.
+    // Falling back to every visible child is too greedy because non-interactive
+    // layers (like the evolution animation) also have children. The distinguishing
+    // feature of a real option is `cursor: pointer` in its computed style.
     if (!els.length && (L.kind === 'overlay' || L.kind === 'modal')) {
       els = [...root.children].filter((e) => {
         if (!shown(e)) return false;
@@ -116,29 +99,19 @@
     return { L, els };
   };
 
-  // A button's own text is sometimes useless on its own. The equip modal shows
-  // five buttons all reading "EQUIP", one per team member, and which Pokemon
-  // each belongs to lives in the row around it. A bot reading only labels cannot
-  // tell them apart, so it has to guess — which is a silent, invisible handicap.
-  // Where a button sits in a row carrying the context, we label it with that.
+  // When a button's own text is ambiguous (e.g. five "EQUIP" buttons), the
+  // containing row carries the context. labelFor reads the row text to
+  // disambiguate.
   const ROW_SELECTOR = '.equip-pokemon-row, .swap-choice, .poke-card';
 
-  // Sprite fallbacks are not game data, and they must not reach a bot.
+  // Sprite fallbacks must not reach a bot.
   //
-  // When an image fails to load the engine writes a pictograph in its place --
-  // "🤍 Silk Scarf" for an item whose icon is missing. Whether it is there
-  // depends on a 404 coming back, so the SAME decision reads two different ways
-  // depending on timing, and differently again on a machine whose copy of site/
-  // has different holes. `mirror --phase verify` exists because copies do differ.
-  //
-  // That made runs unrepeatable. A bot reading labels -- which the linear feature
-  // sets do -- gets a different vector, picks a different option, and the run
-  // walks off from there. It cost a benchmark row of 8 badges that could never be
-  // reproduced, and it is why README's claim that a missing sprite cannot change
-  // a run was not true.
-  //
-  // Astral-plane pictographs only (U+1F000 and up), so a shiny's ★ survives: that
-  // one IS the engine telling us something about the run.
+  // When an image fails to load the engine writes a pictograph in its place
+  // (e.g. "🤍 Silk Scarf"). Whether the fallback appears depends on a 404, so
+  // the same decision produces different labels depending on which images are
+  // present in site/. Stripping astral-plane pictographs (U+1F000+) removes
+  // these non-deterministic prefixes. A shiny's ★ is kept because the engine
+  // uses it as real game data.
   const PICTOGRAPH = /[\u{1F000}-\u{1FAFF}\u{FE0F}]/gu;
   const clean = (s) => s.replace(PICTOGRAPH, '').replace(/\s+/g, ' ').trim();
 
@@ -147,35 +120,23 @@
     const row = e.closest && e.closest(ROW_SELECTOR);
     if (row && row !== e) {
       const context = clean(row.innerText || '');
-      // "Squirtle Lv5 — empty — EQUIP" says which button this is; "EQUIP" does not.
+      // The full row context disambiguates which button this is.
       if (context && context !== own) return `${own} — ${context}`.slice(0, 160);
     }
     return own.slice(0, 160);
   };
 
-  // The text the game shows when the pointer rests on a map node: the trainer's
-  // archetype and which types they use, a gym leader's roster with levels, what a
-  // trade or an item node actually does. None of it is in `state.map.nodes`, and
-  // all of it is on screen for anyone playing in a browser, so a headless run was
-  // seeing LESS than a person rather than the same.
+  // Tooltip text for map nodes: the trainer's archetype and types, a gym
+  // leader's roster, what a trade or item node does. Read via the engine's own
+  // `getNodeLabel(node)` function (the same one that builds the DOM tooltip).
   //
-  // Read by calling the engine's own `getNodeLabel(node)`, which is the function
-  // that builds the tooltip's HTML, so this cannot drift from what is displayed.
-  //
-  // NOT by hovering. Synthesising mousemove over every node would work, and it is
-  // how this was first done on a fork, but it injects events into a game we do not
-  // control and forces a layout read per node. `_settle` exists because pumping
-  // the engine makes it consume its seeded RNG in a different order, and the same
-  // seed then stops replaying the same run; a pure function call cannot do that.
-  //
-  // Cached per (seed, map): the labels of a map do not change while you walk it,
-  // and `Visited` is the one part that does, which is already in `state`.
+  // Cached per (seed, map) because the labels do not change while walking a map;
+  // visited status is already tracked in `state`.
   const tipText = (html) => {
     if (!html) return null;
-    // Each roster line is its own <div>. innerText only inserts breaks for
-    // elements the layout has laid out as blocks, and this one is detached, so
-    // the separators have to be put in by hand or `Onix Lv14` runs into the line
-    // above it.
+    // Each roster line is its own <div>. Since the element is detached,
+    // innerText does not insert breaks automatically, so separators are added
+    // manually.
     const spaced = String(html)
       .replace(/<\s*br\s*\/?>/gi, "\u0001")
       .replace(/<\s*\/\s*(div|p|li|tr)\s*>/gi, "\u0001");
@@ -196,10 +157,7 @@
 
     const out = {};
     Object.values(st.map.nodes).forEach((n) => {
-      // An unrevealed node is one a player cannot read either. Every node in
-      // Story mode has come back revealed so far, so this guard has never
-      // fired: it is here because the day it stops being true, the failure
-      // would be the bot quietly knowing what is behind a face-down card.
+      // Skip unrevealed nodes: the bot should not see what a player cannot.
       if (!n.revealed) return;
       try {
         const t = tipText(label(n));
@@ -228,31 +186,20 @@
     }));
   };
 
-  // A cheap fingerprint of what the player is being asked: which layer, and
-  // which options. Used to tell whether the engine has reacted to the last
-  // action yet — see `__pk_await_change`.
+  // Cheap fingerprint of the current decision point (layer + option ids).
+  // Used by __pk_await_change to detect when the engine has reacted.
   window.__pk_sig = () => {
     const L = window.__pk_layer();
     return L.id + '#' + window.__pk_choices().map((c) => c.id || c.idx || c.label).join(',');
   };
 
-  // Wait for the engine to leave the decision point named by `sig`.
+  // Wait for the engine to leave the decision point identified by `sig`.
   //
-  // SAFE as a poller predicate, unlike `__pk_pump`: it only reads. It never
-  // clicks, so it cannot change the order in which the engine draws its seeded
-  // Math.random, which is the property the whole settle design protects.
+  // Safe as a polling predicate: it only reads, never clicks, so it cannot
+  // perturb the engine's seeded PRNG.
   //
-  // This replaces a flat 70 ms sleep after every action. Measured, the page
-  // reacts in 0.4 ms median and 3.5 ms at worst, so the sleep was two orders of
-  // magnitude too long — but it could not simply be shortened, because what it
-  // was really buying was that `__pk_settle` does not read the OLD screen, see a
-  // decision still standing there, and hand a stale state back as if the action
-  // had not happened. Waiting for the change is that guarantee, and it is
-  // adaptive: instant on a fast machine, still correct on a slow one.
-  //
-  // The cap exists for an action that leaves the question unchanged. None was
-  // observed in fifty steps, and if one exists the caller simply carries on as
-  // it did before.
+  // The cap handles the (unobserved) case where an action leaves the signature
+  // unchanged; the caller simply carries on.
   window.__pk_await_change = async (sig, capMs) => {
     if (!sig) return 0;
     const now = window.__pk_realNow || performance.now.bind(performance);
@@ -265,8 +212,7 @@
   };
 
   window.__pk_apply = (c) => {
-    // Read BEFORE acting: what the player was being asked. Returned so the
-    // caller can wait for the engine to leave it without a second round trip.
+    // Record the signature before acting so the caller can wait for it to change.
     const before = window.__pk_sig();
     if (c.kind === 'node') {
       const st = g('state');
@@ -286,10 +232,9 @@
     const L = window.__pk_layer();
     if (L.kind === 'screen' && CFG.terminal.includes(L.id)) return 'terminal';
     if (L.kind === 'modal') return 'decision';
-    // An overlay is a decision only if it actually offers a choice. The egg
-    // reveal offers none — it just waits for a tap — so it is transient and
-    // __pk_advance dismisses it. Deciding by what is on it rather than by its
-    // id is what makes an unknown overlay behave sensibly instead of hanging.
+    // An overlay is a decision only if it offers more than one choice. Single-
+    // or zero-option overlays (like egg reveal) are transient and dismissed by
+    // __pk_advance.
     if (L.kind === 'overlay') {
       return window.__pk_choices().length > 1 ? 'decision' : 'transient';
     }
@@ -304,8 +249,8 @@
       if (b && getComputedStyle(b).display !== 'none' && !b.disabled) { b.click(); return id; }
     }
     const L = window.__pk_layer();
-    // A click-to-continue overlay has no button to press: the handler is on the
-    // layer itself, so dismissing it means clicking the layer.
+    // Click-to-continue overlays have no button; the handler is on the layer
+    // element itself.
     if (L.kind === 'overlay') {
       const el = overlays()[0];
       if (el) {
@@ -323,14 +268,13 @@
     return null;
   };
 
-  // One step of the settle loop: is the game ready, and if not, nudge it.
+  // One step of the settle loop.
   //
-  // Returns true when there is a real decision to make or the run is over. It
-  // has a side effect on purpose — a forced single choice, or a Continue button,
-  // is taken here rather than reported back for Python to take.
+  // Returns true when a real decision is pending or the run is over. Has side
+  // effects: auto-plays forced single choices and Continue buttons.
   //
-  // BECAUSE it has side effects, it must never be handed to a poller as a
-  // predicate. Call it from `__pk_settle` below, which controls the cadence.
+  // Must not be used as a polling predicate because the side effects can
+  // perturb the engine's seeded PRNG ordering.
   window.__pk_pump = () => {
     const point = window.__pk_point();
     if (point === 'terminal') return { ready: true, acted: false };
@@ -347,42 +291,27 @@
 
   // Run the pump until the game is ready, all inside one call.
   //
-  // It must NOT be used as a polling predicate. `__pk_pump` clicks things, and a
-  // poller calls its predicate an unpredictable number of times: the clicks then
-  // land at different moments, the engine consumes its seeded Math.random in a
-  // different order, and the same seed stops replaying the same run. That was a
-  // real regression, caught by the determinism test.
-  //
-  // So the loop lives here, its iteration count driven by the game rather than
-  // by a poller, and paced with a real timeout so a click never lands in the
-  // middle of the redraw the previous one caused.
+  // The loop lives here (not in a poller) because __pk_pump has side effects:
+  // a poller calls its predicate an unpredictable number of times, which would
+  // cause clicks to land non-deterministically and break seed reproducibility.
+  // Each iteration is paced with a real timeout so a click does not land during
+  // the redraw the previous one caused.
   window.__pk_settle = async (timeoutMs) => {
-    // __pk_realNow, not performance.now: the page clock is virtual and jumps
-    // ahead on every read, so this budget would be spent in a few hundred
-    // iterations instead of ninety seconds.
+    // Use __pk_realNow (not performance.now) because the page clock is virtual
+    // and advances on every read, which would exhaust the budget in a few hundred
+    // iterations.
     //
-    // The fallback is not defensive clutter, it is the correct reading of the
-    // one case that produces it. THIS FILE IS RE-READ FROM DISK ON EVERY RUN
-    // while browser.py is a module loaded once, so a long-running process that
-    // pulls mid-run gets a new bridge against an old init script -- and an old
-    // one does not virtualise the clock at all, which is exactly when
-    // performance.now IS the real clock. It cost a training run at episode 78
-    // to find that out.
+    // The fallback covers the case where this bridge is injected without a
+    // matching init.js (e.g. a long-running process pulled a new bridge mid-run).
+    // When init.js has not virtualized the clock, performance.now is already real.
     const now = window.__pk_realNow || performance.now.bind(performance);
     const started = now();
     while (now() - started < timeoutMs) {
       const r = window.__pk_pump();
       if (r.ready) {
-        // Reaching a decision is not the same as the decision being finished.
-        // Sprites that fail to load are replaced by an emoji a few milliseconds
-        // later, so an option's label — which a bot reads, and which the golden
-        // fingerprints record — can still be changing under us. Hand back only a
-        // question that has stopped moving.
-        //
-        // This was invisible while every action was followed by a flat 70 ms
-        // sleep. It was never the sleep's purpose, just something it happened to
-        // cover, which is the trouble with waiting a fixed time for an unnamed
-        // reason: remove it and unrelated things break.
+        // Wait for the decision's labels to stabilize. Sprites that fail to
+        // load are replaced by an emoji a few milliseconds later, which can
+        // change an option's label while the signature is being read.
         let sig = window.__pk_sig();
         const until = now() + 60;
         while (now() < until) {
@@ -393,19 +322,15 @@
         }
         return true;
       }
-      // Pace only after actually clicking, so the click never lands on top of
-      // the redraw it caused. While merely waiting for the engine's own async
-      // work there is nothing to disturb, so check often.
+      // Pace after clicking so the click does not overlap the previous redraw.
+      // When merely waiting (no click), poll frequently.
       await new Promise((k) => window.__pk_realTimeout(k, r.acted ? 15 : 2));
     }
     return false;
   };
 
-  // What the screen is asking. Without it a choice can be read backwards: the
-  // swap screen lists your team and its prompt is "Choose a Pokémon to
-  // release", but a bot seeing only the list may take it for "choose your
-  // lead" — and release its best Pokemon believing it promoted it. Observed
-  // happening to an LLM, which is what prompted exposing this.
+  // The screen's prompt text (e.g. "Choose a Pokémon to release"). Without it,
+  // a bot cannot distinguish a swap-to-release from a swap-to-lead.
   const promptOf = (id) => {
     const root = document.getElementById(id);
     if (!root) return null;
@@ -419,17 +344,11 @@
   // -------------------------------------------------------------------
   // Team order.
   //
-  // Slot 0 leads, so the order is a real decision, and until now no bot could
-  // make it: the game binds reordering to a hand-rolled pointer drag on the
-  // team bar, which lives outside any `.screen`, so `__pk_choices` never saw it.
-  //
-  // We do NOT simulate the drag. Underneath all the pointer handling the
-  // engine's drop does exactly one thing:
-  //     [team[a], team[b]] = [team[b], team[a]]; renderTeamBar(team)
-  // and the Elite Four prep screen, which has its own drag, mutates that SAME
-  // `state.team` array and then calls `window._elitePrepRefresh()`. So one
-  // primitive covers both, with no dependence on coordinates or on layout
-  // existing, which is what makes it safe headless.
+  // Slot 0 leads the next battle. The game binds reordering to a pointer drag
+  // on the team bar (outside any `.screen`). Rather than simulating the drag,
+  // the swap is applied directly to `state.team` and the relevant renderer is
+  // called. The Elite Four prep screen uses the same array, so one primitive
+  // covers both surfaces.
   window.__pk_can_reorder = () => {
     const st = g('state');
     return Boolean(st && Array.isArray(st.team) && st.team.length > 1);
@@ -444,9 +363,8 @@
 
     [t[a], t[b]] = [t[b], t[a]];
 
-    // Repaint through whichever renderer owns the screen we are on. Both read
-    // the array we just mutated, so a missing one costs the picture, never the
-    // swap: the state is already correct either way.
+    // Repaint through whichever renderer owns the current screen. A missing
+    // renderer only costs the visual; the state is already correct.
     try {
       if (window.__pk_layer().id === 'elite-prep-screen'
           && typeof window._elitePrepRefresh === 'function') {
@@ -458,10 +376,8 @@
     return true;
   };
 
-  // The engine's move table and its own move chooser. These are script-global
-  // lexical bindings, NOT properties of window: `typeof MOVE_POOL` is 'object'
-  // while `window.MOVE_POOL` is undefined, and reading the latter gives no error
-  // at all, just silence. That is what `g()` is for.
+  // The engine's move table and move chooser are script-global lexical bindings
+  // (not on `window`), accessed via the `g()` eval helper.
   const moveOf = (mon) => {
     try {
       const f = g('getMoveForPokemon');
@@ -470,10 +386,8 @@
     } catch (e) { return null; }
   };
 
-  // Pokemon type -> the held item that boosts it (Fire -> charcoal, ...). The
-  // one genuinely structured item table the engine exposes: it turns eighteen
-  // near-identical "+40% X-type damage" items into one question, "does this
-  // match a type I actually field".
+  // Pokemon type -> the held item that boosts it (e.g. Fire -> charcoal).
+  // The one structured item table the engine exposes.
   window.__pk_type_items = () => {
     try { return { ...g('TYPE_ITEM_MAP') }; } catch (e) { return null; }
   };
@@ -493,24 +407,19 @@
         uid: p._uid, species_id: p.speciesId, name: p.name, level: p.level,
         hp: p.currentHp, max_hp: p.maxHp, types: p.types, base_stats: p.baseStats,
         move_tier: p.moveTier, item: p.heldItem ? p.heldItem.name : null,
-        // The id, not just the name. Every effect in the battle code is keyed on
-        // it (heldItem.id === 'leftovers'), and there is no stat or multiplier
-        // field anywhere to read instead — so the id is the only stable handle
-        // on what an item actually does. `desc` is the English sentence.
+        // The item id is the stable handle the battle code keys effects on
+        // (e.g. heldItem.id === 'leftovers'). `desc` is the English tooltip.
         item_id: p.heldItem ? p.heldItem.id : null,
         item_desc: p.heldItem ? p.heldItem.desc : null,
         // The engine's own answer to "what move would this Pokemon use", with
-        // power and type. Not derivable from the label, and the move tutor's
-        // offer is exactly a comparison against it.
+        // power and type. Useful for comparing against a move tutor's offer.
         move: moveOf(p),
         mega_stone: p.megaStone ? p.megaStone.name : null, shiny: !!p.isShiny,
       }));
       o.bag = (st.items || []).map((i) => i && (i.name || i.id));
-      // What the move tutor WOULD offer each member. Not guesswork: the engine
-      // builds the tutor's button label with exactly this call
-      // (doMoveTutorNode -> getBestMove(..., moveTier + 1, ...)), so asking it
-      // ourselves gives the offered move with its power and type, which the
-      // label does not carry.
+      // What the move tutor would offer each member. Calls the same function
+      // the engine uses to build the tutor's button label
+      // (getBestMove(..., moveTier + 1, ...)).
       o.offered_moves = {};
       try {
         const best = g('getBestMove');
@@ -542,9 +451,8 @@
       // Counters accumulated by our runBattle hook (see __pk_attach_score).
       if (window.__pk_stats) o.stats = { ...window.__pk_stats };
     }
-    // Reordering is a FREE action: it does not consume the turn, so it is not
-    // one of `actions`. Advertised separately, or a bot would have to guess
-    // whether the verb applies right now.
+    // Reordering is a free action (does not consume the turn), so it is
+    // advertised separately from `actions`.
     o.can_reorder = window.__pk_can_reorder();
     o.actions = window.__pk_choices();
     return o;
@@ -553,21 +461,14 @@
   // ---------------------------------------------------------------------
   // Scoring.
   //
-  // The engine already knows how to count (foldBattleIntoRunStats) and how to
-  // apply the formula (finalizeRunScore), but it only wires the two together in
-  // Challenge mode: the call site reads
-  //     state.challengeId && state.runStats && fold(...)
-  // so in Story mode the counters would stay at zero forever.
-  //
-  // Setting challengeId would be the obvious shortcut and it is WRONG: that flag
-  // changes the rules, among other things raising the Elite Four's levels
-  //     state.challengeId ? Math.max(0, 10 + challengeEliteLevelMod) : 0
-  // so the run would no longer be a normal one. Wrapping runBattle leaves the
-  // game untouched and still gives us the engine's own counters.
+  // The engine has foldBattleIntoRunStats (counting) and finalizeRunScore
+  // (formula), but only wires them together in Challenge mode. Setting
+  // challengeId would bypass this but also changes the rules (raises Elite Four
+  // levels), so instead runBattle is wrapped to call the counting function on
+  // every battle result while leaving the game mode untouched.
   // ---------------------------------------------------------------------
   window.__pk_attach_score = () => {
-    // CAREFUL: no local variable may share a name with a global we intend to
-    // replace, or we shadow it and rewrite the wrong copy.
+    // Do not name locals the same as globals being replaced (causes shadowing).
     const foldOrig = g('foldBattleIntoRunStats');
     const newStatsOrig = g('newRunStats');
     const battleOrig = g('runBattle');
@@ -577,22 +478,19 @@
     }
     if (window.__pk_attached) return { ok: true, already: true };
 
-    // Whatever goes wrong here must NOT stop the run: the score is a bonus,
-    // the game comes first.
+    // Errors here must not stop the run; scoring is a bonus.
     try {
       const st = g('state');
       if (st && !st.runStats) st.runStats = newStatsOrig();
 
-      // runBattle is a top-level function declaration, so it lives on window
-      // and is writable.
+      // runBattle is a top-level function declaration, writable on `window`.
       window.runBattle = function (...args) {
         const r = battleOrig.apply(this, args);
         try {
           const s = g('state');
           if (s) {
             if (!s.runStats) s.runStats = newStatsOrig();
-            // Same argument order as the engine's own call site:
-            //   fold(detailedLog, <runBattle's first argument>, playerWon, pTeam)
+            // Same argument order as the engine's own call site.
             foldOrig(r.detailedLog, args[0], r.playerWon, r.pTeam);
             window.__pk_stats = JSON.parse(JSON.stringify(s.runStats));
           }
@@ -610,11 +508,8 @@
 
   // Applies the game's official formula to the latest stats snapshot.
   //
-  // A note on the time bonus: the formula computes it as 1000 minus 100 per
-  // minute of real play, but we freeze Date.now() to make runs reproducible. The
-  // upshot is that the bonus sits pinned near 1000 and carries no information.
-  // So we also return `points_no_time`, which is the number to use when
-  // comparing players or strategies.
+  // The time bonus is pinned near 1000 because Date.now() is frozen, so
+  // `points_no_time` is the meaningful comparison number.
   window.__pk_score = (completed) => {
     const fin = g('finalizeRunScore');
     const st = g('state');

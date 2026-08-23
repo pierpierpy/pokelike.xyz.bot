@@ -24,12 +24,8 @@ from .decorator import collect_decorated_tools, dispatch_decorated_tool
 from .tools import CLOSING, GAME_RULES, TOOLS, _STOCK_TOOL_NAMES, build_tools
 from .transport import call_model_http
 
-# Generation of the shared loop. Written into every result; a row measured under
-# a different number is marked as such rather than ranked as if it were the same.
-#   1  agentic loop with team_details / what_lies_ahead / set_lead / play,
-#      situation rendered by core.render.screen, prose index as last resort
-#   2  opt-in notebook (remember/revise/forget), plan, and bag tools,
-#      configurable per-note char limit, cross-run memory, plan_chars cap
+# Version of the shared loop, written into every result. A row measured under a
+# different number is not ranked as if it were the same.
 HARNESS = 2
 
 
@@ -119,9 +115,8 @@ class LLMBot(Bot):
         # Scratchpad: the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
         self._turn_state: dict[str, Any] | None = None
-        # The last exchange with the model, kept so it can be looked at afterwards.
-        # A turn can call the model several times, and the messages list GROWS across
-        # those rounds, so the last one holds the whole conversation of the turn.
+        # The last exchange with the model (for inspection after the turn).
+        # Copied because the caller keeps appending to the same list.
         self.last_sent: list[dict[str, Any]] = []
         self.last_reply: dict[str, Any] | None = None
 
@@ -139,7 +134,7 @@ class LLMBot(Bot):
         self._tool_calls: list[dict[str, Any]] = []
         self._opening: str = getattr(self, '_opening', '')
         # Plan and scratchpad are per-run: the plan describes a route through
-        # THIS map, and the scratchpad is this episode's reasoning.
+        # this map, and the scratchpad is this episode's reasoning.
         self.plan = ""
         self._scratch: list[list[dict[str, Any]]] = []
         self._turn_state: dict[str, Any] | None = None
@@ -153,11 +148,8 @@ class LLMBot(Bot):
         In: the region result (region, next, badges, won, steps, team). Out: the
         text the next region starts with.
         """
-        # Called with the memory still intact, so a bot that would rather have its
-        # own model write this can: ask `call_model` here, with `memory_text()` and
-        # `memory_messages()` as the material. This default costs nothing and says
-        # the three things the next region cannot work out for itself: that the last
-        # one was cleared, what it finished with, and what came across.
+        # Memory is still intact here, so a subclass can call `call_model` with
+        # `memory_text()` to produce a richer summary instead of this default.
         kept = self.cfg.keep_across_regions
         carried = "your notes came with you" if "notes" in kept else "nothing came with you"
         team = ", ".join(done.get("team") or []) or "an empty team"
@@ -173,9 +165,8 @@ class LLMBot(Bot):
 
         In: the text from `region_cleared`. Out: nothing.
         """
-        # Into the journal, which is what the user message already prints, so it
-        # needs no new section in the prompt and it ages out of the way naturally as
-        # the new region fills the journal up.
+        # Stored in the journal slot so it appears in the user message and ages
+        # out naturally as the new region fills up.
         if text:
             self._opening = text.strip()
 
@@ -184,8 +175,7 @@ class LLMBot(Bot):
 
         In: which of notes, journal, scratchpad, plan to keep. Out: nothing.
         """
-        # `keep` defaults to the config rather than to nothing, so the runner can
-        # call this with no argument and get the policy the bot was built with.
+        # Defaults to the config policy when called with no argument.
         keep = self.cfg.keep_across_regions if keep is None else keep
         if "journal" not in keep:
             self.journal = []
@@ -210,8 +200,7 @@ class LLMBot(Bot):
         if self.journal:
             parts.append("WHAT YOU DID\n" + "\n".join(self.journal))
         if include_scratch:
-            # Flattened, which loses the roles: only for when one string is what
-            # the caller needs. `memory_messages()` keeps the shape.
+            # Flattened to strings; `memory_messages()` keeps the message shape.
             for turn in self._scratch:
                 for m in turn:
                     parts.append(f"{m.get('role')}: {(m.get('content') or '')[:400]}")
@@ -222,11 +211,8 @@ class LLMBot(Bot):
 
         In: how many turns at most. Out: the messages, flattened in order.
         """
-        # Only what was KEPT can be returned: `scratch_turns` is a retention
-        # policy, not a read filter, so turns beyond it were dropped as the run
-        # went and asking for more than that yields what exists. A summary that
-        # wants the whole region wants `memory=-1` on the journal instead, which is
-        # a line per turn rather than a whole exchange.
+        # Returns only what was retained: `scratch_turns` drops older turns as
+        # they age out. For a full region's history, use the journal instead.
         turns = self._scratch if n is None else self._scratch[-n:]
         return [m for turn in turns for m in turn]
 
@@ -243,6 +229,7 @@ class LLMBot(Bot):
             tokens_in=self.tokens_in, tokens_out=self.tokens_out,
             retry_count=self.retry_count, fallbacks=self.fallbacks,
             temperature=self.cfg.temperature,
+            reasoning_effort=self.cfg.reasoning_effort,
             tool_names=self.tool_names(), state_view_label=self._state_view_label(),
         )
         # Report notebook/plan settings and current state so a result records
@@ -281,6 +268,7 @@ class LLMBot(Bot):
             model=self.model, model_pinned=type(self).config.model is not None,
             harness_version=self.harness_version,
             temperature=self.cfg.temperature, max_tokens=self.cfg.max_tokens,
+            reasoning_effort=self.cfg.reasoning_effort,
             max_rounds=self.cfg.max_rounds, memory=self.cfg.memory,
             token_budget=self.cfg.token_budget,
             tool_names=self.tool_names(), state_view_label=self._state_view_label(),
@@ -291,12 +279,12 @@ class LLMBot(Bot):
         return self._last_why
 
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
-        """Decides who leads, in the SAME model call as the move.
+        """Decides who leads, in the same model call as the move.
 
         In: the state dict. Out: a (from, to) swap pair, or None if no reorder.
         """
         # One HTTP call per turn: reorder runs first, caches the move for act.
-        # Offered only on the map screen (elsewhere the options ARE the team).
+        # Offered only on the map screen (elsewhere the options are the team).
         self._pending = None
         if state.get("screen") != "map-screen" or not state.get("can_reorder"):
             return None
@@ -394,22 +382,18 @@ class LLMBot(Bot):
                 history=history if history else None,
             )
         except _LoopExhausted as exc:
-            # Rounds exhausted: the turn is lost to the fallback, but its
-            # exchange is kept anyway (a turn that ran out of ideas is exactly
-            # what the next turn should see rather than repeat).
+            # Rounds exhausted: keep the exchange anyway so the next turn sees it.
             self._remember_turn(exc.this_turn)
             raise LLMError(str(exc)) from exc
         self._remember_turn(this_turn)
         return index, why, lead
 
     def render_scratch(self, state: dict[str, Any]) -> str:
-        """What a KEPT turn shows where its screen used to be.
+        """What a kept turn shows where its screen used to be.
 
         In: the state of the turn being kept. Out: the text to put in its user slot.
         """
-        # A seam, because this is a judgement rather than a fact: how much of a turn
-        # is worth carrying is exactly the sort of thing a bot is submitted to try.
-        # Override it and return whatever you like.
+        # Override this to control how much of a kept turn the model sees.
         mode = self.cfg.scratch_state
         if mode == "full":
             return self.render_state(state)
@@ -422,10 +406,8 @@ class LLMBot(Bot):
 
         In: the state of that turn. Out: a single line, roughly 120 characters.
         """
-        # What changes from turn to turn and is worth a glance in sequence: where it
-        # was, how it was doing, and the health of the team. Not the map or the
-        # options, which are the expensive half and are stale the moment the turn
-        # ends.
+        # Facts that change per turn: position, progress, team health.
+        # The map and options are omitted because they go stale immediately.
         run = state.get("run") or {}
         team = ", ".join(
             f"{p.get('name')} L{p.get('level')} {p.get('hp')}/{p.get('max_hp')}"
@@ -438,17 +420,9 @@ class LLMBot(Bot):
     def _remember_turn(self, turn: list[dict[str, Any]]) -> None:
         """Adds one finished exchange to the scratchpad, oldest dropped first.
 
-        The screen the model was looking at is replaced by one line before the
-        turn is kept: that line is most of what makes the scratchpad affordable.
-        Measured on three seeds with the whole turn kept: 269k input tokens for
-        ONE run against 41k (six and a half times), because every kept turn
-        dragged another full render of team, map and actions along with it.
-
-        It is also wrong on its own terms and not merely dear: a stale screen
-        invites the model to reason about a map that has already changed, while
-        the CURRENT one is right there in the fresh user message. What cannot be
-        reconstructed from anywhere else is what it said and what the tools told
-        it. That is what stays.
+        The user message in the kept turn is replaced by a brief summary from
+        render_scratch, because the full screen is stale and expensive. Only the
+        model's reasoning and tool responses are kept verbatim.
 
         In: the list of messages for the turn just finished. Out: nothing.
         """
@@ -480,10 +454,8 @@ class LLMBot(Bot):
 
         In: nothing. Out: one dict per call, in the order the model made them.
         """
-        # Read once per decision by whatever is logging, which is why it empties:
-        # the next turn's calls must not carry the last turn's with them. `play` and
-        # `set_lead` never reach `answer_tool`, so they are recorded in the loop
-        # rather than here.
+        # Empties after read so the next turn starts clean. The `play` and
+        # `set_lead` calls are recorded by the loop, not by answer_tool.
         calls, self._tool_calls = self._tool_calls, []
         return calls
 
@@ -532,7 +504,7 @@ class LLMBot(Bot):
         return f"unknown tool: {name}"
 
     def render_state(self, state: dict[str, Any]) -> str:
-        """Renders the state into text for the model. THE hook for changing that.
+        """Renders the state into text for the model. Override to change the view.
 
         In: the state dict. Out: a string the model reads as context for its
         decision.
@@ -551,8 +523,7 @@ class LLMBot(Bot):
         """
         notes_block = self._notebook.view_block() if self._notebook else None
         plan_block = self._plan_block() if self.cfg.plan_chars > 0 else None
-        # What the last region left, shown until this one's journal has turns of its
-        # own to talk about: it is context for the first decisions, not for all of them.
+        # Show the region-crossing note only until the journal has real entries.
         journal = self.journal
         if self._opening and not journal:
             journal = [f"LAST REGION: {self._opening}"]
@@ -611,17 +582,14 @@ class LLMBot(Bot):
         """
         message, usage = call_model_http(
             messages=messages, model=self.model, endpoint=self.endpoint,
-            # `tools=[]` asks for prose: a model with tools attached will often
-            # answer a question with a tool call, which is right in a turn and wrong
-            # when what you wanted was a sentence (a region summary, say). None means
-            # the bot's usual set.
+            # Passing `tools=[]` asks for prose only; None means the bot's usual set.
             token=self.token, tools=self.tools() if tools is None else tools,
             temperature=self.cfg.temperature, max_tokens=self.cfg.max_tokens,
+            reasoning_effort=self.cfg.reasoning_effort,
             seed=self.seed, retries=self.cfg.retries,
             token_budget=self.cfg.token_budget, tokens_used=self.tokens_used,
         )
-        # Copied, because the caller keeps appending to this same list: without the
-        # copy this would show the end of the turn rather than what was just sent.
+        # Copied because the caller keeps appending to the same list.
         self.last_sent = [dict(m) for m in messages]
         self.last_reply = message
         self.calls += 1

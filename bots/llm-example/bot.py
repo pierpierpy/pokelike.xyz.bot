@@ -1,40 +1,43 @@
-"""llm-example: every knob of harness generation 1, and what each one costs.
+"""The `llm-example` bot demonstrates every knob of harness generation 1, and what
+each one costs.
 
     uv run pokelike bot run --bot llm-example --runs 1 -d
 
-Credentials come from `.env` at the repository root, so nothing goes on the command line.
+Credentials come from `.env` at the repository root, so nothing goes on the
+command line.
 
-A reference, not a contender. It changes everything at once, which shows the surface
-and ruins the score. Not benchmarked. Copy the parts you want.
+This bot is a reference, not a contender. It turns on every optional feature at
+once so each one is easy to see, which is a bad setup for an actual run. It is
+not benchmarked. Copy the parts you want.
 
-For generation 2 (a notebook, a plan, and kept turns) see
-[llm-example2](../llm-example2/). This file is the generation-1 surface: the same four
-tools, one user message, no memory beyond the journal.
+For generation 2 (a notebook, a plan, and kept turns), see
+[llm-example2](../llm-example2/). This file is the generation-1 surface: the
+same four tools, one user message, no memory beyond the journal.
 
-ONE TURN IS ONE HTTP POST, and this is the whole body:
+One turn is one HTTP POST, and this is the whole body:
 
     {"model": ..., "temperature": ..., "max_tokens": ..., "seed": ...,
      "tool_choice": "auto",
-     "tools": [...],                 <- tools(), and THIS IS PROMPT      1137 char
+     "tools": [...],                 <- tools(), and this is prompt      1137 char
      "messages": [
        {"role": "system"},           <- config.prompt                    1665 char
        {"role": "user"},             <- render_state + journal + range     940 char
        {"role": "assistant"},        <- what the model just said
-       {"role": "tool"},             <- answer_tool returned it, ALSO PROMPT
+       {"role": "tool"},             <- answer_tool returned it, also prompt
      ]}
 
-So the floor, before the model has asked for anything:
+The floor before the model has asked for anything:
 
     llm-survivor    1665 system + 1137 tools +  831 view  =  3633 char/turn
     llm-example     1833 system + 1676 tools +  390 view  =  3899 char/turn
 
-The four shared tool schemas are 1137 characters, MORE than the 831 of the state view
-itself. A fifth tool is not free because the model never calls it: you pay for its
-schema every turn of every run. And a tool that answers with three kilobytes has cost
-more than sending the whole state would have.
+The four shared tool schemas are 1137 characters, more than the 831-character
+state view itself. A fifth tool is not free even when the model never calls it,
+because the schema is sent every turn of every run. A tool that answers with
+three kilobytes has cost more than sending the whole state would have.
 
-Budget: about 30k tokens a run, so ~1.5M for a fifty-seed entry. `state_view="json"`
-is about 6x that.
+Budget: about 30k tokens a run, so ~1.5M for a fifty-seed entry. Using
+`state_view="json"` is about 6x that.
 """
 
 from __future__ import annotations
@@ -50,8 +53,8 @@ class ExampleBot(LLMBot):
     name = "llm-example"
 
     # ---------------------------------------------------------------- 1. the prompt
-    # The whole submission, for most LLM bots. GAME_RULES is the factual half, read
-    # out of the game bundle rather than guessed. Sent unchanged every turn.
+    # For most LLM bots, this is the whole submission. The GAME_RULES constant is the
+    # factual half, read from the game bundle. It is sent unchanged every turn.
 
     PROMPT = GAME_RULES + """
 PLAY LIKE THIS
@@ -67,9 +70,9 @@ PLAY LIKE THIS
 Think briefly, then call `play`. Always call `play`."""
 
     # ------------------------------------------------- 2. its own tools
-    # @tool is the whole declaration: name from the method, parameters from the
-    # signature. The description is prompt, re-sent every turn, so say when NOT to
-    # call it too.
+    # The @tool decorator is the whole declaration: the name comes from the method,
+    # the parameters from the signature. The description is prompt text, so state
+    # when not to call the tool as well.
 
     @tool("The raw state dict as JSON: team, bag, map, run, actions, stats, "
           "type_items. Everything the Python bots see. Use it when what you need is "
@@ -82,8 +85,7 @@ Think briefly, then call `play`. Always call `play`."""
             return f"no key '{part}'. There is: {', '.join(sorted(state))}"
         payload = state if part == "all" else {part: state[part]}
         text = json.dumps(payload, separators=(",", ":"))
-        # Truncated on purpose: a late-run map is large, and a reply that fills the
-        # context costs the model the reasoning it was about to do.
+        # Truncated to prevent a large late-run map from filling the context.
         return text if len(text) <= 4000 else text[:4000] + " ...(truncated)"
 
     @tool("What you are carrying, by name.")
@@ -94,32 +96,27 @@ Think briefly, then call `play`. Always call `play`."""
     # ------------------------------------------------------------------ 3. the knobs
     config = LLMConfig(
         prompt=PROMPT,
-        temperature=0.3,        # low, not zero: zero is not reproducible either
+        temperature=0.3,        # low but not zero, because zero is not reproducible
         max_tokens=900,         # a short reason plus a tool call
         max_rounds=6,           # this prompt asks for two tools before play
-        memory=8,               # journal lines: enough to notice it is going in circles
-        token_budget=60_000,    # ~2x a normal run. Hitting it ENDS the run
-        state_view="screen",    # IGNORED HERE: section 4 replaces render_state, which is
-                                # the only thing that reads it. "json" is ~6x the tokens
+        memory=8,               # journal lines: enough to notice going in circles
+        token_budget=60_000,    # ~2x a normal run; hitting the budget ends the run
+        state_view="screen",    # ignored here: section 4 replaces render_state, which
+                                # is the only thing that reads this. "json" is ~6x
     )
 
-    # A tool that raises is answered, not lost: the loop would otherwise treat the
-    # exception as a turn the model failed to take, and play the fallback instead.
+    # A raised exception inside a tool is answered to the model, not lost: otherwise
+    # the loop would treat the exception as a missed turn and play the fallback.
 
     # ------------------------------------------------------------------- 4. the view
     def render_state(self, state: dict[str, Any]) -> str:
         """In: the state. Out: the state as prose, with the arithmetic done."""
-        # Three changes from the built-in view: HP as a percentage (the model should
-        # not have to divide), the consequence written instead of drawn, and the exits
-        # inline (asking for them costs a round trip).
-        #
-        # `_build_user_message` is NOT the seam. The journal and the "pick an index
-        # between 0 and N" line are added around whatever this returns, so replacing
-        # the view cannot cost the bot its memory or leave the model without the range.
+        # Replaces the built-in view: HP as a percentage, exits inline.
+        # The journal and "pick an index between 0 and N" line are added around
+        # whatever this returns, so replacing the view does not lose memory.
         run = state.get("run") or {}
         team = state.get("team") or []
-        # Named when it is not Kanto, as the built-in view does it: a custom view
-        # that drops the region is a model playing Johto believing it is in Kanto.
+        # Include the region when it is not Kanto, matching the built-in view.
         where = state.get("region") or "kanto"
         parts = [f"TURN {state.get('steps', 0)}, map {run.get('map', 0)}, "
                  f"{run.get('badges', 0)} badges, {len(team)} Pokemon alive."
@@ -149,9 +146,8 @@ Think briefly, then call `play`. Always call `play`."""
     # ------------------------------------------------------- 5. when it does not answer
     def fallback_move(self, state: dict[str, Any]) -> int:
         """In: the state. Out: the index to play when the model did not answer."""
-        # Overriding this is rarely wise: it plays under your bot's name on every turn
-        # the model missed, and `fallback_rate` reports the share. A clever fallback is
-        # cleverness measured as though the model produced it.
+        # Overriding fallback_move is rarely wise: every turn it handles is counted
+        # toward `fallback_rate` as if the model played it.
         actions = state["actions"]
         team = state.get("team") or []
         hurt = any(p["hp"] / p["max_hp"] < 0.4 for p in team if p.get("max_hp"))
@@ -164,12 +160,10 @@ Think briefly, then call `play`. Always call `play`."""
     # ---------------------------------------------------------------- 6. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """In: nothing. Out: my own facts, merged into what is recorded."""
-        # Only what nothing else could know. Never the token or the endpoint: a result
-        # file is the kind of thing that gets pasted into an issue.
+        # Only what nothing else could know; the token and endpoint are never stored.
         return {"extra_tools": [t["function"]["name"] for t in self.cfg.extra_tools]}
 
-    # `call_model(messages) -> message dict` is the one hook this file does not use.
-    # Override it for a model that is not an OpenAI-compatible HTTP endpoint: return
-    # `content` plus `tool_calls` as [{"id", "function": {"name", "arguments"}}] with
-    # `arguments` a JSON string, keep the counters, and raise LLMConfigError for what
-    # will fail forever, LLMError for what is transient.
+    # The `call_model(messages) -> message dict` hook is for models that are not an
+    # OpenAI-compatible HTTP endpoint. Return `content` plus `tool_calls` as
+    # [{"id", "function": {"name", "arguments"}}] with `arguments` a JSON string.
+    # Raise LLMConfigError for permanent failures, LLMError for transient ones.

@@ -1,25 +1,16 @@
 """The interface every bot implements.
 
-A bot is one thing only: something that, given the state, says **which action to
-take**. Everything else — starting the browser, applying the move, computing the
-score — is none of its business.
+A bot picks an action given the state; nothing else is its job.
 
     class MyBot(Bot):
         def act(self, state):
-            return 0          # index into state["actions"]
+            return 0   # index into state["actions"]
 
-The index is the position in `state["actions"]`, the same numbered list you see
-when playing from the CLI. Returning an index out of range makes the move fail,
-so a bot must always stay within `len(state["actions"])`.
+The index must stay within `len(state["actions"])`, or the move fails.
 
-The two hooks `reset` and `finish` are for bots that need memory across turns:
-
-- an **LLM** clears its conversation in `reset` and closes it in `finish`;
-- an **RL** algorithm accumulates the trajectory and receives the final score in
-  `finish`, which is its reward signal;
-- a **scripted** bot resets its move counter in `reset`.
-
-Bots that need neither can ignore them: both already have empty bodies.
+`reset` and `finish` are optional hooks for bots that carry memory across turns
+(an LLM's conversation, an RL agent's trajectory). Both have empty default
+bodies, so ignore them if you don't need them.
 """
 
 from __future__ import annotations
@@ -36,10 +27,7 @@ class Bot(ABC):
     def __init__(self, seed: int = 0) -> None:
         """Every bot is built with a seed, whether or not it uses one.
 
-        Defined here so that writing a bot with no `__init__` at all — which is
-        the normal case for anything that does not need randomness — still works
-        when something builds it by name. Override it freely; a bot that needs
-        to load weights or open a client does its work here.
+        Override freely to load weights or open a client.
         """
         self.seed = seed
 
@@ -60,117 +48,65 @@ class Bot(ABC):
     def reorder(self, state: dict[str, Any]) -> tuple[int, int] | None:
         """Optional: swap two team slots before choosing, or None to leave it.
 
-        Slot 0 is the Pokemon that leads the next battle, so the order is a real
-        decision. It is kept apart from `act` because it is a FREE action: it
-        does not consume the turn, and folding it into `state["actions"]` would
-        add fifteen swap pairs to a full team's option list at every map node,
-        burying the moves that actually advance the run.
-
-        Called once per turn, before `act`, and only while
+        Slot 0 leads the next battle. Reordering is free: it does not consume
+        the turn. Called once per turn, before `act`, only while
         `state["can_reorder"]` is true. Return `(a, b)` to swap those slots.
-        The run loop applies it and re-reads the state, so the `state` passed to
-        `act` already reflects the swap.
-
-        Ignoring this is exactly what every bot did before it existed, so a bot
-        that does not implement it plays as it always has.
+        The run loop applies the swap and re-reads the state before calling `act`.
         """
         return None
 
     def reason(self) -> str:
-        """One line on why the last `act` went the way it did.
+        """One line explaining why the last `act` chose what it chose.
 
-        Optional, and only used by the detailed log. The shared run loop already
-        records what every bot has in common — the screen, the options, which one
-        was taken — so this is for the part only the bot knows: an LLM's stated
-        reason, a table's learned values, a heuristic's rule.
-
-        Returning "" means "nothing to add", which is honest for a bot that picks
-        at random.
+        Optional, used only by the detailed decision log. Return "" if there
+        is nothing to add.
         """
         return ""
 
     def metadata(self) -> dict[str, Any]:
-        """Extra facts recorded beside the score, in the run registry and
+        """Extra facts recorded beside the score in the run registry and
         `result.json`.
 
-        Empty by default. Override it to record what your bot varies that nothing
-        else knows about — an RL bot's episode count and features, an LLM bot's
-        model and fallback rate. Two leaderboard rows are only comparable if what
-        differed between them was written down here.
-
-        Never put the API token or endpoint in here: `result.json` is committed
-        and gets pasted into issues.
+        Empty by default. Override to record what your bot varies (episode count,
+        model name, fallback rate). Never put API tokens or endpoints here,
+        because `result.json` is committed.
         """
         return {**self.add_metadata()}
 
     def add_metadata(self) -> dict[str, Any]:
-        """Your own facts, added to whatever the harness already records.
+        """Your own facts, merged into `metadata()`.
 
-        In: nothing. Out: any dict; it is merged into `metadata()`.
+        Return any dict; the merging into the base metadata is handled for you.
         """
-        # The easy half of the pair. `metadata()` may already be full (an LLM bot's
-        # is), so overriding it means remembering to merge, and forgetting to merge
-        # silently throws away the model, the harness generation and the fallback
-        # rate. Return your dict here and the merging is not your problem.
         return {}
 
     def region_cleared(self, done: dict[str, Any]) -> str | None:
         """What the next region should open with, when a campaign crosses one.
 
-        In: a dict describing the region just finished (region, next, badges, won,
-        steps, team, notes_kept). Out: the text the next region starts with, or
-        None to say nothing.
+        Called with the current region's memory still intact, so the bot can
+        ask its model to summarise before the forgetting happens.
         """
-        # CALLED WITH THE MEMORY STILL INTACT, on purpose: this is where a bot can
-        # ask its own model to summarise what it learned, which it cannot do once
-        # the forgetting has happened. The forgetting is the runner's job, right
-        # after this returns, so nothing here has to remember to do it.
         return None
 
     def region_opening(self, text: str) -> None:
-        """Hands the bot what the last region left it, before the next one starts.
-
-        In: the text `region_cleared` returned. Out: nothing.
-        """
-        # Separate from `region_cleared` because they happen on opposite sides of
-        # the forgetting: one is asked while the old region is still in memory, the
-        # other arrives once it is gone.
+        """Hands the bot what the last region left it, before the next one starts."""
 
     def reset_memory(self, keep: tuple[str, ...] = ()) -> None:
-        """Forgets the region just finished.
-
-        In: which parts to keep. Out: nothing.
-        """
-        # Nothing to forget on a bot with no memory (the random one, a policy, a
-        # search), so the base does nothing and the hook still exists for the
-        # runner to call blindly.
+        """Forgets the region just finished, keeping only what `keep` names."""
 
     def memory_text(self, include_scratch: bool = False) -> str:
-        """The bot's memory as text, for handing to a model.
-
-        In: whether to flatten the kept turns in too. Out: the text, or "".
-        """
+        """The bot's memory as a single text string, or ""."""
         return ""
 
     def memory_messages(self, n: int | None = None) -> list[dict[str, Any]]:
-        """The kept turns as real messages, for handing to a model.
-
-        In: how many turns at most, newest last. Out: the messages, or [].
-        """
-        # Text and messages are separate because the memory has two natures: the
-        # notes, the plan and the journal are prose, while the kept turns are
-        # actual user/assistant/tool exchanges that would lose their shape as one
-        # string.
+        """The kept turns as message dicts, newest last, or []."""
         return []
 
     def artifacts(self) -> list:
         """What to archive alongside a leaderboard result.
 
-        Return a list of `pokelike.arena.leaderboard.Artifact`: weights, prompts, the
-        model you called, the hyperparameters you trained with. A bot made of
-        plain rules has nothing to declare and can ignore this.
-
-        Whatever is returned here is copied into the submission folder and
-        hashed, so the result can never be separated from what produced it.
+        Return a list of `pokelike.arena.leaderboard.Artifact` (weights, prompts,
+        hyperparameters). Whatever is returned here is copied into the submission
+        folder and hashed into the fingerprint.
         """
         return []

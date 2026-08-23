@@ -1,17 +1,8 @@
 """Tool declarations and shared game rules for the LLM harness.
 
-The rules are shared, the strategy is not. The split matters: everything below
-is a FACT about the game, several of them read out of the bundle rather than
-guessed, and a benchmark where each bot restates the facts measures who copied
-them correctly instead of who plays better.
-
-The two that are easy to get wrong, and were:
-
-  * BADGES ARE THE GOAL. The engine's score formula was written for the Battle
-    Tower and two of its six terms never fire in Story mode, so a prompt that
-    chases "maps cleared" points the model at something that is always zero.
-    An earlier version of this prompt did exactly that.
-  * Choosing a node CLOSES the others on that layer, forever.
+The rules are shared across all LLM bots because they are facts about the game.
+A benchmark where each bot restates them would measure who copied them correctly
+rather than who plays better.
 """
 
 from __future__ import annotations
@@ -55,13 +46,9 @@ CLOSING = "\nThink briefly, then call `play` with your chosen index. Always call
 
 # ---------------------------------------------------------------------- tools
 #
-# Shared by default for the same reason the rules are: a model given a tool
-# another model was not is not being compared, it is being helped.
-#
-# A bot may still add its own, or replace these outright -- see `tools()` and
-# `answer_tool()` on LLMBot. What it may not do is hide that it did: the tool
-# names go into every result and a bot whose set differs from the shared one is
-# marked in the standings, so its row is read as the different question it is.
+# Shared by default. A bot may add its own or replace these (see `tools()` and
+# `answer_tool()` on LLMBot). The tool names go into every result, and a bot
+# whose set differs from the shared one is marked in the standings.
 
 TOOLS = [
     {
@@ -125,10 +112,9 @@ _STOCK_TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
 
 # ----------------------------------------------------------------- opt-in tools
 #
-# These are NOT in TOOLS (the default four). They are offered only when the config
-# enables them: notes_cap > 0 adds the three memory tools, plan_chars > 0 adds
-# `plan`, bag_tool adds `bag`. That way existing bots whose config has none of
-# those fields keep the exact tool set they had before.
+# Not in the default TOOLS list. Added only when the config enables them:
+# notes_cap > 0 adds the three memory tools, plan_chars > 0 adds plan,
+# bag_tool adds bag.
 
 REMEMBER_TOOL = {
     "type": "function",
@@ -237,9 +223,7 @@ def build_tools(
 ) -> list[dict[str, Any]]:
     """Assembles the full tool list from the config flags, deduplicating by name.
 
-    In: the three feature flags, any extra tools, and any @tool-decorated schemas.
-    Out: the list of OpenAI function-calling tool dicts. Precedence when two
-    share a name: decorated > extra_tools > shared (the most specific wins).
+    Precedence when two share a name: decorated > extra_tools > shared.
     """
     result = list(TOOLS)
     if notes_cap > 0:
@@ -250,19 +234,14 @@ def build_tools(
         result.append(BAG_TOOL)
     if extra_tools:
         result.extend(extra_tools)
-    # Decorated tools (from @tool methods) go last in the raw list, so when we
-    # deduplicate keeping the LAST occurrence they win over everything else.
     if decorated_tools:
         result.extend(decorated_tools)
-    # Deduplicate: keep the LAST occurrence of each name (highest precedence).
+    # Deduplicate: keep the last occurrence of each name (highest precedence).
     seen: dict[str, int] = {}
     for i, t in enumerate(result):
         seen[t["function"]["name"]] = i
     kept = [result[i] for i in sorted(seen.values())]
-    # `play` is not a bot's to redefine: the loop ends the turn on that NAME and
-    # reads `index` and `why` out of its arguments, so a replacement schema without
-    # them leaves every turn either unfinishable or unexplained. Declaring one is a
-    # mistake worth catching here rather than fifty runs in.
+    # The loop relies on `play` by name and reads `index`/`why` from it.
     for t in (list(extra_tools or []) + list(decorated_tools or [])):
         if t["function"]["name"] == "play":
             raise LLMConfigError(

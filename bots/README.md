@@ -3,7 +3,7 @@
 Every bot that plays this game lives here, one folder each, and the folder is the bot:
 its code, whatever it needs to play, and what it scored.
 
-New here? **[CONTRIBUTING.md](../CONTRIBUTING.md)** walks the whole thing end to end,
+New here? [CONTRIBUTING.md](../CONTRIBUTING.md) walks the whole thing end to end,
 from a clone to a pull request.
 
 ---
@@ -30,30 +30,31 @@ from a clone to a pull request.
 | 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `71690aafd1aa` |
 | 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `ee3e47ed63cb` |
 
-Ranked by **badges**, the game's own progress counter. `badges~` is the mean over the standard 50 seeds, `badges+` the best single run. `code` is a fingerprint over the bot and its artifacts; **⚠︎ means the files changed since the score was measured**, so the row no longer describes what is on disk, and **? means the result carries no fingerprint at all** and cannot be checked either way. Re-running the benchmark clears both.
+Ranked by badges, the game's own progress counter. The `badges~` column is the mean over the standard 50 seeds, and `badges+` is the best single run. The `code` column is a fingerprint over the bot and its artifacts; ⚠︎ means the files changed since the score was measured, so the row no longer describes what is on disk, and ? means the result carries no fingerprint at all and cannot be checked either way. Re-running the benchmark clears both markers.
 
 <!-- END standings -->
 
-Rebuilt whenever a benchmark is recorded, so the pull request that adds a bot also
-carries its row.
+The standings are rebuilt whenever a benchmark is recorded, so the pull request that
+adds a bot also carries its row.
 
 ## Play any of them
 
-Nothing to download or train. Every bot ships with its weights, so pick a name out of
-the table above:
+There is nothing to download or train. Every bot ships with its weights, so pick a name
+out of the table above:
 
 ```bash
 uv run pokelike bot run --bot sarsa-v2 --seed 40003 --runs 1 -g -dd
 ```
 
-`-g` draws the map beside each decision, `-dd` prints the value it gave every option
-before choosing. Drop both for a plain run. Names are exact, and a prefix has to be
-unique: `--bot sarsa-v` finds `sarsa-v2`; `--bot sarsa` is an error that names both.
+The `-g` flag draws the map beside each decision; the `-dd` flag prints the value it
+gave every option before choosing. Drop both for a plain run. Names are exact, and a
+prefix has to be unique: `--bot sarsa-v` finds `sarsa-v2`; `--bot sarsa` is an error
+that names both.
 
 ## What a bot is
 
-A folder. Nothing is registered anywhere, so someone can hand you a bot by handing you a
-directory.
+A bot is a folder. Nothing is registered anywhere, so someone can hand you a bot by
+handing you a directory.
 
 ```
 bots/<name>/
@@ -73,12 +74,12 @@ uv run pokelike bot run --bot mine --runs 5 -d
 uv run pokelike bot bench --bot mine --dry-run
 ```
 
-`pokelike bot new` writes a bot that already plays, so you can measure it before
-changing a line. The full walk-through, how it is judged, what makes results
-comparable, and how to open the pull request, is in
+Running `pokelike bot new` writes a bot that already plays, so you can measure it
+before changing a line. The full walk-through covering how entries are judged, what
+makes results comparable, and how to open the pull request is in
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-**If your bot is a prompt around a model**, one request goes out per turn: the system
+If your bot is a prompt around a model, one request goes out per turn: the system
 prompt, then the state as text, with the tool schemas beside them. What the model
 remembers is yours to set:
 
@@ -92,32 +93,39 @@ remembers is yours to set:
 | `plan_chars` | a route it plans for the map, shown back every turn | `0` |
 | `bag_tool` | a tool for what it is carrying | `False` |
 
-A zero means off. `bot new --llm` turns them on for you; the six shipped bots keep the
-plain setup, which is why they are comparable with each other. Set them on your class:
+A zero means off. Running `bot new --llm` turns them on for you; the six shipped bots
+keep the plain setup, which is why they are comparable with each other. Set them on
+your class:
 
 ```python
 class MyBot(LLMBot):
     config = LLMConfig(prompt=MY_PROMPT, notes_cap=12, cross_run_memory=True)
 ```
 
-Tools are one line each: `@tool("...")` on a method adds one, the same named after a
-shared tool replaces it, and `drop_tools=("what_lies_ahead",)` removes one. `play` is the
-exception: it is how the model says what it chose, so it cannot be removed or replaced.
+Tools are one line each: decorating a method with `@tool("...")` adds a tool,
+naming it after a shared tool replaces that shared tool, and setting
+`drop_tools=("what_lies_ahead",)` removes one without replacing it. The `play`
+tool is the exception: the model calls `play` to declare its chosen action index,
+so that tool cannot be removed or replaced.
 
-A run plays one region, Kanto by default. `--region johto` plays another, `--regions all`
-plays the four in sequence and stops at the first one lost. Each is a whole game, so only
-your notes cross a boundary (`keep_across_regions`), and `region_cleared(done)` is where
-you decide what the next region is told, with your memory still in front of you.
+A run plays one region, Kanto by default. Passing `--region johto` plays another, and
+passing `--regions all` plays the four regions in sequence, stopping at the first one
+lost. Each region is a whole game with its own starters, gyms, and Elite Four, so
+nothing carries across a region boundary except your notes (controlled by
+`keep_across_regions`). The `region_cleared(done)` hook is where you decide what the
+next region is told about the one just finished, with your memory still in front of you.
 
 And if none of that fits, inherit `Bot` instead and write `act(state) -> int`: no loop,
 no prompt, no constraints beyond returning a legal index.
 
 ## Measuring a MODEL instead of a bot
 
-An `llm` entry here ranks a **scaffold**: the prompt and tools are the idea, the model
-is whatever you pointed at. [`llm-bench/`](../llm-bench/README.md) asks the other
-question, the harness is frozen and the model id is the only thing that changes. Nothing
-recorded there appears in these standings, and nothing here is compared with it.
+An `llm` entry in these standings ranks a bot's own prompt and tools: the prompt is
+the submission, and the model is whatever you pointed the bot at.
+[`llm-bench/`](../llm-bench/README.md) asks the opposite question: in that benchmark
+the harness is frozen and the model id is the only thing that changes, so the score
+measures the model rather than the prompt. Nothing recorded there appears in these
+standings, and nothing here is compared with it.
 
 ```bash
 uv run pokelike model bench --harness v0 --model qwen/qwen3.7-flash

@@ -1,6 +1,7 @@
 # llm-example2
 
-Everything harness generation 2 added, one small useful change at a time.
+This bot demonstrates everything harness generation 2 added, one small useful change at
+a time.
 
 ```bash
 uv run pokelike bot run --bot llm-example2 --runs 1 -ddd
@@ -8,12 +9,13 @@ uv run pokelike bot run --bot llm-example2 --runs 1 -ddd
 
 Credentials come from `.env` at the repository root, so nothing goes on the command line.
 
-**A reference, not a contender**, like [llm-example](../llm-example/): it moves everything
-at once, which shows the surface and ruins the score. Not benchmarked. Copy the parts you
-want.
+Like [llm-example](../llm-example/), this bot is a reference, not a contender: it turns
+on every optional feature at once so each one is easy to see, which is a bad setup for
+an actual run and is not benchmarked. Copy the parts you want.
 
-The sibling shows `HARNESS = 1`: a prompt, one user message, four tools. This one shows
-`HARNESS = 2`, and every section of [`bot.py`](bot.py) is one thing:
+The sibling bot [llm-example](../llm-example/) shows `HARNESS = 1`: a prompt, one user
+message, four tools. This bot shows `HARNESS = 2`, and every section of
+[`bot.py`](bot.py) demonstrates one feature:
 
 | in the file | what it demonstrates |
 |---|---|
@@ -27,15 +29,16 @@ The sibling shows `HARNESS = 1`: a prompt, one user message, four tools. This on
 
 ## Stepping through a turn
 
-[`step.ipynb`](step.ipynb) walks one decision at a time: it starts a game, hands the
-state to the bot, and shows what went to the model and what came back. You call `play`
-yourself, so nothing moves until you run the next cell.
+The [`step.ipynb`](step.ipynb) notebook walks one decision at a time: it starts a game,
+hands the state to the bot, and shows what went to the model and what came back. You call
+`play` yourself, so nothing moves until you run the next cell.
 
-Every knob is set away from its default on purpose, so the file is a list of what there
-is to turn. The two seams it uses EXTEND rather than replace (`render_state` calls
-`super()` and appends), because replacing a method kills the knob that feeds it:
-override `render_state` outright and `state_view` stops meaning anything, override
-`render_scratch` and `scratch_state` does.
+Every knob is set away from its default on purpose, so the file serves as a catalogue
+of what there is to change. The two seams this bot uses extend the default rather than
+replace it (`render_state` calls `super()` and appends), because replacing a method
+outright kills the knob that feeds it: overriding `render_state` outright makes
+`state_view` stop meaning anything, and overriding `render_scratch` does the same to
+`scratch_state`.
 
 Its four memories, and what each costs:
 
@@ -46,23 +49,28 @@ Its four memories, and what each costs:
 | plan, its own route | `plan_chars=600` | the map | once, every turn |
 | notes, numbered, it edits them | `notes_cap=12`, `cross_run_memory=True` | **crosses runs** | up to 160 char each |
 
-One thing the file spends a comment on and is worth repeating: the turn ENDS at `play`,
-so a `plan` or `remember` called after it in the same message is discarded. A model that
-orders them the wrong way believes it saved a note and did not.
+One thing the file spends a comment on and is worth repeating: the turn ends at the
+`play` tool call, so a `plan` or `remember` called after `play` in the same message is
+discarded. A model that orders its tool calls the wrong way believes it saved a note
+but did not.
 
 ## Everything you can change
 
-The whole surface, in one place. A request to the model is four layers, and this is which
-of them each thing lands on. The layer-by-layer account, with where each is assembled, is
-in [bots/AGENTS.md](../AGENTS.md#the-four-layers-of-one-request-and-the-knob-for-each).
+This section covers every knob and seam available to a bot author, in one place. A
+request to the model has four layers (system message, tools, user message, tool
+replies), and the tables below show which layer each setting lands on. The
+layer-by-layer account, with where each is assembled, is in
+[bots/AGENTS.md](../AGENTS.md#the-four-layers-of-one-request-and-the-knob-for-each).
 
-**Values. No code, just a different number in `config`.**
+This first group is values: changing them takes no code, just a different number in
+`config`.
 
 | knob | default | here | changes |
 |---|---|---|---|
 | `prompt` | the shared rules | `PROMPT` | the system message. **This is the submission** |
 | `model` | `$MODEL_ID` | unset | which model plays |
 | `temperature` | 0.6 | 0.3 | sampling |
+| `reasoning_effort` | `None` (off) | `"low"` | the model reasons before answering; `None`, `"minimal"`, `"low"`, `"medium"`, or `"high"` |
 | `max_tokens` | 1500 | 1200 | ceiling on one answer |
 | `max_rounds` | 4 | 6 | tool rounds before the turn is lost to the fallback |
 | `retries` | 4 | 5 | attempts on a transient HTTP failure |
@@ -80,7 +88,7 @@ in [bots/AGENTS.md](../AGENTS.md#the-four-layers-of-one-request-and-the-knob-for
 | `drop_tools` | `()` | `("what_lies_ahead",)` | shared tools to leave out. `play` is refused |
 | `extra_tools` | `[]` | unused | tools declared as raw schemas, the old way |
 
-**Seams. A method you override, and the knob it silences.**
+This second group is seams: a method you override, and the knob it silences.
 
 | seam | you decide | silences |
 |---|---|---|
@@ -94,9 +102,9 @@ in [bots/AGENTS.md](../AGENTS.md#the-four-layers-of-one-request-and-the-knob-for
 | `reason()` | one line per decision in the trace | |
 | `act(state)` | the move itself, throwing away the agentic loop. Nobody does this | |
 
-`render_state` and `render_scratch` are the two this bot EXTENDS with `super()` rather than
-replacing, so both the seam and its knob stay alive.
+The `render_state` and `render_scratch` methods are the two that this bot extends with
+`super()` rather than replacing, so both the seam and its corresponding knob stay alive.
 
-**Not yours to change.** The game, `core/`, the shared `bot/llm/` and the loop in
-`runner.play_run`. A submission is `bot.py` plus `artifacts/`, and that is what the
-fingerprint covers.
+The game engine (`core/`), the shared LLM loop (`bot/llm/`), and the play loop in
+`runner.play_run` are not yours to change. A submission is `bot.py` plus `artifacts/`,
+and the fingerprint recorded beside the score is a hash of exactly those files.

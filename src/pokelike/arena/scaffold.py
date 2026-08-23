@@ -1,8 +1,7 @@
 """Creating a new bot: `pokelike bot new <name>`.
 
-Writes a folder that already plays. That is the point — you can benchmark it
-before changing a line, so when the number moves you know it moved because of
-something you did.
+Writes a folder that already plays, so you can benchmark it before changing a
+line. When the number moves, you know it moved because of something you did.
 """
 
 from __future__ import annotations
@@ -15,10 +14,8 @@ from ..bot.catalogue import BOTS, available, slugify
 def fill(template: str, **fields: str) -> str:
     """Substitutes `{name}`-style placeholders without `str.format`.
 
-    `format` would treat every brace in a template as a field, and a template for
-    an LLM bot is full of JSON: the tool schemas are literal `{...}`. Using it
-    here meant that adding a commented-out tool example to the template broke
-    `bot new` with a KeyError about a JSON key. Plain replacement cannot.
+    Plain replacement is used because the templates contain literal JSON braces
+    that `str.format` would interpret as fields.
     """
     for key, value in fields.items():
         template = template.replace("{" + key + "}", value)
@@ -221,11 +218,10 @@ uv run pokelike bot bench --bot {name} --dry-run
 
 
 def new_bot(name: str, root: Path | None = None, llm: bool = False) -> Path:
-    """Creates `bots/<name>/`, or explains why it cannot.
+    """Creates `bots/<name>/`, or raises if it already exists.
 
     With `llm=True` the bot starts from the shared LLM harness instead of an
-    empty `choose`, because an LLM bot that reimplements the loop is not
-    comparable with the others and the loop is the part nobody wants to write.
+    empty `choose`, because the loop is the part nobody wants to reimplement.
     """
     slug = slugify(name)
     base = Path(root) if root else BOTS
@@ -248,7 +244,6 @@ def new_bot(name: str, root: Path | None = None, llm: bool = False) -> Path:
         encoding="utf-8",
     )
     (d / "README.md").write_text(fill(README, name=slug), encoding="utf-8")
-    # Git does not track an empty directory, and a bot with no artifacts is
-    # normal — a rules bot needs none — so leave something to keep the shape.
+    # Git does not track empty directories, so leave a .gitkeep.
     (d / "artifacts" / ".gitkeep").write_text("", encoding="utf-8")
     return d

@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import argparse
 
-# rich when installed, plain argparse when not. The help has to render in an
-# environment where an optional dependency failed to install.
+# rich when installed, plain argparse when not.
 try:
     from rich_argparse import RawDescriptionRichHelpFormatter as _FORMATTER
 except ImportError:  # pragma: no cover
     _FORMATTER = argparse.RawDescriptionHelpFormatter
 
 
-# Three boxes, one per thing this repo does, and every command lives in exactly one.
+# Three boxes, one per thing this repo does.
 FAMILIES = (
     ("the game", (
         ("setup", "browser plus an offline copy of the game. Once"),
@@ -37,11 +36,9 @@ _FAMILY = dict(FAMILIES)   # name -> verbs, for the per-group boxes
 
 
 def _boxes(families) -> str:
-    """One bordered box per family (title + its verbs). Shared by the top-level
-    help and by every group screen, so all of them look the same.
+    """One bordered box per family (title + its verbs).
 
-    Falls back to plain text rather than failing: `--help` is the one thing that
-    must work even where an optional dependency did not install.
+    Falls back to plain text when rich is unavailable, because --help must always work.
     """
     try:
         from rich.console import Console

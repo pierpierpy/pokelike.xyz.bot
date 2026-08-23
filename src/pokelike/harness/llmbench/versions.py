@@ -1,9 +1,4 @@
-"""Harness versions, paths, fingerprints, and the slug that names a result file.
-
-Every model benchmark needs to know which version it is running under, where the
-frozen files live, and what content was on disk when the pass began. This module
-answers all three, and nothing else.
-"""
+"""Harness versions, paths, fingerprints, and the slug that names a result file."""
 
 from __future__ import annotations
 
@@ -11,30 +6,18 @@ import hashlib
 from pathlib import Path
 
 # --------------------------------------------------------------------------- paths
-#
-# __file__ is now one directory deeper than it was when this lived at
-# src/pokelike/harness/llmbench.py, so the parent count goes up by one.
-# Before: Path(__file__).resolve().parents[3] pointed at the repo root.
-# Now:    Path(__file__).resolve().parents[4] does.
 
 ROOT = Path(__file__).resolve().parents[4]
 BENCH = ROOT / "llm-bench"
 
-# Shared and NOT frozen: what drives the game, as opposed to what decides what the
-# game shows. Fingerprinted so a change is reported rather than absorbed.
+# Shared (not frozen) files fingerprinted so changes are reported.
 BROWSER = Path(__file__).resolve().parent.parent.parent / "core" / "browser.py"
 GAME = Path(__file__).resolve().parent.parent.parent / "core" / "game.py"
 RUNNER = Path(__file__).resolve().parent.parent.parent / "core" / "runner.py"
 
 
 def _bench() -> Path:
-    """Access BENCH through the package so monkeypatching L.BENCH propagates.
-
-    Tests patch `L.BENCH` (the __init__ attribute). Functions here must see that
-    patched value, so they go through `sys.modules[__package__]` rather than
-    reading the module-level name directly. The module-level BENCH is still
-    exported for normal (non-patched) code that reads the attribute.
-    """
+    """Returns BENCH through sys.modules so monkeypatching in tests propagates."""
     import sys
     pkg = sys.modules.get(__package__)
     if pkg is not None and hasattr(pkg, "BENCH"):
@@ -61,13 +44,10 @@ def harness_path(version: str) -> Path:
 
 
 def render_path(version: str) -> Path:
-    """The renderer frozen beside this harness.
+    """The renderer frozen beside this harness. Required, not optional.
 
-    Required, not optional. A harness that rendered with the shared module would
-    be measuring against a file the CLI is free to improve, which is the whole
-    thing this directory exists to avoid; and letting the key vanish when the
-    file is missing would turn a hole into silence, since a key nobody recorded
-    is a key nobody checks.
+    A harness without its own renderer would measure against the shared module,
+    which the CLI is free to improve at any time.
     """
     p = _bench() / version / "harness" / "render.py"
     if not p.is_file():
@@ -79,18 +59,11 @@ def render_path(version: str) -> Path:
 
 
 def script_paths(version: str) -> dict[str, Path]:
-    """The two JavaScript files this harness drives the game with.
+    """The two JavaScript files (bridge.js, init.js) this harness uses.
 
-    Frozen for a stronger reason than the renderer. A renderer decides how the
-    state is shown; these decide what the state IS. `bridge.js` chooses which
-    fields exist and the order `actions` come in, and a bot answers with an INDEX
-    into that list, so reordering silently changes what the same answer means.
-    `init.js` replaces Math.random and Date.now, and the run seed is built from
-    both: move a constant there and every seed maps to a different run, which does
-    not mark a recorded score, it voids it.
-
-    Handed to `Game(bridge=..., init=...)`, so the choice lives in the harness
-    directory rather than in the code that runs it.
+    These decide what the state IS: bridge.js chooses which fields exist and the
+    action order, and init.js pins Math.random and Date.now (the run seed). Both
+    are frozen per version. Handed to `Game(bridge=..., init=...)`.
     """
     bench = _bench()
     out = {}
@@ -112,29 +85,12 @@ def slug(model: str) -> str:
 
 
 def fingerprints(version: str) -> dict[str, str]:
-    """What the measurement actually depended on.
+    """SHA-256 hashes (truncated to 16 hex) of the seven files the measurement depends on.
 
-    Four files frozen beside the harness, and three shared ones hashed because
-    they cannot be.
-
-    The frozen four are everything that decides what a run IS: the loop, the text
-    the model reads, the state it is built from, and the pins that make a seed
-    replay. None of them can move under a recorded row, because nothing outside
-    that directory touches them.
-
-    The shared three drive the game. They are hashed rather than copied because
-    copying them would mean a harness carrying its own browser plumbing, which is
-    640 lines to freeze an engineering detail; when they change it is normally for
-    reasons that are not about content, and the mark is there to say so.
-
-    Not hashed: the game bundle, which is recorded separately as `game` because it
-    is downloaded rather than committed and has its own name and sha.
-
-    History. This used to be two keys, the harness and `pokelike.core.render`, on
-    the argument that copying the renderer would be worse than fingerprinting it.
-    That failed on the first real case: a defect in the shared renderer could not
-    be fixed for the person at the terminal without marking every score ever
-    recorded, so the benchmark was holding the CLI hostage. See ARCHITECTURE.md.
+    Four frozen files beside the harness (bot.py, render.py, bridge.js, init.js)
+    and three shared files (browser.py, game.py, runner.py) that drive the game.
+    The game bundle is recorded separately as `game` because it is downloaded, not
+    committed.
     """
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]  # noqa: E731
     frozen = {"bot.py": harness_path(version), "render.py": render_path(version)}
@@ -146,13 +102,7 @@ def fingerprints(version: str) -> dict[str, str]:
 def cross_run_memory(version: str) -> bool:
     """Whether this harness lets the model carry notes from one run into the next.
 
-    Asked of the harness rather than hardcoded here, because the harness is the
-    thing that knows: v1 declares `CROSS_RUN_MEMORY = True`, and a future version
-    that drops the idea says so by not declaring it. Nothing in this file has to
-    be edited when a version is added.
-
-    Reading it means importing the harness module, which is cheap and needs no
-    credentials: the class is only inspected, never constructed.
+    Determined by inspecting the harness class for a `CROSS_RUN_MEMORY` attribute.
     """
     from ...bot.catalogue import load_class
 

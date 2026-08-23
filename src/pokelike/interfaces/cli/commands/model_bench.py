@@ -1,7 +1,4 @@
-"""Model benchmark: the bench/board command handler.
-
-In: parsed args. Out: process exit code.
-"""
+"""Model benchmark: the bench/board command handler."""
 
 from __future__ import annotations
 
@@ -17,10 +14,7 @@ from .docker import _in_docker
 
 
 def cmd_llm_bench(args) -> int:
-    """Runs one or more models against a frozen harness version.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Runs one or more models against a frozen harness version."""
     from ....harness import llmbench
     from ..shared import validate_region_flags, effective_region
 
@@ -28,11 +22,10 @@ def cmd_llm_bench(args) -> int:
     campaign = getattr(args, "regions", None) is not None
     region = effective_region(args)
 
-    # Asked of both verbs. A version IS the question a row answers, so neither
-    # running nor reading can be done without naming one.
+    # Required for both `bench` and `board`: rows are never compared across versions.
     known = llmbench.versions()
     if not args.harness:
-        print("--harness is required: it decides which frozen scaffold the model is\n"
+        print("--harness is required: it decides which frozen harness the model is\n"
               "asked to play, and rows are never compared across versions.\n"
               f"  on disk: {', '.join(known) or 'none'}",
               file=sys.stderr)
@@ -46,21 +39,20 @@ def cmd_llm_bench(args) -> int:
         return _in_docker(args)
 
     if args.table:
-        # Fetched now, not stored: prices are somebody else's changing fact, and a
-        # cost written into a result would be a claim about today made months ago.
+        # Prices fetched live, not stored: they change and a cost embedded in a
+        # result would go stale.
         price = llmbench.prices()
         if not price:
             print("  (no price list: offline, so no cost column)", file=sys.stderr)
-        # The version asked for, and no other. Printing every version on disk put
-        # the table you wanted between tables you did not ask about.
+        # Print only the requested version's table.
         table = llmbench.format_table(args.harness, price)
         print()
         print(table or f"  nothing measured yet on harness {args.harness}")
         print(f"\n  all versions: {llmbench.write_readme(price)}")
         return 0
 
-    # Only the endpoint and the key: here the model is not a setting for one bot,
-    # it is the thing being measured, and it arrives per model in the loop below.
+    # Only endpoint and key from creds; the model is the thing being measured
+    # and arrives per model in the loop below.
     creds = llm_settings(args)
     creds.pop("model", None)
 
@@ -70,14 +62,8 @@ def cmd_llm_bench(args) -> int:
         print(e, file=sys.stderr)
         return 2
     if settings:
-        # Asked of the harness before the browser is up and the pre-flight is paid
-        # for. Below the `--table` branch and not above it, because `board` has no
-        # such flag at all: reading it there raised AttributeError on a command that
-        # was only printing a table.
-        #
-        # The constructor is what decides, and it names what it refused. Nothing
-        # here has a list of settings to check against, which is the point: a
-        # harness added tomorrow needs no change on this side.
+        # Validate settings against the harness constructor before starting the
+        # browser. The constructor names what it refuses.
         from ....bot.catalogue import load_class
 
         try:
@@ -110,17 +96,12 @@ def cmd_llm_bench(args) -> int:
     else:
         seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
 
-    # Asked of llmbench rather than compared here: it is the one rule whose
-    # failure puts an incomparable row in the table looking exactly like a
-    # comparable one, so it lives in one place and has a test.
+    # A partial seed list (fewer than 50) does not record.
     partial = not llmbench.records(seeds)
 
-    # Checked here, before the pre-flight spends a token, as well as inside
-    # `fan_out` where it cannot be bypassed. A harness that carries the model's
-    # notes between runs has no independent runs to hand out: splitting fifty seeds
-    # over eight workers gives eight separate notebooks, each covering a fraction of
-    # the pass, and the result depends on how the seeds were dealt. It would look
-    # like an ordinary row.
+    # A harness with cross-run memory cannot be parallelized: splitting seeds
+    # across workers gives independent notebooks whose result depends on the
+    # partition.
     if args.workers > 1 and llmbench.cross_run_memory(args.harness):
         print(f"harness {args.harness} lets the model keep notes between runs, so "
               f"the runs are not independent\nand the pass cannot be split across "
@@ -128,14 +109,11 @@ def cmd_llm_bench(args) -> int:
               file=sys.stderr)
         raise SystemExit(2)
 
-    # Asked once per model, before any seed is played. A model that cannot emit a
-    # tool call scores zero over fifty runs and takes half an hour to do it, and
-    # the only trace is fallback_rate at 1.0 afterwards. A few hundred tokens now
-    # instead of a wasted benchmark later.
+    # Pre-flight: one call per model to check tool-call support before spending
+    # fifty runs on a model that cannot emit them.
     #
-    # `preflight` reports rather than raises, deliberately: the harness is a frozen
-    # copy with its own exception classes, so there is nothing here that could
-    # reliably catch what it throws.
+    # Reports rather than raises, because the frozen harness has its own exception
+    # classes.
     preflight_said: dict[str, str] = {}
     if not args.no_preflight:
         alive = []
@@ -156,8 +134,7 @@ def cmd_llm_bench(args) -> int:
             raise SystemExit(1)
         models = alive
 
-        # What this is about to cost, before it is spent. The one question a
-        # progress bar can never answer and the one worth answering first.
+        # Estimated cost before committing.
         price = llmbench.prices()
         if price:
             total = 0.0
@@ -174,9 +151,7 @@ def cmd_llm_bench(args) -> int:
                 print(f"    estimated total: about ${total:.2f} "
                       f"({llmbench.estimate(args.harness, models[0], 1, None)['basis']})")
 
-    # One directory for this whole command: every pass of every model writes its
-    # log and its decision trace inside it, so `ls -t` lists your commands and
-    # `tail -f <dir>/*.log` follows one of them.
+    # One directory for this command: all passes write their logs and traces here.
     folder = llmbench.session_dir(args.harness)
     llmbench.record_command(folder, {
         "at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -187,32 +162,25 @@ def cmd_llm_bench(args) -> int:
         "workers": args.workers,
         "repeat": args.repeat,
         "records": not (args.dry_run or partial),
-        # What the harness was told beyond the shared flags. Recorded because a pass
-        # with a different setting is answering a different question, and the flags
-        # were the one thing nothing wrote down before.
+        # Harness-specific settings, recorded because they change the question.
         **({"settings": settings} if settings else {}),
-        # The region, recorded only when it is not the default. A Kanto pass is
-        # what every existing row is, so leaving it out keeps old files valid.
+        # Region, only when not the default (Kanto).
         **({"region": region_name(region)} if region != 1 else {}),
         **({"regions": "all"} if campaign else {}),
-        # The endpoint, never the key: which provider served a row changes what the
-        # row means, and is worth having later. A token is worth nothing later.
+        # The endpoint (not the key): which provider served a row matters.
         "endpoint": creds.get("endpoint") or os.environ.get("FW_ENDPOINT") or None,
         "preflight": preflight_said,
     })
     print(f"  writing to {folder}")
 
-    # In parallel each worker owns its own browser and its own server, so the
-    # parent starts neither. One at a time still uses this process's game, which
-    # keeps a single run cheap to look at.
+    # With multiple workers each owns its own browser; with one worker this
+    # process's game is reused.
     server = game = None
     if args.workers <= 1:
         server, game = _server_and_game(args)
     try:
-        # Model outer, pass inner. Repeats of one model back to back share the
-        # same conditions (same endpoint load, same hour) which is what makes
-        # the spread between them the model's own variance rather than the
-        # provider having a bad afternoon halfway through.
+        # Model outer, pass inner: repeats share the same conditions so the
+        # spread between them reflects the model's own variance.
         for model in models:
             for attempt in range(1, args.repeat + 1):
                 if args.repeat > 1:
@@ -236,17 +204,14 @@ def cmd_llm_bench(args) -> int:
                       f"fallback {one['fallback_rate']}, retried {one['retries']}")
                 print(f"    log {one.get('log')}")
                 print(f"    decisions {one.get('trace')}")
-                # Same rule as the main benchmark: a partial run is practice by
-                # definition, and --dry-run is how you spend a model's tokens
-                # without committing to what came out.
+                # Partial or dry runs are not recorded.
                 if args.dry_run or partial:
                     why = "--dry-run" if args.dry_run else f"only {len(seeds)} seeds"
                     print(f"    nothing recorded ({why})")
                     continue
                 print(f"    recorded in {llmbench.record(args.harness, model, one)}")
-            # Said per model rather than at the end, because with repeats this is
-            # the number that decides whether any gap to another model is real,
-            # and it is worth seeing before committing to the next model's spend.
+            # Print per-model spread when repeating, before committing to
+            # the next model's spend.
             if args.repeat > 1 and not (args.dry_run or partial):
                 st = llmbench.stats(
                     json.loads(llmbench.result_path(args.harness, model)
@@ -261,10 +226,7 @@ def cmd_llm_bench(args) -> int:
             server.stop()
 
     if not (args.dry_run or partial):
-        # WITH the price list. Without it every `$` and `$/run` cell is written as a
-        # dash, and since this regeneration runs at the end of every recorded pass it
-        # would silently wipe the money columns that `--table` had just filled in --
-        # which it did, three times, before anyone noticed the two paths disagreed.
+        # Regenerate the readme with prices so cost columns stay populated.
         money = llmbench.prices()
         llmbench.write_readme(money)
         table = llmbench.format_table(args.harness, money)

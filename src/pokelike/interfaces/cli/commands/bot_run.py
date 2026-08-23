@@ -1,7 +1,4 @@
-"""Bot competition: run and new commands.
-
-In: parsed args. Out: process exit code.
-"""
+"""Bot competition: run and new commands."""
 
 from __future__ import annotations
 
@@ -19,10 +16,7 @@ BOTS = Path(__file__).resolve().parents[5] / "bots"
 
 
 def cmd_bot(args) -> int:
-    """Runs a bot: the bot decides the moves, this only drives the loop.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Runs a bot: the bot decides the moves, this drives the loop."""
     from ....bot import create
     from ....core.runner import play_campaign
     from ....core.browser import region_name as _rname
@@ -41,9 +35,7 @@ def cmd_bot(args) -> int:
     campaign = getattr(args, "regions", None) is not None
     region = effective_region(args)
 
-    # Runs walk the seed forward, so a start that is fine on its own can still
-    # run off the end part way through. Better to say so now than to stop after
-    # the third of ten runs.
+    # Reject early if seed + runs would exceed the engine's 32-bit limit.
     if args.seed + args.runs > SEED_MAX:
         print(f"seed {args.seed} plus {args.runs} runs goes past the engine's "
               f"limit of {SEED_MAX - 1}: start lower.", file=sys.stderr)
@@ -87,8 +79,7 @@ def cmd_bot(args) -> int:
                 if args.watch and steps:
                     game.session.page.wait_for_timeout(args.pause)
 
-            # Streamed rather than printed at the end: a run takes tens of
-            # seconds, and watching it decide is the point of asking for a log.
+            # Stream decisions as they happen.
             def each_decision(entry):
                 print(render.trace_view([entry], detail=args.detailed), flush=True)
 
@@ -107,9 +98,8 @@ def cmd_bot(args) -> int:
                 record(bot=args.bot, seed=seed, state=r["final_state"],
                        score=r["score_detail"], steps=r["steps"], alive=game.last_alive,
                        extra=bot.metadata() if hasattr(bot, "metadata") else None)
-            # We print `score` (points without the time bonus) because it is the
-            # only comparable one: the time bonus is worth ~1000 on a scale where
-            # everything else is in the tens.
+            # Print score without time bonus, because the time bonus is pinned
+            # near 1000 and would drown out everything else.
             print(
                 f"run {i + 1}/{args.runs}  seed {seed}  "
                 f"steps {r['steps']:>3}  end {r['ending']:<16} "
@@ -123,10 +113,7 @@ def cmd_bot(args) -> int:
 
 
 def cmd_new_bot(args) -> int:
-    """Creates a bot folder that already plays, so it can be measured at once.
-
-    In: the parsed args. Out: the process exit code.
-    """
+    """Creates a bot folder that already plays, ready to be measured."""
     from ....arena.scaffold import new_bot
 
     try:
@@ -161,10 +148,7 @@ def cmd_new_bot(args) -> int:
 
 
 def bot_run_args(s) -> None:
-    """Registers the arguments for `pokelike bot run`.
-
-    In: the argparse subparser. Out: None (mutates the parser).
-    """
+    """Registers the arguments for `pokelike bot run`."""
     s.add_argument("--bot", default="random", help="which bot to play: a folder under bots/")
     s.add_argument("--seed", type=seed_arg, default=1)
     s.add_argument("--runs", type=int, default=3)
@@ -188,10 +172,7 @@ def bot_run_args(s) -> None:
 
 
 def bot_new_args(s) -> None:
-    """Registers the arguments for `pokelike bot new`.
-
-    In: the argparse subparser. Out: None (mutates the parser).
-    """
+    """Registers the arguments for `pokelike bot new`."""
     s.add_argument("name", help="what to call it, e.g. my-bot")
     s.add_argument("--llm", action="store_true",
                    help="start from the shared LLM harness: you write only the prompt")

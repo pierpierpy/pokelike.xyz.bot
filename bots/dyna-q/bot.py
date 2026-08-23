@@ -3,19 +3,8 @@
     pokelike bot run --bot dyna-q --runs 5
     pokelike bot bench --bot dyna-q --category rl
 
-This file is the EXAMPLE OF WHAT A SUBMISSION LOOKS LIKE, and it is deliberately
-self-contained: the state and action encoding is copied in here rather than
-imported from `experiments/dyna-q/`.
-
-That is not duplication by accident. A policy is only meaningful under the exact
-encoding it was trained with. If this file imported the training code, improving
-the training code would silently change what every previously
-submitted policy means, and old leaderboard entries would quietly become wrong.
-Freezing the encoding next to the weights is what keeps a submission valid
-forever.
-
-`ENCODING_VERSION` is checked against the one stored in the table, so a mismatch
-is an error rather than a bot that plays badly for reasons nobody can see.
+The state encoding is frozen in this file alongside the weights.
+The ENCODING_VERSION constant is checked on load, and a mismatch raises an error.
 """
 
 from __future__ import annotations
@@ -28,14 +17,12 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# Every encoding this bot can speak. A table carries the version it was trained
-# with, and old submissions must keep working: that is the whole point of
-# freezing the encoding next to the weights, so both live here side by side.
+# Both encoding versions this bot can speak, kept so tables trained under
+# either version still play.
 LATEST_ENCODING = 2
 
-# Its own folder, and nothing else. A bot is self-contained: the table sits
-# beside the code that reads it. POKELIKE_DYNAQ_TABLE still overrides, which is
-# how a candidate is measured before it is promoted.
+# The table lives beside this file. POKELIKE_DYNAQ_TABLE overrides for
+# measuring a candidate before promotion.
 HERE = Path(__file__).resolve().parent
 TABLE = HERE / "artifacts" / "weights.json"
 
@@ -102,10 +89,8 @@ def _base_key(state: dict[str, Any]) -> tuple:
 
 
 def state_key_v1(state: dict[str, Any]) -> tuple:
-    """Version 1 also keyed on which actions were on offer.
+    """Version 1: also keys on which actions are offered.
 
-    It fragmented the table badly — 563 states holding 686 state-action pairs,
-    so barely more than one action per state — which is why version 2 dropped it.
     Kept so tables trained under v1 still play.
     """
     offered = tuple(sorted({action_key(a) for a in state.get("actions") or []}))
@@ -159,7 +144,7 @@ class DynaQBot(Bot):
         self.rng = random.Random(seed)
 
     def metadata(self) -> dict[str, Any]:
-        """Goes into the run registry and the benchmark result."""
+        """Recorded in the run registry and the benchmark result."""
         return {
             "table": self.table_path.name,
             "encoding_version": self.encoding_version,
@@ -169,12 +154,7 @@ class DynaQBot(Bot):
         }
 
     def artifacts(self) -> list:
-        """What a submission of this bot must carry with it.
-
-        The weights alone are not enough to understand a result: the encoding
-        version says what the states mean, and without the training config the
-        score is a number nobody can reproduce or improve on.
-        """
+        """The files a submission of this bot carries."""
         from pokelike.arena.leaderboard import Artifact
 
         table = json.loads(self.table_path.read_text(encoding="utf-8"))
@@ -210,9 +190,7 @@ class DynaQBot(Bot):
         values = self.Q.get(s)
 
         if not values:
-            # A state never met in training. Falling back is not cheating, it is
-            # what any tabular policy has to do outside its table, and counting
-            # how often it happens tells you whether training covered enough.
+            # State not in the table; fall back to the safe heuristic.
             self.unseen += 1
             self._last_why = "state never seen in training, fell back to the safe rule"
             return self.fallback_move(state)

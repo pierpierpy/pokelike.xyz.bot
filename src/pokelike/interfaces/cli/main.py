@@ -1,9 +1,7 @@
 """The command line: the parser, and nothing else.
 
-A thin face over `core.game.Game`, the same class the API uses. No game logic
-lives here, and no command body either: each family of commands is its own
-module under `commands/`, the shared flags and helpers are in `shared.py`, and
-the boxed help is in `help.py`. What is left here is the shape of the CLI.
+A thin face over `core.game.Game`. No game logic lives here; command bodies
+are in `commands/`, shared flags in `shared.py`, and help text in `help.py`.
 """
 
 from __future__ import annotations
@@ -35,10 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
     # -h/--help still works, it is just not listed: only --port is worth showing.
     p.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
-    # The listing is in the epilog, grouped by family, so the brace list is replaced
-    # by a placeholder rather than printing eleven names on one line.
-    # The listing is the three boxes in the epilog, so argparse's own is suppressed
-    # rather than printing the same eight names again with no grouping.
+    # The grouped listing lives in the epilog, so argparse's own is suppressed.
     sub = p.add_subparsers(dest="command", required=False, metavar="<command>",
                            help=argparse.SUPPRESS)
 
@@ -113,8 +108,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="regenerate the state reference inside STATE.md")
     s.set_defaults(func=cmd_schema)
 
-    # `history`, not `stats`: this is what YOU played on this machine, and the
-    # name has to stop reading like a sibling of the standings.
+    # `history`: what you played on this machine.
     s = sub.add_parser("history")
     s.add_argument("-d", "--explain", action="store_true",
                    help="explain what each column means")
@@ -124,25 +118,18 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(list(argv) if argv is not None else sys.argv[1:])
 
-    # Credentials from `.env` at the repository root, if it is there and the shell
-    # has not already said otherwise. Here rather than inside the commands because
-    # the harness bots read `FW_ENDPOINT`/`FW_TOKEN`/`MODEL_ID` from the environment
-    # themselves, in their own constructors, so the environment is the one place
-    # that reaches all of them. It never overrides what you exported.
+    # Load credentials from `.env` at the repo root without overriding exports.
+    # Called here so every command (and every harness bot reading FW_ENDPOINT /
+    # FW_TOKEN / MODEL_ID from os.environ) picks them up.
     load_dotenv()
 
-    # Bare `pokelike` (no command) shows the help rather than erroring: the help
-    # is the most useful thing to see when you have not said what to do yet.
+    # Bare `pokelike` with no command shows help.
     if not hasattr(args, "func"):
         p.print_help()
         return 0
 
-    # Graceful exit. Ctrl-C (SIGINT -> KeyboardInterrupt) and `docker stop`
-    # (SIGTERM) both unwind cleanly: every command that owns a browser does so
-    # through a `with session()`/context manager, whose `__exit__` closes it on
-    # the way out. SIGTERM is turned into SystemExit so it travels through that
-    # same cleanup instead of killing the process where it stands, and Ctrl-C
-    # prints one line rather than a traceback.
+    # SIGTERM becomes SystemExit so it unwinds through context managers that
+    # close the browser. Ctrl-C prints one line rather than a traceback.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         return args.func(args)

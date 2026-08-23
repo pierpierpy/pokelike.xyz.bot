@@ -1,8 +1,8 @@
 """Configuration and error types for the LLM harness.
 
-LLMConfig is the single validated place for every knob an LLM bot can turn.
-The three error classes separate what should stop the run from what should fall
-back: an auth failure kills it, a timeout falls back, and a spent budget kills it.
+The LLMConfig class validates every knob an LLM bot can turn. The three error
+classes separate what should stop the run (auth, budget) from what should fall
+back (transient failures).
 """
 
 from __future__ import annotations
@@ -19,21 +19,15 @@ class LLMError(RuntimeError):
 class LLMConfigError(LLMError):
     """The setup is wrong and every call will fail the same way.
 
-    A bad token, a model name the endpoint does not serve, a URL that is not an
-    OpenAI-compatible API. Falling back on these would play a whole run on the
-    backup heuristic and report it as an LLM result, which, in a benchmark, puts
-    an entry on the leaderboard labelled `llm` that no model ever played.
-    So these stop the run instead.
+    Raised on bad tokens, unknown models, or unreachable endpoints. Stops the
+    run immediately rather than falling back.
     """
 
 
 class LLMBudgetError(LLMError):
     """The run asked for more tokens than the bot allowed itself.
 
-    Only raised when a config sets `token_budget`. A model that thinks ten times
-    longer than the others is not straightforwardly better than them, and over
-    fifty runs the difference is money, so a bot may declare a ceiling and be
-    held to it rather than discovering the bill afterwards.
+    Only raised when a config sets `token_budget`.
     """
 
 
@@ -45,14 +39,10 @@ StateView = Literal["screen", "json", "both"] | list[str]
 class LLMConfig(BaseModel):
     """Every knob an LLM bot can turn, in one validated place.
 
-    A bot sets the ones it cares about and inherits the rest:
-
         config = LLMConfig(prompt=GAME_RULES + "...", temperature=0.3)
 
-    `extra="forbid"` means a typo in a field name is caught the moment the bot is
-    built, not fifty runs later. Credentials are deliberately NOT here: the
-    endpoint and token come from the environment or the command line, because
-    this object is fingerprinted and written into `result.json`.
+    Uses `extra="forbid"` so a typo in a field name is caught at construction time.
+    Credentials are not stored here because this object is fingerprinted.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -61,6 +51,10 @@ class LLMConfig(BaseModel):
     model: str | None = None                    # pin an id, or None to take $MODEL_ID
     temperature: float = 0.6
     max_tokens: int = 1500
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None
+    # None omits the field entirely, for a model that rejects it. Everything else
+    # is sent as OpenAI's reasoning_effort. Not every provider supports every
+    # value; a model that only accepts a subset raises its own HTTP error.
     max_rounds: int = 4                          # tool rounds before the turn is given up
     memory: int = 6                              # past turns replayed; -1 = keep all
     token_budget: int = 0                        # per-run cap, 0 = none
@@ -78,31 +72,24 @@ class LLMConfig(BaseModel):
 
     # --- bag tool: opt-in by setting bag_tool = True ---
     bag_tool: bool = False
-    # Shared tools to leave out. The symmetric half of declaring one: a tool the
-    # view already answers is a round trip to learn something on the screen, and
-    # its schema costs tokens every turn whether it is called or not.
+    # Shared tools to leave out. Removing a tool the view already answers
+    # saves a round trip and the schema tokens every turn.
     drop_tools: tuple[str, ...] = ()                       # True = offer the bag tool
 
     # --- scratchpad: the last N finished turns travel verbatim ---
     scratch_turns: int = 0        # whole turns kept verbatim; 0 = off, -1 = all of them
-    # What fills the user slot of a KEPT turn. The slot cannot be dropped (an
-    # assistant message must follow a user one) but its content is a free choice:
-    #   "line"  a single marker. Cheapest, and it cannot be mistaken for the state
-    #   "brief" one line of facts, so the model can see what changed over the turns
-    #   "full"  the screen as it was. Measured at six and a half times the input
-    #           tokens, and it invites reasoning about a map that has since changed
+    # What fills the user slot of a kept turn:
+    #   "line"  a single marker (cheapest)
+    #   "brief" one line of facts about what changed
+    #   "full"  the full screen as it was
     scratch_state: str = "line"
-    # What survives when a campaign crosses from one region into the next. The
-    # notes by default, because they are the learning and the next region is where
-    # it would pay off; the rest is about a map that no longer exists.
+    # What survives when a campaign crosses from one region into the next.
     keep_across_regions: tuple[str, ...] = ("notes",)
 
     @field_validator("drop_tools")
     @classmethod
     def _may_not_drop_play(cls, v: tuple[str, ...]) -> tuple[str, ...]:
-        # `play` is how a turn ENDS. Without it the model has no way to commit, so
-        # every single turn would fall back, and the row would measure our heuristic
-        # under the bot's name. Refused here rather than discovered fifty runs in.
+        # The play tool is how a turn ends; without it every turn would fall back.
         if "play" in v:
             raise ValueError("play cannot be dropped: it is how a turn ends")
         return v

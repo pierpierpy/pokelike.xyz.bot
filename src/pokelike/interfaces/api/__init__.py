@@ -1,1 +1,1 @@
-"""HTTP JSON interface."""
+"""The HTTP JSON interface."""

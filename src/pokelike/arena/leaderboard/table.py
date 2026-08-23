@@ -1,8 +1,4 @@
-"""Building and formatting the leaderboard from measured results on disk.
-
-In: results from load_results(). Out: an index dict, a terminal table, or
-a markdown table written into bots/README.md.
-"""
+"""Building and formatting the standings from measured results on disk."""
 
 from __future__ import annotations
 
@@ -15,10 +11,7 @@ from .record import load_results
 
 
 def build_index(root: Path | None = None) -> dict[str, Any]:
-    """Regenerates index.json from whatever is measured on disk.
-
-    In: an optional root path. Out: the index dict with ranked entries.
-    """
+    """Regenerates index.json from whatever is measured on disk."""
     base = Path(root) if root else BOTS
     rows = []
     for e in load_results(base):
@@ -32,10 +25,7 @@ def build_index(root: Path | None = None) -> dict[str, Any]:
             "badges_best": s.get("badges_best"), "maps_mean": s.get("maps_mean"),
             "completed": s.get("completed"), "runs": s.get("runs"),
             "game": (e.get("game") or {}).get("sha256"),
-            # LLM rows only. `model` says what actually answered: a bot that
-            # takes $MODEL_ID plays a different model for whoever ran it, so the
-            # row is meaningless without it. `harness` and `fallback_rate` are
-            # the two ways such a row can be true and still misleading.
+            # LLM-specific metadata for the models sub-table.
             "model": notes.get("model"),
             "harness": notes.get("harness"),
             "fallback_rate": notes.get("fallback_rate"),
@@ -46,14 +36,12 @@ def build_index(root: Path | None = None) -> dict[str, Any]:
             "unverified": e.get("unverified", False),
             "artifacts": len(e.get("artifacts") or []),
         }
-        # Region: only stored when it is not the default, so existing index
-        # files stay byte-identical when nothing is non-kanto.
+        # Only stored when not kanto, so existing index files stay identical.
         if e.get("region") and e["region"] != "kanto":
             entry["region"] = e["region"]
         rows.append(entry)
-    # Ranked by badges, not score. The engine's score formula was written for the
-    # Battle Tower and two of its six terms never fire in Story mode, so it
-    # rewards fighting rather than getting further. See experiments/env/rewards.py.
+    # Ranked by badges, not score: the engine's score formula rewards fighting
+    # more than it rewards progress. See experiments/env/rewards.py.
     rows.sort(key=lambda r: (
         r["badges_mean"] is None, -(r["badges_mean"] or 0), -(r["score_mean"] or 0)
     ))
@@ -69,10 +57,7 @@ README_END = "<!-- END standings -->"
 
 
 def as_markdown(index: dict[str, Any]) -> str:
-    """The standings as a markdown table, ranked by badges.
-
-    In: the index dict. Out: the markdown string.
-    """
+    """Returns the standings as a markdown table, ranked by badges."""
     rows = index.get("entries") or []
     if not rows:
         return ("_No bots measured yet._ Yours would be the first, see "
@@ -91,10 +76,7 @@ def as_markdown(index: dict[str, Any]) -> str:
             f"| {n('score_mean')} | {n('score_best')} | `{r.get('fingerprint') or '-'}`{mark} |"
         )
 
-    # An LLM row is true and still misleading unless three things are visible:
-    # which model answered, which harness asked it, and how many turns it did
-    # not actually decide. A fallback is our heuristic playing under the model's
-    # name, so a row full of them measures us.
+    # LLM sub-table: shows model, harness version, and fallback rate.
     llm = [r for r in rows if r.get("model")]
     if llm:
         out += ["", "**Models.**", "",
@@ -133,10 +115,7 @@ def as_markdown(index: dict[str, Any]) -> str:
 
 
 def render_readme(root: Path, index: dict[str, Any]) -> Path | None:
-    """Writes the standings into bots/README.md, between the markers.
-
-    In: the bots root and the index dict. Out: the path to the README, or None.
-    """
+    """Writes the standings into bots/README.md, between the marker comments."""
     readme = Path(root) / "README.md"
     if not readme.is_file():
         return None
@@ -152,15 +131,11 @@ def render_readme(root: Path, index: dict[str, Any]) -> Path | None:
 
 
 def format_table(index: dict[str, Any]) -> str:
-    """Formats the leaderboard as a fixed-width terminal table.
-
-    In: the index dict. Out: the table string.
-    """
+    """Returns the standings as a fixed-width terminal table."""
     rows = index.get("entries") or []
     if not rows:
         return "no bots measured yet"
-    # Region column shown only when at least one entry is not kanto, so today's
-    # tables stay byte-identical until someone benchmarks a different region.
+    # Show region column only when at least one entry is not kanto.
     show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
     head = (f"{'bot':<20}{'category':>10}"
             + (f"{'region':>9}" if show_region else "")

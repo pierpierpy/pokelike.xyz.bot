@@ -8,34 +8,9 @@
 Trained by `experiments/sarsa/`. Sutton & Barto, 2nd edition: chapter 10
 for the semi-gradient control update, section 12.7 for the SARSA(lambda) form.
 
-WHICH ONE THIS IS
------------------
-The FIRST feature set: 81 features, encoding v1. It scored 1.30 badges over the
-fifty standard seeds and was the first policy to beat random with a margin worth
-believing (15W-10D-0L, t = 4.18 paired over 25 seeds).
-
-It is kept as its own bot rather than replaced by `sarsa-v2` because a
-leaderboard that overwrites its own history cannot tell you whether the next idea
-helped. The two are variants of one idea and the difference between them is the
-only thing either result is evidence about.
-
-WHY THE FEATURE CODE IS COPIED IN HERE
---------------------------------------
-Same reason as `bots/dyna-q/bot.py`, and it matters more here. A weight vector means
-nothing without the exact function that produced the vectors it multiplies:
-`w[43]` is a number, and only `feature_names()` says it is `mon_new_type`. If
-this file imported `experiments/sarsa/features.py`, then inserting one
-feature there would shift every index and silently reinterpret every policy ever
-submitted, including ones already on the leaderboard.
-
-There is a mechanical reason on top of the principle: a leaderboard entry
-archives ONE file, the one holding the bot's class, and hashes it for the entry
-id. Split the features into a second module and the archive keeps an
-unrunnable half and the hash stops identifying what actually ran.
-
-So: `FEATURES_VERSION` is frozen next to the weights, checked on load, and a
-mismatch is an error rather than a bot that plays badly for reasons nobody
-can see.
+This is the first feature set (81 features, encoding v1). The feature code is
+frozen in this file alongside the weights so the submission stays self-contained.
+The FEATURES_VERSION constant is checked on load, and a mismatch raises an error.
 """
 
 from __future__ import annotations
@@ -49,19 +24,12 @@ from typing import Any
 
 from pokelike.bot.base import Bot
 
-# Bumped whenever the feature vector changes meaning: a new feature, a removed
-# one, a different order, a different scale. Weights carry the version they were
-# trained under, and refusing to load a mismatch is the whole safeguard.
+# Bumped whenever the feature vector changes meaning. Weights carry the version
+# they were trained under; loading a mismatch raises an error.
 FEATURES_VERSION = 1
 
-# The weights this bot plays live NEXT TO IT, in artifacts/, and nowhere else.
-# An earlier version searched experiments/ first and then globbed every archived
-# entry for a weights.json, which meant the bot could load a file trained for a
-# different feature set and only find out at load time -- or, worse, silently
-# play a policy that was never the one measured.
-#
-# POKELIKE_SARSA_WEIGHTS still overrides, which is how a candidate gets measured
-# before it is promoted into a folder.
+# The weights live beside this file. POKELIKE_SARSA_WEIGHTS overrides for
+# measuring a candidate before promotion.
 HERE = Path(__file__).resolve().parent
 WEIGHTS = HERE / "artifacts" / "weights.json"
 
@@ -98,11 +66,7 @@ RE_DEF = re.compile(r"\bDEF\s+(\d+)")
 
 
 def parse_pokemon(label: str) -> dict[str, Any]:
-    """Pull what matters out of a Pokemon card's text.
-
-    The catch screen renders 'Psyduck Lv. 4 WATER SP.A 10 SPE 9 HP 18 DEF 8'.
-    All of it is on screen and none of it reached the tabular agent.
-    """
+    """Extract level, types, and stats from a Pokemon card's label text."""
     up = label.upper()
     types = [t for t in TYPES if re.search(rf"\b{t}\b", up)]
     lvl = RE_LEVEL.search(label)
@@ -145,11 +109,7 @@ def _leads_to(state: dict[str, Any], node_id: str) -> list[str]:
 
 
 def feature_names() -> list[str]:
-    """The vector's index order, named.
-
-    A trained weight vector can be read and argued with, which is most of the
-    point of using a linear model here.
-    """
+    """The vector's index order, named."""
     names = [
         "bias", "team_size", "min_hp", "mean_hp", "map_index", "depth",
         "badges", "any_fainted", "n_actions",
@@ -250,9 +210,7 @@ def features(state: dict[str, Any], action: dict[str, Any]) -> dict[int, float]:
             weakest = min(range(len(team)), key=lambda i: (team[i]["level"], hp_of[i]))
             put("equip_on_strongest", 1.0 if idx == strongest else 0.0)
             put("equip_on_weakest", 1.0 if idx == weakest else 0.0)
-            # On the swap screen the listed Pokemon is the one RELEASED, so
-            # releasing the weakest is the good move and releasing the best is
-            # the mistake. Same list, opposite meaning: see state["prompt"].
+            # On the swap screen the listed Pokemon is the one released.
             if screen == "swap-screen":
                 put("swap_out_weakest", 1.0 if idx == weakest else 0.0)
     return x
@@ -297,12 +255,7 @@ class SarsaBot(Bot):
         return sum(self.w[i] * v for i, v in x.items())
 
     def act(self, state: dict[str, Any]) -> int:
-        """Greedy over q̂(s, a, w). Ties broken at random, seeded.
-
-        There is no unseen-state fallback and none is needed: unlike a table,
-        a linear model returns a value for every action it has never met, which
-        is the reason for using one on a sample budget this small.
-        """
+        """Greedy over q̂(s, a, w). Ties broken at random, seeded."""
         self.decisions += 1
         actions = state["actions"]
         values = [self.q(features(state, a)) for a in actions]
@@ -323,7 +276,7 @@ class SarsaBot(Bot):
         return self._last_why
 
     def metadata(self) -> dict[str, Any]:
-        """Goes into the run registry and the benchmark result."""
+        """Recorded in the run registry and the benchmark result."""
         return {
             "weights": self.weights_path.name,
             "features_version": FEATURES_VERSION,
@@ -337,12 +290,7 @@ class SarsaBot(Bot):
         return [(name, round(w, 3)) for name, w in pairs[:n]]
 
     def artifacts(self) -> list:
-        """What a submission of this bot must carry with it.
-
-        The weights alone are not enough to understand a result: the feature
-        version says what the numbers index, and without the training config the
-        score is something nobody can reproduce or improve on.
-        """
+        """The files a submission of this bot carries."""
         from pokelike.arena.leaderboard import Artifact
 
         stored = json.loads(self.weights_path.read_text(encoding="utf-8"))

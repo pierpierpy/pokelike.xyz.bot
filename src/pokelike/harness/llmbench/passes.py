@@ -1,8 +1,8 @@
 """Running a pass: one model over the seed list, sequentially.
 
-A pass is a complete run of the standard seeds under one harness with one model.
-Sequential when the harness carries cross-run memory (runs depend on each other).
-For parallel execution (independent seeds, multiple subprocesses), see parallel.py.
+Sequential execution is required when the harness carries cross-run memory
+(runs depend on each other). For independent seeds with multiple subprocesses,
+see parallel.py.
 """
 
 from __future__ import annotations
@@ -31,42 +31,29 @@ def play_model(game, version: str, model: str, site: Path,
                attempt: int = 1, conversations: bool = True,
                settings: dict[str, Any] | None = None,
                region: int | str = 1, campaign: bool = False) -> dict[str, Any]:
-    """One pass: this model over the seed list, under this harness.
-
-    In: a Game instance, version, model, site path, optional seeds/credentials/
-    folder/attempt/settings. Out: the assembled pass dict.
-    """
+    """Plays one sequential pass: this model over the seed list under this harness."""
     from ...bot.catalogue import load_class
 
     seeds = seeds or STANDARD_SEEDS
     cls = load_class(harness_path(version))
-    # Straight to the constructor, which refuses what it does not know by name. A
-    # setting silently ignored is worse than one that does not exist, because the
-    # pass then answers a question nobody asked.
+    # The constructor refuses unknown keys by name.
     bot = cls(seed=0, model=model, endpoint=endpoint, token=token,
               **(settings or {}))
-    # Taken now, against the code about to play, not at the end against whatever
-    # is on disk by then.
+    # Fingerprint taken now, before play starts, not at the end.
     stamp = fingerprints(version)
     log = PassLog(version, model, seeds, workers=1, folder=folder,
                   attempt=attempt, memory=cross_run_memory(version),
                   region=region_name(normalise_region(region)) if region != 1 else None)
-    # Everything the model was actually given, beside the trace. Wraps the bot's own
-    # call_model, so a FROZEN harness is covered without being touched.
+    # Records what the model was actually sent, beside the decision trace.
     chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
     if conversations:
         chat.watch(bot)
     last = [time.time()]
 
-    # One bot for the whole pass, which is what resets a memory harness: notes
-    # survive `on_start` and so cross between runs, and nothing survives the bot,
-    # so the next pass starts naive. Nothing to reset by hand, and nothing that
-    # could be forgotten, which is why it is arranged this way rather than with a
-    # reset call.
-
-    # Token counts are per run: `on_start` resets them, so reading notes() once at
-    # the end would report only the last of fifty runs. `on_run` hands back the row
-    # itself, so each one carries what that run actually spent.
+    # One bot instance for the whole pass. Notes survive on_start and cross between
+    # runs; the next pass starts naive because nothing survives the bot.
+    #
+    # Token counts reset per run via on_start, so they are read per-run in on_run.
     def on_run(row: dict[str, Any], done: int, total: int) -> None:
         now = time.time()
         n = bot.metadata()
@@ -74,29 +61,19 @@ def play_model(game, version: str, model: str, site: Path,
                    calls=n.get("calls", 0), turns=n.get("turns", 0),
                    fallbacks=n.get("fallbacks", 0), retries=n.get("retries", 0),
                    secs=round(now - last[0], 1))
-        # Which run of the pass this was. Rows are stored in seed order, but a
-        # memory harness is only interpretable in the order it was PLAYED: the
-        # tenth run had nine runs' worth of notes behind it. Recorded for every
-        # version, because it costs one integer and its absence cannot be
-        # reconstructed afterwards.
+        # Play order within the pass, needed to interpret memory harnesses.
         row["order"] = done
         if "notebook" in n:
-            # What the model believed at the end of this run, saved with the run
-            # rather than once at the end of the pass, so a lesson that was learned
-            # and later revised away is still in the record.
+            # The model's notes at this run's end, saved per run to track revision.
             row["notebook"] = n["notebook"]
             row["notes_kept"] = n.get("notes_kept", len(n["notebook"]))
         if "plan" in n:
-            # The route it had committed to when the run ended. Per run, like the
-            # notebook, and for the same reason: the interesting object is how it
-            # changed, not where it landed.
+            # The route committed to at run end, saved per run like the notebook.
             row["plan"] = n["plan"]
         last[0] = now
         log.run(row)
 
-    # The observation the run loop is about to hand the bot, kept for exactly as
-    # long as it takes to write the decision that came out of it. `run_benchmark`
-    # already calls this before every decision for the progress bar.
+    # The latest observation, kept for the decided() callback.
     seen: dict[str, Any] = {}
 
     def looked(obs: dict[str, Any], _steps: int) -> None:
@@ -106,18 +83,7 @@ def play_model(game, version: str, model: str, site: Path,
     drawn = [""]
 
     def decided(e: dict[str, Any]) -> None:
-        """One decision, with what the bot did to reach it and what it was looking at.
-
-        The tool calls come from the BOT and not from the runner: the runner sees a
-        bot return an index, and everything between the question and the answer happens
-        inside `choose`. Every harness has them, its own list where it keeps one and a
-        wrapper around `run_tool` where it does not.
-
-        The map is drawn with the SHARED renderer, not the harness's frozen copy.
-        This is the log, not the prompt: it says where the run was, and the layer
-        picture is the same in every copy anyway. What the model actually read is
-        fixed by the harness and reproducible from it.
-        """
+        """Enriches a decision entry with tool calls and map view, then logs it."""
         enriched = enrich_decision(e, bot, seen.get("obs"), drawn)
         chat.flush()
         log.decision(enriched)
@@ -130,11 +96,7 @@ def play_model(game, version: str, model: str, site: Path,
             region=region, campaign=campaign,
         )
     except BaseException as e:
-        # A pass asked to stop is not a pass that broke. SIGTERM (`model stop`,
-        # `docker stop`) arrives as SystemExit(143) and Ctrl-C as KeyboardInterrupt,
-        # and both mean somebody decided this on purpose: recording those as FAILED
-        # made a deliberate stop look like an incident in `model watch --all`. The
-        # seeds already played are in the trace either way.
+        # Deliberate stops (SIGTERM, Ctrl-C) are logged as "stopped", not "failed".
         if isinstance(e, KeyboardInterrupt) or (
                 isinstance(e, SystemExit) and e.code in (130, 143)):
             log.stopped(f"{type(e).__name__}: {e.code if isinstance(e, SystemExit) else 'Ctrl-C'}")
@@ -146,9 +108,7 @@ def play_model(game, version: str, model: str, site: Path,
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
                    result.get("notes") or {}, fingerprint=stamp,
                    region=region_name(normalise_region(region)) if region != 1 else None)
-    # Named explicitly, not only implied by the paths below: those are absolute
-    # and were written inside the container, so `/app/...` is a directory that does
-    # not exist on the host reading the result. The stamp is the portable half.
+    # Stamp recorded explicitly; absolute log paths may not resolve on another host.
     one["stamp"] = log.stamp
     one["log"] = str(log.path)
     one["trace"] = str(log.trace_path)

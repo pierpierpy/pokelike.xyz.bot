@@ -1,20 +1,14 @@
 """Finding and loading the bots that live in `bots/`.
 
-A bot is a FOLDER, not a file in this package:
+Each bot is a folder, not a file in this package:
 
     bots/<name>/
-    ├── bot.py        one class inheriting from Bot. Self-contained.
-    ├── artifacts/    weights, prompts, tables — whatever it needs
+    ├── bot.py        one class inheriting from Bot, self-contained
+    ├── artifacts/    weights, prompts, tables
     └── result.json   what the benchmark measured, written by `pokelike bot bench`
 
-`src/pokelike/bot/` holds the interface every bot implements and the random
-baseline everything is measured against. Nothing else: an LLM bot needs prompts,
-an RL one needs weights, a search one needs tables, and none of that belongs in
-the package that runs them.
-
-Loaded by path rather than imported as a module, so a folder is enough — there is
-no package to install, no name to register, and someone can hand you a bot by
-handing you a directory.
+Bots are loaded by path rather than imported as a module, so a folder is enough
+and there is no name to register.
 """
 
 from __future__ import annotations
@@ -53,9 +47,8 @@ def available(root: Path | None = None) -> list[str]:
 def load_class(path: Path) -> type[Bot]:
     """The one Bot subclass defined in `bot.py`.
 
-    Executed under a unique module name so two bots can each define a class
-    called `MyBot` without one silently shadowing the other — which would be a
-    very confusing way to benchmark the wrong thing.
+    Each bot gets a unique module name so two bots can define a class called
+    `MyBot` without one shadowing the other.
     """
     path = Path(path)
     if not path.is_file():
@@ -73,8 +66,7 @@ def load_class(path: Path) -> type[Bot]:
         sys.modules.pop(modname, None)
         raise
 
-    # Defined HERE, not merely imported: a bot file importing Bot, or importing
-    # another bot for reference, must not be mistaken for defining one.
+    # Only classes defined in this module, not merely imported ones.
     found = [
         obj for obj in vars(module).values()
         if inspect.isclass(obj) and issubclass(obj, Bot) and obj is not Bot

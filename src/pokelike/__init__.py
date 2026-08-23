@@ -1,4 +1,4 @@
-"""pokelike — play pokelike.xyz headless from Python, a CLI or an HTTP API.
+"""pokelike: play pokelike.xyz headless from Python, a CLI or an HTTP API.
 
     from pokelike import session, open_game, play, compare, create
 

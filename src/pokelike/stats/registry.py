@@ -1,12 +1,4 @@
-"""Registry of played runs, so bots can be compared with each other.
-
-A SQLite file in `stats/runs.db`: standard library, queryable with plain SQL, no
-extra dependency. One row per run.
-
-    from pokelike.stats import record, summary
-    record(bot="random", seed=1, state=obs, score=s, steps=12)
-    print(summary())
-"""
+"""Registry of played runs stored in SQLite (stats/runs.db). One row per run."""
 
 from __future__ import annotations
 
@@ -63,9 +55,9 @@ def record(
 ) -> int:
     """Saves the outcome of a run. Returns the row id.
 
-    `state` is the final observation, `alive` the last one taken while the run
-    was still going. Both are needed: on the game-over screen the engine wipes
-    `state`, so team and badges have to come from `alive`.
+    `alive` is the last observation taken while the run was still going; the
+    engine wipes `state` on the game-over screen, so team and badges come from
+    `alive`.
     """
     s = score or {}
     b = s.get("breakdown") or {}
@@ -201,10 +193,8 @@ def format_summary(rows: list[dict[str, Any]], explain: bool = False) -> str:
     head = f"{COLUMNS[0][1]:<{COLUMNS[0][2]}}" + "".join(
         f"{name:>{width}}" for _, name, width in COLUMNS[1:]
     )
-    # The warning is the point of this header, not decoration. These columns are
-    # named like the leaderboard's and are not the same thing: arbitrary seeds,
-    # any number of runs, practice bots and abandoned names all mixed together.
-    # Read as a ranking it invents differences that do not exist.
+    # This header warns the user: the table uses arbitrary seeds and mixed runs,
+    # so it is not comparable between bots the way the standings are.
     out = ["practice runs on this machine, on whatever seeds you played, so not "
            "comparable between bots.",
            "", head, "-" * len(head)]

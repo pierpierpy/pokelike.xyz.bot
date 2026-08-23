@@ -11,9 +11,6 @@
     game.close()
 
 See `example.ipynb` in this folder for the cell-by-cell version.
-
-Like the other two interfaces this holds NO game logic: it starts things, stops
-them, and hands back the same `Game` the CLI and the API drive.
 """
 
 from .driver import compare, evaluate, format_comparison, open_game, play, session

@@ -1,11 +1,9 @@
 """Fallback policy and index parsing helpers.
 
 The backup heuristic plays when the model does not answer or returns something
-unusable. It is not random: it prefers what keeps the team alive (heal first if
-someone is hurt, otherwise widen the team).
-
-The two index helpers convert what a model returns into what the loop needs:
-_as_index coerces a tool argument, _parse_index fishes a valid index out of prose.
+unusable. It prefers what keeps the team alive (heal first if someone is hurt,
+otherwise widen the team). The two index helpers convert model output into the
+integer the loop needs.
 """
 
 from __future__ import annotations
@@ -15,12 +13,9 @@ from typing import Any
 
 
 def fallback_move_default(state: dict[str, Any]) -> int:
-    """Backup choice when the model does not answer or gets it wrong.
+    """Backup choice when the model does not answer or returns an invalid index.
 
-    Not random: it prefers what keeps the team alive: heal first if someone
-    is hurt, otherwise widen the team. Override it if your bot would rather
-    fail differently, but count on it being used: over fifty runs, something
-    times out.
+    Prefers heal → catch → item when someone is hurt, otherwise catch → item → heal.
     """
     actions = state["actions"]
     team = state.get("team") or []
@@ -35,9 +30,8 @@ def fallback_move_default(state: dict[str, Any]) -> int:
 
 
 def _as_index(v: Any) -> int | None:
-    """A tool argument as an int, or None. Models often send `"2"` (a string)
-    instead of `2`; treat a plain integer string as the integer it obviously
-    is, rather than throwing the decision away as malformed."""
+    """Coerces a tool argument to int, or returns None. Treats a plain integer
+    string like "2" as the integer 2."""
     if isinstance(v, bool):
         return None
     if isinstance(v, int):
@@ -50,9 +44,8 @@ def _as_index(v: Any) -> int | None:
 def _parse_index(text: str, n: int) -> int | None:
     """Last resort: fish a valid index out of a prose answer.
 
-    The LAST valid number, not the first: a model states its reasoning before
-    its conclusion ("option 0 looks weak, so I'll take 2"), so the answer is
-    the last index it names, not the first it mentions.
+    Returns the last valid number in the text, because a model typically states
+    reasoning before its conclusion.
     """
     valid = [v for v in (int(m.group(1)) for m in re.finditer(r"\[?(\d+)\]?", text))
              if 0 <= v < n]

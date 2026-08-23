@@ -1,9 +1,8 @@
 """Starting and driving the headless browser that runs the game.
 
-The game is JavaScript and needs a browser environment (`document`,
-`localStorage`, SVG). Headless means that environment exists in full but is
-never painted: no window, no pixels. We are not looking at a screen, we are
-talking to objects in memory.
+The game is JavaScript and needs a full browser environment (document,
+localStorage, SVG). Headless means no window and no pixels; the state exists
+entirely in memory.
 """
 
 from __future__ import annotations
@@ -16,70 +15,33 @@ from playwright.sync_api import Browser, Page, sync_playwright
 
 BRIDGE = Path(__file__).with_name("bridge.js")
 
-# The two JavaScript files, and the reason they are files rather than strings.
-#
-# `init.js` runs before the game bundle and pins its randomness; `bridge.js` runs
-# after it and is the whole surface Python drives the game through. Both decide
-# what a run IS, not merely how it is presented, so a harness in llm-bench/ takes
-# a frozen copy of each and passes it here. Keeping them on disk is what makes
-# that copy possible.
-#
-# Substituted with str.replace, not `%`: init.js is full of prose, and a comment
-# mentioning a percentage made `INIT_SCRIPT % cfg` raise "not enough arguments for
-# format string" from a line nowhere near the change.
+# init.js pins randomness before the bundle; bridge.js exposes the surface Python
+# drives the game through. Both are files on disk so that llm-bench harnesses can
+# pass frozen copies to the Session. Substituted with str.replace (not %-formatting)
+# because init.js contains literal percent signs in comments.
 CFG_MARK = "__PK_CFG_JSON__"
 INIT = Path(__file__).with_name("init.js")
 
-# The game's onboarding callouts ("Click a Pokemon to swap positions in your
-# team"), hidden because we cause them and never dismiss them.
-#
-# `init.js` clears localStorage so no saved state leaks between runs, which
-# means the game meets a first-time player on EVERY run and puts up the tutorial.
-# A human clicks it away; a bot never does, so the callouts pile up, one per team
-# slot, over the map and the battle screen alike.
-#
-# Purely cosmetic, and it has to be: they sit outside every `.screen`, so
-# `__pk_choices` never offered them, and actions are applied by dispatching an
-# event on the element rather than clicking a coordinate, so an overlay could
-# not have intercepted anything either. This buys clean screenshots, nothing
-# else. Applied on every run and not only under --watch, so that what a
-# screenshot shows is what a headless run did.
-#
-# It hides the LAYER as well as the callouts, and that is not tidiness. Hiding
-# only `.tutorial-callout` left `#tutorial-overlay` in place — invisible, but
-# still a body-level `position: fixed; inset: 0` element. The overlay detector
-# added to `bridge.js` afterwards duly found it, could not dismiss it because
-# everything inside was `display: none`, and span until `_settle` gave up 90
-# seconds later. Every step of every run. Two changes that were each correct
-# alone and deadlocked together.
+# Hides the game's tutorial callouts and the tutorial overlay layer. Since init.js
+# clears localStorage on every load, the game shows onboarding on every run. These
+# sit outside every .screen, so __pk_choices never offers them as actions. The layer
+# itself must also be hidden; leaving it visible blocks the overlay detector in
+# bridge.js and stalls _settle for 90 seconds per step.
 HIDE_TUTORIAL_CSS = (
     "#tutorial-overlay, .tutorial-callout { display: none !important; }"
 )
 
-# The engine's PRNG is 32-bit: `init.js` does `(cfg.seed >>> 0) || 1`.
-# That is the real range of a run seed, and going outside it fails in three ways
-# that all look like something else:
-#
-#   1. SQLite integers stop at 2**63, so a bigger seed plays a whole run and then
-#      dies in `record()`, throwing away the run that was just played.
-#   2. Seeds that differ by a multiple of 2**32 are the SAME run. The registry
-#      would file them as different ones, which is a lie in the one database
-#      whose whole purpose is reproducibility.
-#   3. Above 2**53 Python and JavaScript stop agreeing on the truncation: JSON
-#      hands JS a double, so `4000325235235324235237 >>> 0` is 2825912320 while
-#      Python's `& 0xFFFFFFFF` is 2825981413. So truncating on the Python side
-#      would not even record the seed that actually ran.
-#
-# Point 3 is why this rejects instead of truncating: there is no truncation that
-# is correct on both sides.
+# The engine's PRNG is 32-bit: init.js does `(cfg.seed >>> 0) || 1`.
+# Seeds outside 0..2**32-1 are rejected rather than truncated because Python's
+# `& 0xFFFFFFFF` and JavaScript's `>>> 0` disagree above 2**53, so no single
+# truncation is correct on both sides.
 SEED_MAX = 2**32
 
 
 def normalise_seed(seed: int) -> int:
-    """The seed the engine will really use, or an error explaining why not.
+    """Returns the seed the engine will actually use, or raises on invalid input.
 
-    `0` is folded to `1` because the engine's `|| 1` does exactly that, and a
-    seed recorded as 0 would name a run that was actually played with 1.
+    Seed 0 is folded to 1 because the engine's `|| 1` does the same.
     """
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise ValueError(f"the seed must be a whole number, got {type(seed).__name__}")
@@ -93,20 +55,18 @@ def normalise_seed(seed: int) -> int:
     return seed or 1
 
 
-# The four story regions, in the order the game lists their cards, which is also
-# the order their generation numbers run in. The name is what a person types and
-# what gets recorded; the number is what the engine's card index wants.
+# The four story regions in generation order. The name is what gets typed and
+# recorded; the index (0-based here, 1-based in the engine) selects the card.
 REGIONS = ("kanto", "johto", "hoenn", "sinnoh")
 
 
 def normalise_region(region: int | str) -> int:
     """Turns a region name or number into the engine's 1-based index.
 
-    In: 1-4, or one of kanto, johto, hoenn, sinnoh (any case). Out: 1-4.
+    Accepts 1-4 or one of kanto, johto, hoenn, sinnoh (any case). Returns 1-4.
     """
-    # Refused rather than defaulted to Kanto: a typo that quietly plays the first
-    # region would file a Johto row that never was, and nothing downstream could
-    # tell. The seed is checked before a run for the same reason.
+    # Refuses invalid input rather than defaulting to Kanto, because a typo
+    # would otherwise silently record the wrong region.
     if isinstance(region, bool):
         raise ValueError("the region must be a number 1-4 or a name, not a bool")
     if isinstance(region, int):
@@ -122,10 +82,7 @@ def normalise_region(region: int | str) -> int:
 
 
 def region_name(gen: int) -> str:
-    """The name of a region, from its number.
-
-    In: 1-4. Out: the lowercase name.
-    """
+    """Returns the lowercase name of a region given its 1-based number."""
     return REGIONS[normalise_region(gen) - 1]
 
 
@@ -135,8 +92,7 @@ DECISION_SCREENS = [
     "starter-screen", "trainer-screen", "stat-buff-screen", "trade-screen", "shiny-screen",
 ]
 TERMINAL_SCREENS = ["gameover-screen", "win-screen"]
-# Modals that are genuine in-run choices. Purely informational ones (settings,
-# Pokedex, patch notes) are excluded on purpose: a bot must never open them.
+# Modals that are genuine player choices (not informational ones like Pokedex).
 GAME_MODALS = [
     "item-equip-modal", "usable-item-modal", "item-discard-modal",
     "submap-pick-modal", "vitamin-apply-modal", "legend-voucher-modal", "shop-modal",
@@ -147,10 +103,8 @@ IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
 BLOCKED_HOSTS = (
     "fuseplatform", "googletagmanager", "googlesyndication", "doubleclick",
     "amazon-adsystem", "fonts.googleapis", "fonts.gstatic", "google-analytics",
-    # Two of the game's own dependencies: pokeapi.co (used by the Pokedex, which
-    # a bot never opens) and raw.githubusercontent (fallback for missing sprites,
-    # which the game handles with an emoji). Blocking them is what makes the
-    # environment genuinely offline.
+    # pokeapi.co (Pokedex, never opened by a bot) and raw.githubusercontent
+    # (sprite fallback) are blocked to keep the environment fully offline.
     "raw.githubusercontent", "pokeapi.co",
 )
 
@@ -162,27 +116,17 @@ class Session:
     url: str
     watch: bool = False
     max_delay: int = 1
-    # Milliseconds the virtual clock jumps on every `performance.now()` read.
-    # 64 -- four frames -- was measured as the knee: 4.4x faster than a real
-    # clock, while an 800 ms battle animation still gets sampled a dozen times.
-    # Going coarser bought another 5% and samples an animation three times,
-    # which is a poor trade against the chance of stepping over a state the
-    # engine acts on. 0 turns it off.
+    # Milliseconds the virtual clock jumps per performance.now() read. 64 is
+    # the measured knee: 4.4x faster than real-time while still sampling each
+    # animation a dozen times. Set to 0 to disable (used by --watch).
     tick: int = 64
-    # Sprites are decoration: a bot reads the game state, never pixels. Skipping
-    # them removes a few hundred decodes and layout passes per run. Off by
-    # default, because --watch and --shots obviously do want them.
+    # Skipping images removes layout passes per run. Off by default because
+    # --watch and --shots need them.
     load_images: bool = True
-    # The two scripts that define what a run IS. Default to the shared ones, which
-    # is what the CLI, the API and the bots in bots/ all want: they should follow
-    # an improvement, not be pinned away from it.
-    #
-    # A harness in llm-bench/ passes its own frozen copies instead. It renders with
-    # a frozen renderer for the same reason, but these two go deeper than
-    # presentation: bridge.js decides what is in the state at all and in what order
-    # `actions` come, and a bot answers with an INDEX into that list, so reordering
-    # silently changes what the same answer means. init.js is deeper still, since
-    # every seed maps to a different run if it moves.
+    # The two JS files that define a run. Default to the shared copies; a frozen
+    # harness in llm-bench/ passes its own instead. bridge.js controls the action
+    # order (a bot answers by index), and init.js controls the seed-to-run mapping,
+    # so changing either changes what a recorded result means.
     bridge: Path | None = None
     init: Path | None = None
     _pw: object | None = field(default=None, repr=False)
@@ -216,14 +160,12 @@ class Session:
             self._init_js().replace(CFG_MARK, json.dumps({
                 "seed": seed,
                 "max_delay": self.max_delay,
-                # A person watching wants to see the battle, not its conclusion.
+                # A person watching wants to see the battle play out, not its conclusion.
                 "tick": 0 if self.watch else self.tick,
             }))
         )
         page.goto(self.url, wait_until="domcontentloaded")
-        # Wait for the engine to exist rather than for a fixed 1.5 s. On a fast
-        # machine that sleep was most of the page load; on a slow one it was
-        # sometimes not enough.
+        # Wait for the engine globals to exist before injecting bridge.js.
         page.wait_for_function(
             "() => { try { return typeof state !== 'undefined'"
             " && typeof onNodeClick === 'function'; } catch (e) { return false; } }",
@@ -247,18 +189,12 @@ class Session:
         return page
 
     def _filter(self, route) -> None:
-        """Blocks ads and analytics, and records anything that left the machine.
-
-        `external_requests` is how the mirror learns what it is still missing.
-        """
+        """Blocks ads/analytics and records requests that leave localhost."""
         url = route.request.url
         if any(b in url for b in BLOCKED_HOSTS):
             route.abort()
             return
-        # The soundtrack. Measured: one 2.5 MB mp3 fetched and decoded per run,
-        # for a game with no window and nobody listening — more bytes than
-        # everything else on the page put together. `--mute-audio` silences
-        # playback but still downloads it; this does not download it.
+        # Skip soundtrack downloads in headless mode.
         if not self.watch and route.request.resource_type == "media":
             route.abort()
             return

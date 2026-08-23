@@ -1,10 +1,6 @@
 """HTTP transport: the single model call with retries and token accounting.
 
-Why `urllib` and not a client library: the package has two dependencies, and an
-LLM bot should not add a third. One wire format, OpenAI-compatible, which nearly
-every provider speaks (including Anthropic, through its compatibility endpoint).
-A multi-provider abstraction would be more code to maintain and one more place
-for two models to be asked subtly different questions.
+Uses urllib with the OpenAI-compatible wire format. No client library dependency.
 """
 
 from __future__ import annotations
@@ -28,37 +24,36 @@ def call_model_http(
     tools: list[dict[str, Any]],
     temperature: float,
     max_tokens: int,
+    reasoning_effort: str | None,
     seed: int,
     retries: int,
     token_budget: int,
     tokens_used: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Make one OpenAI-compatible chat/completions call with retries.
+    """Makes one OpenAI-compatible chat/completions call with retries.
 
-    Returns (message_dict, usage_dict). Raises LLMConfigError for anything that
-    would fail identically forever, LLMError for anything transient, and
-    LLMBudgetError when the token budget is spent.
-
-    The caller is responsible for updating its own counters from usage_dict.
-    The second element of the tuple is `{"retries": n}` merged with whatever the
-    API returned under `usage`, so the caller can tally retries.
+    Returns (message_dict, usage_dict). Raises LLMConfigError for permanent
+    failures, LLMError for transient ones, and LLMBudgetError when the token
+    budget is spent. When reasoning_effort is not None, the model reasons before
+    answering; a provider that rejects the field surfaces its own HTTP error.
     """
     if token_budget and tokens_used >= token_budget:
         raise LLMBudgetError(
             f"run spent {tokens_used} tokens, budget is {token_budget}"
         )
-    body = json.dumps({
+    payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "tools": tools,
         "tool_choice": "auto",
         "max_tokens": max_tokens,
         "temperature": temperature,
-        # Best effort only. Providers that honour it get closer to repeatable
-        # runs; most ignore it, and none of them promise it. Nothing here
-        # depends on it working (see `reproducible: False` in the artifacts).
+        # Best effort: most providers ignore it, none promise determinism.
         "seed": seed,
-    }).encode("utf-8")
+    }
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
+    body = json.dumps(payload).encode("utf-8")
 
     req = urllib.request.Request(
         f"{endpoint}/v1/chat/completions",
@@ -68,13 +63,8 @@ def call_model_http(
             "Content-Type": "application/json",
         },
     )
-    # Retried, with backoff, for the failures that are transient. A rate limit
-    # is not the model failing to answer: counted as a fallback it would show
-    # up as the model being bad at the game, and it is the first thing that
-    # happens when runs go in parallel.
-    #
-    # Auth and model-not-found are NOT retried: they fail identically
-    # forever, so trying again just wastes the run more slowly.
+    # Retries with backoff for transient failures (rate limits, 5xx).
+    # Auth and model-not-found are not retried because they fail identically forever.
     answer: dict[str, Any] | None = None
     retry_count = 0
     for attempt in range(retries + 1):

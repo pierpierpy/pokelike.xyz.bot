@@ -1,40 +1,22 @@
 """Text rendering of the game state, frozen beside the harness that uses it.
 
-A COPY of the part of `pokelike.core.render` this harness renders with, not an
-import of it. Same reason `bot.py` is a copy: the shared module is meant to
-improve, because the CLI reads it and so do the bots in `bots/`, and a benchmark
-needs the opposite. If this file imported that one, the next improvement made
-for a person reading a terminal would silently change what every recorded score
-on this harness meant.
+This is a copy of pokelike.core.render, not an import, because the shared module
+evolves freely for the CLI and bot submissions while a benchmark needs the renderer
+to stay fixed. Once a result exists beside this file, editing the file would change
+what every recorded score on this harness meant.
 
-So it is never edited once a result exists beside it. A new idea is a new
-harness directory, and the rows already recorded stay valid under the version
-that earned them.
+Two differences from the v0/v2 copy:
 
-TWO THINGS DIFFER FROM THE COPY UNDER v0, v1 AND v2, and both are the point of
-this version:
+1. actions_view() prints each node's tooltip (trainer archetype, types, gym
+   rosters, trade descriptions), read from the engine's getNodeLabel function.
+2. screen() shows the move tutor block only on the tutor screen, not every turn.
 
-  1. `actions_view` prints each node's `tooltip`, the text the game shows a person
-     resting the pointer on it: the trainer's archetype and which types they use, a
-     gym leader's roster with levels, what a trade does. Under v0 to v2 the state
-     did not carry it at all, so those runs are not comparable to these.
+Only screen() and team_view() are called by the harness. The shared module's
+graph_view, score_view, trace_view, and ending_view are not included here because
+the harness never calls them.
 
-  2. `screen` shows the MOVE TUTOR block only on the tutor screen. Under v0 to v2
-     it appeared on EVERY turn, because the bridge fills `offered_moves`
-     unconditionally and nothing gated on the screen. 187 characters a turn, about
-     58k tokens across a pass, describing an exchange that was not on offer. Those
-     rows keep the old behaviour, which is why their copy keeps it too.
-
-What is here is what the harness calls, and nothing else: `screen()` and
-`team_view()`, plus the three block renderers and the two tables `screen()`
-needs. The shared module also carries `graph_view` (the drawn map), plus
-`score_view`, `trace_view` and `ending_view`. Those are read by a person at a
-terminal and by nothing in here, so copying them would have been 300 lines of
-code this file cannot reach.
-
-Everything is rebuilt from `state`, a JavaScript object read as JSON. No pixel is
-ever inspected: the map below is not read from an image, we draw it ourselves
-from the nodes and edges.
+Everything is rebuilt from the state dict (a JavaScript object read as JSON). No
+pixels are inspected.
 """
 
 from __future__ import annotations
@@ -89,12 +71,9 @@ def team_view(team: list[dict] | None) -> str:
         bar = "#" * max(0, filled) + "." * max(0, 10 - filled)
         item = f"  [{p['item']}]" if p.get("item") else ""
         shiny = " *" if p.get("shiny") else ""
-        # Slot 0 is the Pokemon that enters the next battle. The numbers were
-        # already here but read as decoration; saying so makes the order legible
-        # as the decision it is.
+        # Slot 0 leads the next battle.
         lead = "  <- leads" if i == 0 and len(team) > 1 else ""
-        # What it actually attacks with. The engine knows; nothing on screen says
-        # it, so a player reading only the terminal was choosing blind too.
+        # The move the engine would use for this Pokemon.
         mv = p.get("move") or {}
         move = f"  {mv['name']} {mv.get('power', '?')}" if mv.get("name") else ""
         rows.append(
@@ -105,16 +84,8 @@ def team_view(team: list[dict] | None) -> str:
 
 
 def actions_view(actions: list[dict]) -> str:
-    """The numbered options, with what the game says each one is.
-
-    The `tooltip` is the text the game puts on screen when the pointer rests on
-    that node: the trainer's archetype and which types they use, a gym leader's
-    roster with levels, what a trade does. Someone playing in a browser reads it
-    before choosing, so a terminal that left it out was the poorer view, not the
-    equal one.
-
-    Absent on anything that is not a map node, and absent on older recordings,
-    hence the `.get`.
+    """The numbered options. For map nodes, the tooltip (trainer type, gym roster,
+    trade description) is appended when present.
     """
     if not actions:
         return "  (no actions)"
@@ -129,20 +100,11 @@ def actions_view(actions: list[dict]) -> str:
 
 
 def tutor_view(obs: dict[str, Any]) -> str:
-    """The tutor's offer against what that Pokemon already uses.
+    """The move tutor's offer compared against each team member's current move.
 
-    The buttons read "→ SURF:Wartortle Lv35" and carry neither power nor type,
-    so the comparison that decides the choice is not on screen at all. It is in
-    the state (`team[i].move` and `offered_moves[i]`) and this is where it
-    becomes readable.
-
-    Renders whenever `offered_moves` is present, which is every turn: the bridge
-    asks the engine what the tutor WOULD offer each member unconditionally, so
-    the question can be answered before reaching a tutor. Gating on the screen is
-    therefore the caller's job, and `screen()` does it. Kept that way round on
-    purpose, since a bot that wants to plan several maps ahead has a reason to
-    call this off a tutor screen and no way to get it back if this function
-    refused.
+    Renders whenever offered_moves is present in the state (the bridge fills it
+    unconditionally). Gating on the screen is the caller's job; screen() shows
+    this block only on the tutor screen.
     """
     offered = obs.get("offered_moves") or {}
     team = obs.get("team") or []
@@ -172,8 +134,7 @@ def screen(obs: dict[str, Any], with_legend: bool = False) -> str:
     )
     parts = ["=" * 72, head, "=" * 72]
     if obs.get("prompt"):
-        # What the screen is asking. Without it, "pick one of your team" is
-        # ambiguous between promoting and releasing.
+        # The prompt disambiguates what the screen is asking.
         parts += ["", f'  >> {obs["prompt"]}']
     parts += ["", "TEAM", team_view(obs.get("team"))]
 
