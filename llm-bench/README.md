@@ -35,7 +35,7 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` ⚠︎ | 1 | 50 | **1.88** | 0.238 | 8 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.59 | 0.0318 |
+| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.59 | 0.0318 |
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 

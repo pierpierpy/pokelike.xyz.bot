@@ -7,13 +7,13 @@
    "model": "deepseek/deepseek-v4-flash",
    "harness": "v6",
    "fingerprint": {
-    "bot.py": "acc26d4792b0c42f",
-    "render.py": "8f30efd3a982bd68",
-    "bridge.js": "ed4607926573b2cc",
-    "init.js": "6274624ff7590dd9",
-    "shared/browser.py": "e4600def5df8fc88",
-    "shared/game.py": "454435d2fc44ae19",
-    "shared/runner.py": "38fd7b148e40d1f0"
+    "bot.py": "e569918fe9f8ee54",
+    "render.py": "35ceee9bd4c9cd32",
+    "bridge.js": "1f33b7c3f58b1dca",
+    "init.js": "fbdd3780ddbc3eb6",
+    "shared/browser.py": "e3bb7b57ab662c92",
+    "shared/game.py": "b8586c4ec22bedad",
+    "shared/runner.py": "d0a794ca23da221e"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -2818,7 +2818,31 @@
    ],
    "stamp": "20260822-174905-3f4a",
    "log": "/app/llm-bench/v6/logs/20260822-174905-3f4a/deepseek--deepseek-v4-flash-pass1.log",
-   "trace": "/app/llm-bench/v6/logs/20260822-174905-3f4a/deepseek--deepseek-v4-flash-pass1.jsonl"
+   "trace": "/app/llm-bench/v6/logs/20260822-174905-3f4a/deepseek--deepseek-v4-flash-pass1.jsonl",
+   "refingerprinted": [
+    {
+     "on": "2026-08-23T00:33:14+00:00",
+     "was": {
+      "bot.py": "acc26d4792b0c42f",
+      "render.py": "8f30efd3a982bd68",
+      "bridge.js": "ed4607926573b2cc",
+      "init.js": "6274624ff7590dd9",
+      "shared/browser.py": "e4600def5df8fc88",
+      "shared/game.py": "454435d2fc44ae19",
+      "shared/runner.py": "38fd7b148e40d1f0"
+     },
+     "now": {
+      "bot.py": "e569918fe9f8ee54",
+      "render.py": "35ceee9bd4c9cd32",
+      "bridge.js": "1f33b7c3f58b1dca",
+      "init.js": "fbdd3780ddbc3eb6",
+      "shared/browser.py": "e3bb7b57ab662c92",
+      "shared/game.py": "b8586c4ec22bedad",
+      "shared/runner.py": "d0a794ca23da221e"
+     },
+     "why": "Same comment-only rewrite as commit e3e845b/87d8188; this result was added to disk as an untracked file after that pass ran, so it was missed until now. reasoning_effort defaults to None and this pass does not set it, so behavior is unaffected."
+    }
+   ]
   }
  ]
 }
