@@ -408,4 +408,3 @@ uv run pytest -q -m "not slow"      # skips the ones that drive a browser
 The suite needs the game to be on disk. Running `pokelike setup` provides the game
 files. Without the game on disk, the tests that touch the engine skip themselves, and
 the run goes green having checked nothing.
-</content>

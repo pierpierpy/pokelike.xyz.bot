@@ -276,4 +276,3 @@ guide, and the rules for changing the shared library or the benchmark, are in
 
 The game itself is somebody else's fan project. Once you have the local copy, this
 project generates no further traffic to them beyond the one-time download.
-</content>
