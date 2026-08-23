@@ -8,81 +8,27 @@ behavioural regression.
 
 So the same golden file stays valid across a full translation of this codebase,
 and any difference in it is a genuine bug.
+
+The actual replay logic (the policies, `_stable_action`, the play loop, `CASES`)
+lives in `pokelike.shared.fingerprint`, since `src/pokelike/harness/llmbench/`'s
+`behaviour` check plays the exact same replay for the exact same reason. This
+module re-exports it under the names this test suite and `record_golden.py`
+already use, so the golden file and the behaviour hash can never quietly
+disagree about what "stable" means.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from pokelike.shared.fingerprint import CASES, replay as fingerprint  # noqa: E402
+
 GOLDEN = Path(__file__).parent / "golden" / "runs.json"
-
-
-def policy_fixed(state: dict[str, Any]) -> int:
-    """Always the first legal action. Fully deterministic, no RNG involved."""
-    return 0
-
-
-def policy_cycling(state: dict[str, Any]) -> int:
-    """Cycles through the options, so the run does not always hug one branch."""
-    return state["steps"] % len(state["actions"])
-
-
-POLICIES = {"fixed": policy_fixed, "cycling": policy_cycling}
-
-
-def _stable_action(a: dict[str, Any]) -> str:
-    """A label that survives translation: it comes from the game, not from us."""
-    if a.get("kind") == "node":
-        return f"{a['id']}:{a['node']}"
-    # `label` is the button text rendered by the game itself (English), with any
-    # leading decoration removed.
-    #
-    # An item card reads "🤍 Silk Scarf +40% Normal move damage". That heart is
-    # not engine data about the run — it is what the game shows when a sprite
-    # fails to load, and `site/img/sprites/items/silk-scarf.png` is one of the
-    # holes the local copy is allowed to have (`mirror --phase verify` exists
-    # because copies differ). So whether it is there depends on a 404 arriving
-    # from our own asset server, which means the recorded trace depended on
-    # timing and on which files happen to be missing from the machine that
-    # recorded it. README states a missing sprite cannot change a run; this is
-    # what made that untrue of the fingerprint.
-    #
-    # Leading only: a shiny's ★ sits at the END of a Pokemon card and IS engine
-    # data about the run, so it stays.
-    label = (a.get("label") or "").lstrip()
-    while label and not label[0].isalnum():
-        label = label[1:].lstrip()
-    return f"el{a['idx']}:{label[:40]}"
-
-
-def fingerprint(game, seed: int, policy: str, max_steps: int = 120) -> dict[str, Any]:
-    """Plays one run and returns its fingerprint."""
-    choose = POLICIES[policy]
-    obs = game.reset(seed=seed)
-    trace: list[str] = []
-
-    while not obs.get("done") and obs.get("actions") and game.steps < max_steps:
-        i = choose(obs)
-        trace.append(f"{obs['screen']}|{len(obs['actions'])}|{_stable_action(obs['actions'][i])}")
-        obs = game.step(i)
-
-    s = game.score() or {}
-    alive = game.last_alive or obs
-    return {
-        "seed": seed,
-        "policy": policy,
-        "steps": game.steps,
-        "final_screen": obs.get("screen"),
-        "points": s.get("points_no_time"),
-        "breakdown": s.get("breakdown"),
-        "team": [
-            {"name": m["name"], "level": m["level"], "hp": m["hp"], "max_hp": m["max_hp"]}
-            for m in (alive.get("team") or [])
-        ],
-        "trace": trace,
-    }
 
 
 def load_golden() -> dict[str, Any]:
@@ -92,8 +38,3 @@ def load_golden() -> dict[str, Any]:
 def save_golden(data: dict[str, Any]) -> None:
     GOLDEN.parent.mkdir(parents=True, exist_ok=True)
     GOLDEN.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-
-
-# Runs recorded in the golden file. Deliberately few: each costs about ten
-# seconds of wall clock.
-CASES = [(1, "fixed"), (2, "fixed"), (3, "cycling"), (7, "cycling")]

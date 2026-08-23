@@ -12,7 +12,7 @@
     "bridge.js": "1f33b7c3f58b1dca",
     "init.js": "fbdd3780ddbc3eb6",
     "shared/browser.py": "e3bb7b57ab662c92",
-    "shared/game.py": "b8586c4ec22bedad",
+    "shared/game.py": "f8e5c5289d3fb3f0",
     "shared/runner.py": "d0a794ca23da221e"
    },
    "game": {
@@ -2851,6 +2851,16 @@
       "bot.py": "aa3102bd670b02f6"
      },
      "why": "test: HarnessV4 renamed to match its own version, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
+    },
+    {
+     "on": "2026-08-23T11:09:41+00:00",
+     "was": {
+      "shared/game.py": "b8586c4ec22bedad"
+     },
+     "now": {
+      "shared/game.py": "f8e5c5289d3fb3f0"
+     },
+     "why": "Blocco 2 dedup: extracted shared/config.py (DEFAULT_ASSET_PORT), shared/tokens.py, shared/heartbeat.py, shared/paths.py, shared/tables.py. core/game.py's url field became an f-string built from the shared port constant, same value (8422), zero behaviour change. (behaviour unchanged, code fingerprint only)"
     }
    ],
    "behaviour": "ad7fb0de8e2636b8",

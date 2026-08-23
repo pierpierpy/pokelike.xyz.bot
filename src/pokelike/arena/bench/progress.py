@@ -6,6 +6,8 @@ import os
 import sys
 from typing import Any
 
+from ...shared.tokens import tok as _tok  # noqa: F401 (re-exported for callers)
+
 
 def progress_bar(**kw: Any) -> Any:
     """Returns a tqdm bar that works both interactively and detached.
@@ -43,11 +45,6 @@ def progress_bar(**kw: Any) -> Any:
         flush = staticmethod(sys.stderr.flush)
 
     return Lines(**{"file": Sink(), "mininterval": 10.0, "ncols": 80, **kw})
-
-
-def _tok(n: int) -> str:
-    """Formats a token count as a short string like '35k' or '1.20M'."""
-    return f"{n / 1e6:.2f}M" if n >= 999_500 else f"{n / 1000:.0f}k"
 
 
 def live_fields(obs: dict[str, Any], bot: Any = None,

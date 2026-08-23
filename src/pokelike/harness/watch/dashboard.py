@@ -10,15 +10,13 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from ...shared.tokens import tok as _tok
+
 if TYPE_CHECKING:
     from .read import Pass
 
 
 # ---------------------------------------------------------------------- drawing
-
-
-def _fmt_tokens(n: int) -> str:
-    return f"{n / 1000:.0f}k" if n else "0"
 
 
 def _panel(p: "Pass", containers: list[str]):
@@ -61,7 +59,7 @@ def _runs_table(p: "Pass", limit: int = 12):
         t.add_row(str(r.seed), str(r.badges),
                   "[dim]-[/dim]" if r.score is None else str(r.score),
                   str(r.steps),
-                  _fmt_tokens(r.tokens_in), _fmt_tokens(r.tokens_out),
+                  _tok(r.tokens_in), _tok(r.tokens_out),
                   f"[yellow]{r.fell}[/yellow]" if r.fell else "0",
                   f"{r.secs:.0f}" if r.secs else "[dim]-[/dim]")
     if not finished:

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ...bot.catalogue import BOTS
+from ...shared.tables import show_region as _show_region
 from .record import load_results
 
 
@@ -136,7 +137,7 @@ def format_table(index: dict[str, Any]) -> str:
     if not rows:
         return "no bots measured yet"
     # Show region column only when at least one entry is not kanto.
-    show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
+    show_region = _show_region(rows)
     head = (f"{'bot':<20}{'category':>10}"
             + (f"{'region':>9}" if show_region else "")
             + f"{'runs':>6}{'badge~':>8}{'badge+':>8}"

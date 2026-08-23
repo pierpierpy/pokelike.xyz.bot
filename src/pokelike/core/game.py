@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..shared.config import DEFAULT_ASSET_PORT
 from .browser import Session, normalise_region, normalise_seed, region_name
 
 
@@ -29,7 +30,7 @@ class IllegalAction(RuntimeError):
 
 @dataclass
 class Game:
-    url: str = "http://127.0.0.1:8422/"
+    url: str = f"http://127.0.0.1:{DEFAULT_ASSET_PORT}/"
     watch: bool = False
     max_delay: int = 1
     scoring: bool = True

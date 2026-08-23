@@ -14,6 +14,8 @@ import threading
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+from ..shared.config import DEFAULT_ASSET_PORT
 from urllib.parse import unquote, urlparse
 
 TYPES = {
@@ -30,7 +32,7 @@ class AssetServer:
     def __init__(
         self,
         root: Path,
-        port: int = 8422,
+        port: int = DEFAULT_ASSET_PORT,
         upstream: str | None = None,
     ) -> None:
         self.root = Path(root)

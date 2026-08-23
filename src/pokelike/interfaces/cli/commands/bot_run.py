@@ -12,7 +12,7 @@ from ....stats import record
 from ..shared import SITE_ROOT, _server_and_game, add_llm_flags, llm_settings, seed_arg, \
     add_region_flags, validate_region_flags, effective_region
 
-BOTS = Path(__file__).resolve().parents[5] / "bots"
+from ....shared.paths import BOTS  # noqa: F401 (re-exported for callers)
 
 
 def cmd_bot(args) -> int:

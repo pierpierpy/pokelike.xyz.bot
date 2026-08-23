@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -13,7 +12,7 @@ if TYPE_CHECKING:
 
 from .liveness import HEARTBEAT_STALE  # noqa: F401  re-exported for the package
 
-BENCH = Path(__file__).resolve().parents[4] / "llm-bench"
+from ...shared.paths import BENCH  # noqa: F401  re-exported for the package
 
 # The package re-exports BENCH and _containers, and tests monkeypatch the package
 # attribute. This accessor reads from the package so patches are always visible.

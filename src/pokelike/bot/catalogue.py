@@ -23,8 +23,7 @@ from typing import Any
 
 from .base import Bot
 
-ROOT = Path(__file__).resolve().parents[3]
-BOTS = ROOT / "bots"
+from ..shared.paths import BOTS  # noqa: F401 (re-exported for callers)
 
 
 def slugify(name: str) -> str:

@@ -8,8 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ...arena.bench import STANDARD_SEEDS, _tok
+from ...arena.bench import STANDARD_SEEDS
 from ...logging import LEARN_K
+from ...shared.tables import show_region as _show_region
 from .pricing import cost
 from .versions import _bench, cross_run_memory, versions
 
@@ -36,7 +37,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
     # Learn column only shown for harnesses with cross-run memory.
     learns = cross_run_memory(version)
     # Region column: shown only when at least one row is not kanto.
-    show_region = any(r.get("region") and r["region"] != "kanto" for r in rows)
+    show_region = _show_region(rows)
     # Settings column: shown only when at least one row has a --set override,
     # e.g. two rows for the same model under `reasoning=low` and `reasoning=high`.
     show_settings = any(r.get("settings") for r in rows)

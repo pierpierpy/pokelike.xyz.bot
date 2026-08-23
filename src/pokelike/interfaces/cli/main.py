@@ -11,6 +11,7 @@ import signal
 import sys
 
 from ...assets.mirror import PHASES
+from ...shared.config import DEFAULT_ASSET_PORT
 from .help import _FAMILY, _FORMATTER, _boxes, groups_epilog
 from .shared import load_dotenv, seed_arg, add_region_flags
 from .commands.general import (cmd_api, cmd_mirror, cmd_play, cmd_schema,
@@ -30,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=_FORMATTER,
         add_help=False,
     )
-    p.add_argument("--port", type=int, default=8422, help="port of the game-file server")
+    p.add_argument("--port", type=int, default=DEFAULT_ASSET_PORT, help="port of the game-file server")
     # -h/--help still works, it is just not listed: only --port is worth showing.
     p.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
     # The grouped listing lives in the epilog, so argparse's own is suppressed.

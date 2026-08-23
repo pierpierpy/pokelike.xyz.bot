@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 
+from ...shared.tokens import tok as _tok
 from .discover import (
     BENCH,
     _get_containers,
@@ -71,9 +72,6 @@ def _running_table(version: str | None):
 
     from ..llmbench.pricing import cached_prices, cost
 
-    def toks(n: int) -> str:
-        return f"{n / 1e6:.1f}M" if n >= 1e6 else (f"{n / 1e3:.0f}k" if n else "0")
-
     # Estimated cost at today's list price, fetched once and cached. A model
     # the list does not know prints a dash.
     price = cached_prices()
@@ -115,7 +113,7 @@ def _running_table(version: str | None):
             rest = (total - done) * per
             left = f"{rest / 3600:.1f}h" if rest > 5400 else f"{rest / 60:.0f}m"
         t.add_row(str(i), p.version, p.model, bar, f"{mean:.2f}",
-                  f"{toks(tin)}/{toks(tout)}", money,
+                  f"{_tok(tin)}/{_tok(tout)}", money,
                   f"[yellow]{fell}[/yellow]" if fell else "0",
                   left, f"[dim]{d.name}[/dim]")
     return t, len(running)

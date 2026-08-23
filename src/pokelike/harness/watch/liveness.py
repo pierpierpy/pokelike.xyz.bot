@@ -5,10 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-# A live pass touches `<trace>.alive` every few seconds (see llmbench.PassLog).
-# Five minutes of silence is the cutoff. Read from the file's mtime so there is
-# no wall-clock or timezone guessing.
-HEARTBEAT_STALE = 300.0
+from ...shared.heartbeat import HEARTBEAT_STALE  # noqa: F401 (re-exported for readers)
 
 
 def _alive_fresh(trace: Path) -> bool:

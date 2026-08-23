@@ -35,8 +35,8 @@ vary from pass to pass.
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.25 | 0.0250 |
-| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.02 | 0.0204 |
+| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.22 | 0.0244 |
+| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 0.99 | 0.0198 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -48,7 +48,7 @@ vary from pass to pass.
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.47 | 0.0294 |
+| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.43 | 0.0286 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -69,7 +69,7 @@ vary from pass to pass.
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.80 | 0.0159 |
+| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.78 | 0.0155 |
 | 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
 | 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
 | 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |

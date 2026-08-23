@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from ...shared.config import DEFAULT_ASSET_PORT
 from pathlib import Path
 
 from .fetch import (
@@ -154,7 +156,7 @@ def phase_repair(root: Path, missing: list[str], log=_log) -> dict[str, int]:
     return {"ok": ok, "failed": failed}
 
 
-def phase_played(root: Path, runs: int = 3, port: int = 8422, log=_log) -> dict[str, int]:
+def phase_played(root: Path, runs: int = 3, port: int = DEFAULT_ASSET_PORT, log=_log) -> dict[str, int]:
     """Plays with auto-fill on, to capture the URLs built at runtime."""
     from ...core.game import Game
     from ..server import AssetServer

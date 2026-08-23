@@ -13,11 +13,10 @@ import socket
 import threading
 from pathlib import Path
 
+from ..shared.heartbeat import HEARTBEAT_STALE  # noqa: F401 (re-exported for callers)
+
 # Seconds between touches of the .alive file.
 HEARTBEAT_SECS = 5.0
-
-# Seconds after which a pass whose .alive has not been touched is considered dead.
-HEARTBEAT_STALE = 300.0
 
 
 class HeartbeatThread:

@@ -7,8 +7,7 @@ from pathlib import Path
 
 # --------------------------------------------------------------------------- paths
 
-ROOT = Path(__file__).resolve().parents[4]
-BENCH = ROOT / "llm-bench"
+from ...shared.paths import BENCH, ROOT  # noqa: F401 (re-exported for callers)
 
 # Shared (not frozen) files fingerprinted so changes are reported.
 BROWSER = Path(__file__).resolve().parent.parent.parent / "core" / "browser.py"

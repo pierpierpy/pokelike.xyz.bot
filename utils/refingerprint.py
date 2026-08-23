@@ -41,6 +41,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from pokelike.shared.fingerprint import BEHAVIOUR_SCHEMA  # noqa: E402
+from pokelike.shared.fingerprint import code_fingerprint as _bot_fingerprint  # noqa: E402
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,19 +74,6 @@ def _tree_dirty() -> bool:
 
 
 # ---------------------------------------------------------------------- bots
-
-
-def _bot_fingerprint(bot_dir: Path) -> str:
-    """Recompute a bot folder's fingerprint (same as arena/leaderboard/artifact.py)."""
-    import hashlib
-    h = hashlib.sha256()
-    files = [bot_dir / "bot.py", *sorted((bot_dir / "artifacts").glob("**/*"))]
-    for f in files:
-        if not f.is_file():
-            continue
-        h.update(str(f.relative_to(bot_dir)).encode("utf-8"))
-        h.update(f.read_bytes())
-    return h.hexdigest()
 
 
 def _bot_behaviour(bot_dir: Path) -> str | None:

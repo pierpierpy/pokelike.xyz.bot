@@ -12,7 +12,7 @@
     "bridge.js": "ca47c33140fb5924",
     "init.js": "18d492c8387bef12",
     "shared/browser.py": "e3bb7b57ab662c92",
-    "shared/game.py": "b8586c4ec22bedad",
+    "shared/game.py": "f8e5c5289d3fb3f0",
     "shared/runner.py": "d0a794ca23da221e"
    },
    "game": {
@@ -1617,6 +1617,16 @@
       "shared/runner.py": "d0a794ca23da221e"
      },
      "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
+    },
+    {
+     "on": "2026-08-23T11:09:41+00:00",
+     "was": {
+      "shared/game.py": "b8586c4ec22bedad"
+     },
+     "now": {
+      "shared/game.py": "f8e5c5289d3fb3f0"
+     },
+     "why": "Blocco 2 dedup: extracted shared/config.py (DEFAULT_ASSET_PORT), shared/tokens.py, shared/heartbeat.py, shared/paths.py, shared/tables.py. core/game.py's url field became an f-string built from the shared port constant, same value (8422), zero behaviour change."
     }
    ]
   }
