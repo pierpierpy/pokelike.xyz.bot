@@ -80,6 +80,11 @@ def run_benchmark(
                    ("seed", "steps", "score", "badges", "maps", "kos", "faints", "ending",
                     "stalled")}
             row["region"] = full.get("region") or rname
+            # A single-region run plays exactly one region's Elite Four; it is
+            # cleared if the run ended on the win screen. Matches the campaign
+            # branch above, which counts the same thing across several regions.
+            row["regions_played"] = 1
+            row["regions_cleared"] = 1 if row["ending"] == "win-screen" else 0
 
         runs.append(row)
         done = [r["score"] for r in runs if r["score"] is not None]

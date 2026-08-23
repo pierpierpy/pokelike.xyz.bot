@@ -33,10 +33,12 @@ vary from pass to pass.
 
 ### Harness `v7`
 
-| # | model | set | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.25 | 0.0250 |
-| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.02 | 0.0204 |
+| # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.25 | 0.0250 |
+| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.02 | 0.0204 |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
@@ -44,61 +46,71 @@ vary from pass to pass.
 
 ### Harness `v6`
 
-| # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.47 | 0.0294 |
+| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.47 | 0.0294 |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
 ### Harness `v5`
 
-| # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **0.96** | 0.185 | 8 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
+| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **0.96** | 0.185 | 8 | 0 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
 ### Harness `v4`
 
-| # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.80 | 0.0159 |
-| 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
-| 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
-| 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
-| 6 | `openai/gpt-5.6-luna-pro` | 1 | 50 | **1.02** | 0.078 | 4 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
-| 7 | `z-ai/glm-4.7-flash` | 1 | 50 | **0.98** | 0.105 | 4 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
-| 8 | `x-ai/grok-4.3` | 1 | 50 | **0.96** | 0.09 | 4 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
-| 9 | `meta-llama/llama-4-scout` | 1 | 50 | **0.9** | 0.129 | 4 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
-| 10 | `openai/gpt-5-nano` | 1 | 50 | **0.8** | 0.099 | 3 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
-| 11 | `mistralai/mistral-medium-3.1` | 1 | 50 | **0.78** | 0.092 | 3 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
-| 12 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
+| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
+| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.80 | 0.0159 |
+| 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
+| 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
+| 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
+| 6 | `openai/gpt-5.6-luna-pro` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
+| 7 | `z-ai/glm-4.7-flash` | 1 | 50 | **0.98** | 0.105 | 4 | 0 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
+| 8 | `x-ai/grok-4.3` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
+| 9 | `meta-llama/llama-4-scout` | 1 | 50 | **0.9** | 0.129 | 4 | 0 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
+| 10 | `openai/gpt-5-nano` | 1 | 50 | **0.8** | 0.099 | 3 | 0 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
+| 11 | `mistralai/mistral-medium-3.1` | 1 | 50 | **0.78** | 0.092 | 3 | 0 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
+| 12 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | 0 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
 ### Harness `v2`
 
-| # | model | passes | runs | badges~ | ±sem | best | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
-| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.61 | 0.0122 |
-| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
-| 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
+| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | 0 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
+| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.61 | 0.0122 |
+| 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | 0 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
+| 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | 0 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
 ### Harness `v0`
 
-| # | model | passes | runs | badges~ | ±sem | best | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `anthropic/claude-haiku-4.5` | 1 | 50 | **1.1** | 0.149 | 6 | 59492 | 8876 | 0.0 | 5.19 | 0.1039 |
-| 2 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.96** | 0.09 | 4 | 41576 | 20894 | 0.071 | 0.11 | 0.0022 |
-| 3 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 37740 | 13965 | 0.027 | 0.15 | 0.0029 |
-| 4 | `openai/gpt-5.4-mini` | 1 | 50 | **0.7** | 0.082 | 2 | 22619 | 1089 | 0.006 | 1.09 | 0.0219 |
-| 5 | `openai/gpt-5.6-luna` | 1 | 50 | **0.7** | 0.065 | 1 | 31488 | 3167 | 0.0 | 0.50 | 0.0101 |
-| 6 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 34881 | 968 | 0.0 | 0.19 | 0.0038 |
-| 7 | `openai/gpt-5-nano` | 1 | 50 | **0.66** | 0.073 | 2 | 20602 | 26157 | 0.468 | 0.57 | 0.0115 |
+| # | model | passes | runs | badges~ | ±sem | best | Elite4 | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `anthropic/claude-haiku-4.5` | 1 | 50 | **1.1** | 0.149 | 6 | 0 | 59492 | 8876 | 0.0 | 5.19 | 0.1039 |
+| 2 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | 41576 | 20894 | 0.071 | 0.11 | 0.0022 |
+| 3 | `qwen/qwen3.7-flash` | 1 | 50 | **0.76** | 0.093 | 3 | 0 | 37740 | 13965 | 0.027 | 0.15 | 0.0029 |
+| 4 | `openai/gpt-5.4-mini` | 1 | 50 | **0.7** | 0.082 | 2 | 0 | 22619 | 1089 | 0.006 | 1.09 | 0.0219 |
+| 5 | `openai/gpt-5.6-luna` | 1 | 50 | **0.7** | 0.065 | 1 | 0 | 31488 | 3167 | 0.0 | 0.50 | 0.0101 |
+| 6 | `google/gemma-4-31b-it` | 1 | 50 | **0.68** | 0.088 | 3 | 0 | 34881 | 968 | 0.0 | 0.19 | 0.0038 |
+| 7 | `openai/gpt-5-nano` | 1 | 50 | **0.66** | 0.073 | 2 | 0 | 20602 | 26157 | 0.468 | 0.57 | 0.0115 |
+
+`Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 <!-- END llm-bench -->
 

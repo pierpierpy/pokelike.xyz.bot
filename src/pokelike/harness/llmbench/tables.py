@@ -44,7 +44,8 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
             + (f"{'region':>9}" if show_region else "")
             + (f"{'set':>18}" if show_settings else "")
             + f"{'badges~':>9}{'±sem':>7}"
-            f"{'med':>5}{'best':>6}{'won':>5}" + (f"{'learn':>8}{'notes':>7}" if learns else "")
+            f"{'med':>5}{'best':>6}{'won':>5}{'Elite4':>7}"
+            + (f"{'learn':>8}{'notes':>7}" if learns else "")
             + f"{'tok in/run':>11}{'tok out/run':>12}{'fallback':>9}"
             + (f"{'$':>8}{'$/run':>9}" if money else ""))
     out = [f"models on harness {version}, {len(STANDARD_SEEDS)} seeds a pass. "
@@ -60,7 +61,7 @@ def format_table(version: str, price: dict[str, dict[str, float]] | None = None)
             + (f"{(r.get('region') or 'kanto'):>9}" if show_region else "")
             + (f"{settings_str or '-':>18}" if show_settings else "")
             + f"{r['badges_mean']:>9}{r['badges_sem']:>7}{r['badges_median']:>5}"
-            f"{r['badges_best']:>6}{r.get('won', 0):>5}"
+            f"{r['badges_best']:>6}{r.get('won', 0):>5}{r.get('elite4', 0):>7}"
             + ((f"{lc['delta']:>+8.2f}" if lc.get("delta") is not None else f"{'-':>8}")
                + f"{r.get('notes_kept') if r.get('notes_kept') is not None else '-':>7}"
                if learns else "")
@@ -96,9 +97,9 @@ def markdown_table(version: str,
     scol, shdr = ("| set ", "|---") if show_settings else ("", "")
     lcol, lhdr = ("| learn | notes ", "|--:|--:") if learns else ("", "")
     out = [f"### Harness `{version}`", "",
-           f"| # | model {scol}| passes | runs | badges~ | ±sem | best {lcol}| tok in/run "
+           f"| # | model {scol}| passes | runs | badges~ | ±sem | best | Elite4 {lcol}| tok in/run "
            f"| tok out/run | fallback | $ | $/run |",
-           f"|--:|---{shdr}|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|--:|"]
+           f"|--:|---{shdr}|--:|--:|--:|--:|--:|--:{lhdr}|--:|--:|--:|--:|--:|"]
     for i, r in enumerate(rows, 1):
         flag = " ⚠︎" if r.get("stale") else ""
         usd = cost(r["tokens_in_per_run"] * r["runs"],
@@ -117,10 +118,15 @@ def markdown_table(version: str,
         each = None if usd is None else usd / r["runs"]
         out.append(
             f"| {i} | `{r['model']}`{flag} {settings_cell}| {r['passes']} | {r['runs']} | "
-            f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} {cell}| "
+            f"**{r['badges_mean']}** | {r['badges_sem']} | {r['badges_best']} | "
+            f"{r.get('elite4', 0)} {cell}| "
             f"{r['tokens_in_per_run']} | {r['tokens_out_per_run']} | "
             f"{r['fallback_rate']} | {'n/a' if usd is None else f'{usd:.2f}'} "
             f"| {'n/a' if each is None else f'{each:.4f}'} |")
+    out += ["", "`Elite4` is how many of this row's runs beat an Elite Four, "
+                "summed. A single-region run is 1 if it ended on the win screen, "
+                "0 otherwise; a multi-region campaign run counts every region it "
+                "cleared, even one it later died in."]
     if learns:
         out += ["", f"`learn` is the last {LEARN_K} runs of a pass minus its "
                     f"first {LEARN_K}, in the order played. This harness lets "

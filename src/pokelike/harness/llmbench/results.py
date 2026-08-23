@@ -111,6 +111,22 @@ def learning(passes: list[dict[str, Any]], k: int = LEARN_K) -> dict[str, Any]:
     }
 
 
+def _elite4_cleared(run: dict[str, Any]) -> int:
+    """How many Elite Fours this one run beat.
+
+    `regions_cleared` is the real count for a run that played several regions
+    in one campaign; for a run that played only one region, it is 1 if that
+    region's Elite Four was beaten, 0 otherwise. Every run recorded before this
+    field existed has no `regions_cleared` key at all: for those, a single
+    region was always what got played, so the same rule (win-screen means the
+    one Elite Four in that run was beaten) gives the same answer without a
+    backfill script.
+    """
+    if "regions_cleared" in run:
+        return run["regions_cleared"] or 0
+    return 1 if run.get("ending") == "win-screen" else 0
+
+
 def stats(doc: dict[str, Any], version: str | None = None,
           passes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Pooled statistics over every run of every pass, with across-pass spread.
@@ -154,6 +170,11 @@ def stats(doc: dict[str, Any], version: str | None = None,
         # Runs that reached the win screen. Badges cap at 8, so without this
         # column the standings cannot distinguish a win from an Elite Four loss.
         "won": sum(1 for r in runs if r.get("ending") == "win-screen"),
+        # How many Elite Fours this group's runs beat in total. For a
+        # single-region pass this is the same count as `won` (one Elite Four
+        # per run, at most); for a multi-region campaign pass it can exceed
+        # `won`, since a run that dies in region 3 still cleared regions 1-2.
+        "elite4": sum(_elite4_cleared(r) for r in runs),
         # Spread across passes: isolates the model's sampling noise from seed luck.
         "pass_spread": round(max(per_pass) - min(per_pass), 3) if len(per_pass) > 1 else None,
         "tokens_in_per_run": round(tok_in / len(runs)),
