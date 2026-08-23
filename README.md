@@ -267,10 +267,11 @@ prints every decision along with the screen it was made on.
 
 ## Maintainers & contributing
 
-Maintained by [@pierpierpy](https://github.com/pierpierpy). The bot arena is open
-to anyone. Fork the repo, add a folder under `bots/`, and open a pull request. A
-submission needs no permission and touches only your own folder. The full guide, and
-the rules for changing the shared library or the benchmark, are in
+Maintained by [@pierpierpy](https://github.com/pierpierpy), reachable at
+[dipasquale.piergiorgio@gmail.com](mailto:dipasquale.piergiorgio@gmail.com). The bot
+arena is open to anyone. Fork the repo, add a folder under `bots/`, and open a pull
+request. A submission needs no permission and touches only your own folder. The full
+guide, and the rules for changing the shared library or the benchmark, are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The game itself is somebody else's fan project. Once you have the local copy, this
