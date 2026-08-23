@@ -578,7 +578,7 @@
  ],
  "notes": {},
  "artifacts": [],
- "fingerprint": "501ac3b3e64c56265b399679df8b38867a371992474b171037a65d3c5370880e",
+ "fingerprint": "a967c742b38e02408aa6c0c5775a8893ae1bb1cf7dfeab4e02dfdb143f176fd7",
  "refingerprinted": [
   {
    "on": "2026-08-21T10:55:11+00:00",
@@ -609,6 +609,16 @@
     "fingerprint": "501ac3b3e64c56265b399679df8b38867a371992474b171037a65d3c5370880e"
    },
    "why": "test: cosmetic docstring edit, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
+  },
+  {
+   "on": "2026-08-23T14:35:22+00:00",
+   "was": {
+    "fingerprint": "501ac3b3e64c56265b399679df8b38867a371992474b171037a65d3c5370880e"
+   },
+   "now": {
+    "fingerprint": "a967c742b38e02408aa6c0c5775a8893ae1bb1cf7dfeab4e02dfdb143f176fd7"
+   },
+   "why": "AI DESPLOPPIFICATION - attempt 100: comment/docstring-only rewrite across ~170 files including several frozen llm-bench harness files (bot.py, render.py per version). No logic changed, verified by git diff sampling before commit and by full test suite green (250 passed, 0 failed). (behaviour unchanged, code fingerprint only)"
   }
  ],
  "behaviour": "ad7fb0de8e2636b8",

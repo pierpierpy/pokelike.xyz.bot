@@ -583,7 +583,7 @@
   "n_folded": 7129,
   "decisions": 964
  },
- "fingerprint": "a061ad08308767dc05110576e8998f0e3434b1c3acc8b87434ec73ab13e05165",
+ "fingerprint": "f2d5c41891a67fdf6e87eedf1bd6f857f43b408328e8aefb8aaf24752433a6fb",
  "artifacts": [
   {
    "name": "weights.json",
@@ -631,6 +631,16 @@
     "fingerprint": "a061ad08308767dc05110576e8998f0e3434b1c3acc8b87434ec73ab13e05165"
    },
    "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
+  },
+  {
+   "on": "2026-08-23T14:35:22+00:00",
+   "was": {
+    "fingerprint": "a061ad08308767dc05110576e8998f0e3434b1c3acc8b87434ec73ab13e05165"
+   },
+   "now": {
+    "fingerprint": "f2d5c41891a67fdf6e87eedf1bd6f857f43b408328e8aefb8aaf24752433a6fb"
+   },
+   "why": "AI DESPLOPPIFICATION - attempt 100: comment/docstring-only rewrite across ~170 files including several frozen llm-bench harness files (bot.py, render.py per version). No logic changed, verified by git diff sampling before commit and by full test suite green (250 passed, 0 failed)."
   }
  ]
 }

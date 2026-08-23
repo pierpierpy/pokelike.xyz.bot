@@ -7,13 +7,13 @@
    "model": "openai/gpt-5-nano",
    "harness": "v4",
    "fingerprint": {
-    "bot.py": "037629e696c2ead7",
-    "render.py": "dec2e18133aef09f",
+    "bot.py": "326975cd54e53e5f",
+    "render.py": "c62a7c00c9bdd531",
     "bridge.js": "ca47c33140fb5924",
     "init.js": "18d492c8387bef12",
-    "shared/browser.py": "e3bb7b57ab662c92",
-    "shared/game.py": "f8e5c5289d3fb3f0",
-    "shared/runner.py": "d0a794ca23da221e"
+    "shared/browser.py": "084534b67415b19e",
+    "shared/game.py": "c979527c4b3ad847",
+    "shared/runner.py": "2fb5dba19d55f38b"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1650,6 +1650,24 @@
       "shared/game.py": "f8e5c5289d3fb3f0"
      },
      "why": "Blocco 2 dedup: extracted shared/config.py (DEFAULT_ASSET_PORT), shared/tokens.py, shared/heartbeat.py, shared/paths.py, shared/tables.py. core/game.py's url field became an f-string built from the shared port constant, same value (8422), zero behaviour change."
+    },
+    {
+     "on": "2026-08-23T14:35:22+00:00",
+     "was": {
+      "bot.py": "037629e696c2ead7",
+      "render.py": "dec2e18133aef09f",
+      "shared/browser.py": "e3bb7b57ab662c92",
+      "shared/game.py": "f8e5c5289d3fb3f0",
+      "shared/runner.py": "d0a794ca23da221e"
+     },
+     "now": {
+      "bot.py": "326975cd54e53e5f",
+      "render.py": "c62a7c00c9bdd531",
+      "shared/browser.py": "084534b67415b19e",
+      "shared/game.py": "c979527c4b3ad847",
+      "shared/runner.py": "2fb5dba19d55f38b"
+     },
+     "why": "AI DESPLOPPIFICATION - attempt 100: comment/docstring-only rewrite across ~170 files including several frozen llm-bench harness files (bot.py, render.py per version). No logic changed, verified by git diff sampling before commit and by full test suite green (250 passed, 0 failed)."
     }
    ]
   }
