@@ -1,7 +1,8 @@
 """A bot that picks uniformly at random among the legal actions.
 
-This is the baseline: it ignores the state entirely and dies within a few dozen
-moves. It is reproducible; the same seed replays the same run.
+This is the baseline. It ignores the state entirely and dies within a few
+dozen moves, and it is fully reproducible: the same seed always replays the
+same run, since Python's random module is seeded once at construction.
 """
 
 from __future__ import annotations

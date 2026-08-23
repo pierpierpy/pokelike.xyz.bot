@@ -38,6 +38,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+
+from pokelike.arena.behaviour import BEHAVIOUR_SCHEMA  # noqa: E402
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def _write(path: Path, doc: dict) -> None:
@@ -80,8 +88,48 @@ def _bot_fingerprint(bot_dir: Path) -> str:
     return h.hexdigest()
 
 
+def _bot_behaviour(bot_dir: Path) -> str | None:
+    """This bot's behaviour hash: does the engine it plays through still decide
+
+    the same thing? Plays the short deterministic replay used everywhere else
+    in this file (see `src/pokelike/arena/behaviour.py`) through the same
+    bridge.js this bot actually uses when it runs: its own
+    `artifacts/bridge.js` if it carries one, the shared live one otherwise.
+    `init.js` is never a bot's to override (it pins the seeded clock the
+    standard seeds depend on), so it is always the shared one. Returns None
+    rather than raising when the replay cannot be played (missing `site/`,
+    browser not installed), since a re-fingerprint should still be possible
+    with the plain, provenance-only check when this optional part fails.
+    """
+    try:
+        from pokelike.arena.behaviour import behaviour_hash
+        from pokelike.assets.server import AssetServer
+        from pokelike.core.game import Game
+        from pokelike.interfaces.python.driver.session import free_port
+
+        own_bridge = bot_dir / "artifacts" / "bridge.js"
+        kwargs = {"bridge": own_bridge} if own_bridge.is_file() else {}
+        server = AssetServer(ROOT / "site", port=free_port())
+        server.start()
+        game = Game(url=server.url, **kwargs)
+        try:
+            game.open()
+            return behaviour_hash(game)
+        finally:
+            game.close()
+            server.stop()
+    except Exception:
+        return None
+
+
 def _scan_bots() -> list[dict]:
     """Find bot results and check whether they need re-stamping.
+
+    A code fingerprint mismatch alone is not drift: a comment or a rename
+    changes it without moving a single decision. When a bot's result carries a
+    `behaviour` hash, a mismatched code fingerprint is only reported as real
+    drift if the behaviour hash disagrees too; a result recorded before this
+    field existed falls back to the plain code-only check, exactly as before.
 
     Out: list of dicts with path, kind, current fingerprint, and drift info.
     """
@@ -98,13 +146,24 @@ def _scan_bots() -> list[dict]:
         if not recorded:
             continue
         current = _bot_fingerprint(d)
+        code_match = recorded == current
+        recorded_behaviour = doc.get("behaviour")
+        current_behaviour = None
+        match = code_match
+        if not code_match and recorded_behaviour:
+            current_behaviour = _bot_behaviour(d)
+            if current_behaviour is not None:
+                match = recorded_behaviour == current_behaviour
         entries.append({
             "path": r,
             "kind": "bot",
             "name": d.name,
             "recorded": recorded,
             "current": current,
-            "match": recorded == current,
+            "recorded_behaviour": recorded_behaviour,
+            "current_behaviour": current_behaviour,
+            "code_matched": code_match,
+            "match": match,
         })
     return entries
 
@@ -142,6 +201,13 @@ def _current_frozen(version: str) -> dict[str, str]:
 def _scan_llmbench() -> list[dict]:
     """Find llm-bench passes and check which have drifted fingerprint keys.
 
+    A drifted key is not itself real drift: a comment or a class rename
+    changes every one of the seven hashes without moving a single decision.
+    When a pass carries a `behaviour` hash, drifted keys are only reported as
+    real drift if the current behaviour hash for that version disagrees with
+    the one the pass recorded; a pass from before this field existed falls
+    back to the old key-by-key check.
+
     Out: list of dicts with path, kind, pass index, and drift details.
     """
     entries = []
@@ -149,6 +215,19 @@ def _scan_llmbench() -> list[dict]:
     if not bench.is_dir():
         return entries
     shared = _current_shared()
+    # One behaviour replay per version, not per pass, computed only if some
+    # pass under that version has a drifted key to begin with.
+    behaviour_cache: dict[str, str | None] = {}
+
+    def _current_behaviour(version: str) -> str | None:
+        if version not in behaviour_cache:
+            try:
+                from pokelike.harness import llmbench as _lb
+                behaviour_cache[version] = _lb.behaviour(version, ROOT / "site")
+            except Exception:
+                behaviour_cache[version] = None
+        return behaviour_cache[version]
+
     for vdir in sorted(bench.iterdir()):
         rdir = vdir / "results"
         if not rdir.is_dir():
@@ -168,6 +247,14 @@ def _scan_llmbench() -> list[dict]:
                     for k, v in pfp.items()
                     if k in current_fp and current_fp[k] != v
                 }
+                code_matched = len(drifted) == 0
+                recorded_behaviour = p.get("behaviour")
+                current_behaviour = None
+                match = code_matched
+                if not code_matched and recorded_behaviour:
+                    current_behaviour = _current_behaviour(vdir.name)
+                    if current_behaviour is not None:
+                        match = recorded_behaviour == current_behaviour
                 entries.append({
                     "path": f,
                     "kind": "llm-bench",
@@ -177,7 +264,10 @@ def _scan_llmbench() -> list[dict]:
                     "recorded": pfp,
                     "current": current_fp,
                     "drifted_keys": drifted,
-                    "match": len(drifted) == 0,
+                    "recorded_behaviour": recorded_behaviour,
+                    "current_behaviour": current_behaviour,
+                    "code_matched": code_matched,
+                    "match": match,
                 })
     return entries
 
@@ -197,6 +287,9 @@ def _apply_bot(entry: dict, reason: str, now_iso: str) -> None:
     }
     doc.setdefault("refingerprinted", []).append(log_entry)
     doc["fingerprint"] = entry["current"]
+    if entry.get("current_behaviour"):
+        doc["behaviour"] = entry["current_behaviour"]
+        doc["behaviour_schema"] = BEHAVIOUR_SCHEMA
     _write(path, doc)
 
 
@@ -216,6 +309,10 @@ def _apply_llmbench(entry: dict, reason: str, now_iso: str) -> None:
         "why": reason,
     }
     p.setdefault("refingerprinted", []).append(log_entry)
+    if entry.get("current_behaviour"):
+        p["behaviour"] = entry["current_behaviour"]
+        p["behaviour_schema"] = BEHAVIOUR_SCHEMA
+    _write(path, doc)
     _write(path, doc)
 
 
@@ -254,15 +351,27 @@ def main(argv: list[str] | None = None) -> None:
 
     matched = [e for e in all_entries if e["match"]]
     drifted = [e for e in all_entries if not e["match"]]
+    # Among the matches, some had a different code fingerprint but the same
+    # behaviour: the file changed, no decision did.
+    cleared_by_behaviour = [e for e in matched if not e.get("code_matched", True)]
 
     # Print summary
     print(f"Scanned {len(all_entries)} recorded results "
           f"({len(bots)} bot, {len(passes)} llm-bench passes).")
     print(f"  {len(matched)} match (no action needed)")
+    if cleared_by_behaviour:
+        print(f"    of which {len(cleared_by_behaviour)} had a changed file but an "
+              f"identical behaviour hash: code moved, behaviour did not")
+        for e in cleared_by_behaviour:
+            if e["kind"] == "bot":
+                print(f"      bots/{e['name']}/result.json")
+            else:
+                print(f"      llm-bench/{e['version']}/results/"
+                      f"{e['path'].stem}.json pass {e['pass_index']}")
     print(f"  {len(drifted)} drifted (would be re-stamped)")
     print()
 
-    if not drifted:
+    if not drifted and not cleared_by_behaviour:
         print("Nothing to do.")
         return
 
@@ -288,8 +397,18 @@ def main(argv: list[str] | None = None) -> None:
             _apply_bot(e, args.reason, now_iso)
         else:
             _apply_llmbench(e, args.reason, now_iso)
+    for e in cleared_by_behaviour:
+        # Code changed, behaviour did not: still worth writing the new code
+        # fingerprint (and behaviour, if newly computed) so the next run reads
+        # this as a plain match instead of recomputing the same non-drift.
+        cleared_reason = f"{args.reason} (behaviour unchanged, code fingerprint only)"
+        if e["kind"] == "bot":
+            _apply_bot(e, cleared_reason, now_iso)
+        else:
+            _apply_llmbench(e, cleared_reason, now_iso)
 
-    print(f"Re-stamped {len(drifted)} result(s). Reason recorded in each file.")
+    total_applied = len(drifted) + len(cleared_by_behaviour)
+    print(f"Re-stamped {total_applied} result(s). Reason recorded in each file.")
 
 
 if __name__ == "__main__":

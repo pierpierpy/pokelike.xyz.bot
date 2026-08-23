@@ -37,6 +37,7 @@ from .versions import (  # noqa: F401
     GAME,
     ROOT,
     RUNNER,
+    behaviour,
     cross_run_memory,
     fingerprints,
     harness_path,

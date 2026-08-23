@@ -7,7 +7,7 @@
    "model": "deepseek/deepseek-v4-flash",
    "harness": "v7",
    "fingerprint": {
-    "bot.py": "b6b3e19207eceaa3",
+    "bot.py": "1950ddce1a050ba7",
     "render.py": "35ceee9bd4c9cd32",
     "bridge.js": "1f33b7c3f58b1dca",
     "init.js": "fbdd3780ddbc3eb6",
@@ -2010,14 +2010,28 @@
    "trace": "/app/llm-bench/v7/logs/20260823-005156-9f6e/deepseek--deepseek-v4-flash-pass1.jsonl",
    "settings": {
     "reasoning": "low"
-   }
+   },
+   "behaviour": "ad7fb0de8e2636b8",
+   "behaviour_schema": 1,
+   "refingerprinted": [
+    {
+     "on": "2026-08-23T10:22:22+00:00",
+     "was": {
+      "bot.py": "b6b3e19207eceaa3"
+     },
+     "now": {
+      "bot.py": "1950ddce1a050ba7"
+     },
+     "why": "test: HarnessV4 renamed to match its own version, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
+    }
+   ]
   },
   {
    "recorded_at": "2026-08-23T09:07:09+00:00",
    "model": "deepseek/deepseek-v4-flash",
    "harness": "v7",
    "fingerprint": {
-    "bot.py": "b6b3e19207eceaa3",
+    "bot.py": "1950ddce1a050ba7",
     "render.py": "35ceee9bd4c9cd32",
     "bridge.js": "1f33b7c3f58b1dca",
     "init.js": "fbdd3780ddbc3eb6",
@@ -4292,7 +4306,21 @@
    "trace": "/app/llm-bench/v7/logs/20260823-005204-df0f/deepseek--deepseek-v4-flash-pass1.jsonl",
    "settings": {
     "reasoning": "high"
-   }
+   },
+   "behaviour": "ad7fb0de8e2636b8",
+   "behaviour_schema": 1,
+   "refingerprinted": [
+    {
+     "on": "2026-08-23T10:22:22+00:00",
+     "was": {
+      "bot.py": "b6b3e19207eceaa3"
+     },
+     "now": {
+      "bot.py": "1950ddce1a050ba7"
+     },
+     "why": "test: HarnessV4 renamed to match its own version, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
+    }
+   ]
   }
  ]
 }

@@ -90,13 +90,55 @@ def fingerprints(version: str) -> dict[str, str]:
     Four frozen files beside the harness (bot.py, render.py, bridge.js, init.js)
     and three shared files (browser.py, game.py, runner.py) that drive the game.
     The game bundle is recorded separately as `game` because it is downloaded, not
-    committed.
+    committed. This is provenance, "which bytes played this", and says nothing
+    about whether a change could have moved a score: see `behaviour` below for that.
     """
     sha = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()[:16]  # noqa: E731
     frozen = {"bot.py": harness_path(version), "render.py": render_path(version)}
     frozen.update({f"{k}.js": v for k, v in script_paths(version).items()})
     shared = {f"shared/{p.name}": p for p in (BROWSER, GAME, RUNNER)}
     return {k: sha(v) for k, v in {**frozen, **shared}.items()}
+
+
+# In-process only: keyed on the seven-key fingerprint, so a version whose files
+# have not changed since the last call in this process never replays twice.
+# Not persisted, so a fresh process always verifies rather than trusting a
+# claim written by an earlier, possibly stale, run of this same code.
+_BEHAVIOUR_CACHE: dict[tuple[str, ...], str] = {}
+
+
+def behaviour(version: str, site) -> str:
+    """This version's behaviour hash: does its engine still decide the same thing?
+
+    Plays a short deterministic replay (see `arena.behaviour`) through this
+    version's own bridge.js and init.js, using the shared browser.py, game.py
+    and runner.py exactly as a real pass would. Two versions whose seven files
+    hash differently (a comment, a rename) but decide every replay identically
+    return the same behaviour hash; a version that changed what any decision
+    resolves to, however small, does not. `site` is the asset server root
+    already on disk (see `assets.server.AssetServer`); this does not download it.
+    """
+    from ...arena.behaviour import behaviour_hash
+    from ...assets.server import AssetServer
+    from ...core.game import Game
+    from ...interfaces.python.driver.session import free_port
+
+    key = tuple(sorted(fingerprints(version).values()))
+    cached = _BEHAVIOUR_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    server = AssetServer(site, port=free_port())
+    server.start()
+    game = Game(url=server.url, **script_paths(version))
+    try:
+        game.open()
+        result = behaviour_hash(game)
+    finally:
+        game.close()
+        server.stop()
+    _BEHAVIOUR_CACHE[key] = result
+    return result
 
 
 def cross_run_memory(version: str) -> bool:

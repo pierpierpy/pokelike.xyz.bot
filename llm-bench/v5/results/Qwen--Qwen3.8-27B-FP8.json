@@ -7,7 +7,7 @@
    "model": "Qwen/Qwen3.8-27B-FP8",
    "harness": "v5",
    "fingerprint": {
-    "bot.py": "62352a355b692815",
+    "bot.py": "a1064fe930bf2ea2",
     "render.py": "2602e8814440ebdd",
     "bridge.js": "14f885b77816a081",
     "init.js": "8b303c01a731c22a",
@@ -1900,8 +1900,20 @@
       "shared/runner.py": "d0a794ca23da221e"
      },
      "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
+    },
+    {
+     "on": "2026-08-23T10:22:22+00:00",
+     "was": {
+      "bot.py": "62352a355b692815"
+     },
+     "now": {
+      "bot.py": "a1064fe930bf2ea2"
+     },
+     "why": "test: HarnessV4 renamed to match its own version, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
     }
-   ]
+   ],
+   "behaviour": "ad7fb0de8e2636b8",
+   "behaviour_schema": 1
   }
  ]
 }

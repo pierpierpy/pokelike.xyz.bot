@@ -578,7 +578,7 @@
  ],
  "notes": {},
  "artifacts": [],
- "fingerprint": "d84377435f74881e34dc89aaac94d458793f6dd0d9ab2103ab4228035bea7e47",
+ "fingerprint": "501ac3b3e64c56265b399679df8b38867a371992474b171037a65d3c5370880e",
  "refingerprinted": [
   {
    "on": "2026-08-21T10:55:11+00:00",
@@ -599,6 +599,18 @@
     "fingerprint": "d84377435f74881e34dc89aaac94d458793f6dd0d9ab2103ab4228035bea7e47"
    },
    "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
+  },
+  {
+   "on": "2026-08-23T10:23:40+00:00",
+   "was": {
+    "fingerprint": "d84377435f74881e34dc89aaac94d458793f6dd0d9ab2103ab4228035bea7e47"
+   },
+   "now": {
+    "fingerprint": "501ac3b3e64c56265b399679df8b38867a371992474b171037a65d3c5370880e"
+   },
+   "why": "test: cosmetic docstring edit, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
   }
- ]
+ ],
+ "behaviour": "ad7fb0de8e2636b8",
+ "behaviour_schema": 1
 }

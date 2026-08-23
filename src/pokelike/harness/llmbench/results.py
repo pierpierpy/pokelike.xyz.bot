@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ...arena.bench import STANDARD_SEEDS, summarise
+from ...arena.behaviour import BEHAVIOUR_SCHEMA
 from ...logging import LEARN_K
 from .versions import (BROWSER, GAME, RUNNER, _bench, cross_run_memory,
                        fingerprints, slug, versions)
@@ -200,7 +201,23 @@ def stats(doc: dict[str, Any], version: str | None = None,
         used = {k: v for p in passes for k, v in (p.get("fingerprint") or {}).items()}
         # Compared key by key over the keys the pass recorded. A key the pass never
         # had is not evidence of drift; it just means the fingerprint grew later.
-        out["stale"] = any(now[k] != v for k, v in used.items() if k in now)
+        code_drifted = any(now[k] != v for k, v in used.items() if k in now)
+        out["code_drifted"] = code_drifted
+        # A file changing is not itself the alarm: a comment or a rename changes
+        # every hash without moving a single decision. `behaviour` is the alarm,
+        # and only a pass recorded with one can be cleared by it; a pass from
+        # before this field existed falls back to the old, blunter check.
+        behaviours = {p.get("behaviour") for p in passes if p.get("behaviour")}
+        if code_drifted and behaviours:
+            try:
+                current_behaviour = _pkg.behaviour(version, _pkg.ROOT / "site")
+            except Exception:
+                current_behaviour = None
+            out["stale"] = current_behaviour is None or any(
+                b != current_behaviour for b in behaviours
+            )
+        else:
+            out["stale"] = code_drifted
     return out
 
 
@@ -211,14 +228,21 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
              game: dict[str, str], notes: dict[str, Any],
              fingerprint: dict[str, str] | None = None,
              region: str | None = None,
-             settings: dict[str, Any] | None = None) -> dict[str, Any]:
+             settings: dict[str, Any] | None = None,
+             site: Any = None) -> dict[str, Any]:
     """Assembles a pass dict ready for recording.
 
     The fingerprint should be taken by the caller before play starts. If none is
     supplied, this function computes it from the current disk state. `settings`
     is whatever `--set` overrode for this pass (e.g. `{"reasoning": "low"}`);
     two passes of the same model with different settings answer a different
-    question, so both the result file and the standings keep them apart.
+    question, so both the result file and the standings keep them apart. `site`
+    is the asset server root; when given, this also records a `behaviour` hash
+    (see `versions.behaviour`), a short deterministic replay through this
+    version's own engine, so a later reader can tell "the files changed" apart
+    from "a decision changed" instead of only ever seeing the first. Omitted
+    when `site` is not given, so a caller that cannot afford the replay (a unit
+    test, a dry run) still gets a valid pass.
     """
     turns = sum(r.get("turns") or 0 for r in runs)
     falls = sum(r.get("fallbacks") or 0 for r in runs)
@@ -244,4 +268,15 @@ def _as_pass(version: str, model: str, seeds: list[int], runs: list[dict[str, An
     # (no --set at all) still looks exactly like it did before this field existed.
     if settings:
         out["settings"] = settings
+    if site is not None:
+        try:
+            import sys
+            _pkg = sys.modules[__package__]
+            out["behaviour"] = _pkg.behaviour(version, site)
+            out["behaviour_schema"] = BEHAVIOUR_SCHEMA
+        except Exception:
+            # A replay failure should never lose an otherwise-good pass; the row
+            # simply carries no behaviour hash, exactly like one recorded before
+            # this field existed.
+            pass
     return out

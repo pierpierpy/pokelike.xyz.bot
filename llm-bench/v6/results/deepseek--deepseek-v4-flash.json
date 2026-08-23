@@ -7,7 +7,7 @@
    "model": "deepseek/deepseek-v4-flash",
    "harness": "v6",
    "fingerprint": {
-    "bot.py": "e569918fe9f8ee54",
+    "bot.py": "aa3102bd670b02f6",
     "render.py": "35ceee9bd4c9cd32",
     "bridge.js": "1f33b7c3f58b1dca",
     "init.js": "fbdd3780ddbc3eb6",
@@ -2841,8 +2841,20 @@
       "shared/runner.py": "d0a794ca23da221e"
      },
      "why": "Same comment-only rewrite as commit e3e845b/87d8188; this result was added to disk as an untracked file after that pass ran, so it was missed until now. reasoning_effort defaults to None and this pass does not set it, so behavior is unaffected."
+    },
+    {
+     "on": "2026-08-23T10:22:22+00:00",
+     "was": {
+      "bot.py": "e569918fe9f8ee54"
+     },
+     "now": {
+      "bot.py": "aa3102bd670b02f6"
+     },
+     "why": "test: HarnessV4 renamed to match its own version, behaviour confirmed identical (behaviour unchanged, code fingerprint only)"
     }
-   ]
+   ],
+   "behaviour": "ad7fb0de8e2636b8",
+   "behaviour_schema": 1
   }
  ]
 }

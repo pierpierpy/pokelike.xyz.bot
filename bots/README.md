@@ -28,7 +28,7 @@ from a clone to a pull request.
 | 2 | **[sarsa-v2](sarsa-v2/)** | pierpierpy | rl | 50 | **1.36** | 3 | 71 | 235 | `69a5acddfb2d` |
 | 3 | **[sarsa-v1](sarsa-v1/)** | pierpierpy | rl | 50 | **1.3** | 4 | 59.3 | 195 | `05824fd0b1b6` |
 | 4 | **[dyna-q](dyna-q/)** | pierpierpy | rl | 50 | **0.62** | 3 | 4.9 | 85 | `e10d9825ed80` |
-| 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `d84377435f74` |
+| 5 | **[random](random/)** | pierpierpy | rules | 50 | **0.56** | 2 | -9.5 | 45 | `501ac3b3e64c` |
 
 Ranked by **badges**, the game's own progress counter. `badges~` is the mean over the standard 50 seeds, `badges+` the best single run. `code` is a fingerprint over the bot and its artifacts; **⚠︎ means the files changed since the score was measured**, so the row no longer describes what is on disk, and **? means the result carries no fingerprint at all** and cannot be checked either way. Re-running the benchmark clears both.
 

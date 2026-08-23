@@ -108,7 +108,7 @@ def play_model(game, version: str, model: str, site: Path,
     one = _as_pass(version, model, seeds, result["runs"], result["game"],
                    result.get("notes") or {}, fingerprint=stamp,
                    region=region_name(normalise_region(region)) if region != 1 else None,
-                   settings=settings)
+                   settings=settings, site=site)
     # Stamp recorded explicitly; absolute log paths may not resolve on another host.
     one["stamp"] = log.stamp
     one["log"] = str(log.path)

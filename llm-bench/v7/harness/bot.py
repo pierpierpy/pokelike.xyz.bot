@@ -446,7 +446,7 @@ class LLMBudgetError(LLMError):
 # ------------------------------------------------------------------------ bot
 
 
-class HarnessV4(Bot):
+class HarnessV7(Bot):
     """A bot that asks a model what to do, one call per turn.
 
     Subclass it and set `PROMPT`. Everything else has a working default.
@@ -481,7 +481,7 @@ class HarnessV4(Bot):
 
     To add tools, declare them in `EXTRA_TOOLS` and handle them in `answer_tool`:
 
-        class MyBot(HarnessV4):
+        class MyBot(HarnessV7):
             EXTRA_TOOLS = [{
                 "type": "function",
                 "function": {
@@ -1130,7 +1130,7 @@ class HarnessV4(Bot):
 
     def view_name(self) -> str:
         """What to record: the setting, or 'custom' if `view` was replaced."""
-        if type(self).render_state is not HarnessV4.render_state:
+        if type(self).render_state is not HarnessV7.render_state:
             return "custom"
         return self.state_view if isinstance(self.state_view, str) else \
             "keys:" + ",".join(self.state_view)
