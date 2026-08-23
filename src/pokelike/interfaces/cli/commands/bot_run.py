@@ -1,4 +1,4 @@
-"""Bot competition run and new commands."""
+"""Bot arena run and new commands."""
 
 from __future__ import annotations
 

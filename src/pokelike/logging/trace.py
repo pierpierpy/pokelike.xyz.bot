@@ -1,6 +1,6 @@
 """Trace enrichment, adding tool calls and the map picture to each logged decision.
 
-Both the bot competition and the model benchmark call `enrich_decision` to attach
+Both the bot arena and the model benchmark call `enrich_decision` to attach
 context a bot knows to the decision entry. A non-LLM bot (one without a
 `tool_calls_made` method) is handled gracefully and receives only the map picture
 when available.

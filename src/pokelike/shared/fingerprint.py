@@ -1,6 +1,6 @@
 """This module provides code and behaviour fingerprints in one shared place.
 
-`arena/` (the bot competition) and `utils/refingerprint.py` (outside the
+`arena/` (the bot arena) and `utils/refingerprint.py` (outside the
 package entirely) both need this exact logic, and neither should import it
 from the other. This module is imported by both instead.
 

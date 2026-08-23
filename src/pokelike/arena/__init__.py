@@ -1,4 +1,4 @@
-"""The bot competition, where the author's code is the entry and the game is fixed.
+"""The bot arena, where the author's code is the entry and the game is fixed.
 
 Submodules:
 

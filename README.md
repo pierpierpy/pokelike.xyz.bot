@@ -39,7 +39,7 @@ This repo is three things in one, and you can use it for any of them:
   runs the same fifty seeds against every LLM. The resulting score measures a model's
   agentic and planning capability.
 - &nbsp;![](https://img.shields.io/badge/-red)
-  [Bot framework and competition](#3-bot-framework-and-competition) is the part where you write
+  [Bot framework and arena](#3-bot-framework-and-arena) is the part where you write
   a bot, and the goal is to beat the game. A bot can be anything that turns a state into
   a move, whether that is a trained policy, a prompt, a rulebook, or a tree search. To
   see one think, watch
@@ -144,17 +144,17 @@ Running that command plays fifty games, records the result, and prints a row. It
 about half an hour. The standings, the version history, and how to read the table live
 in [llm-bench/README.md](llm-bench/README.md).
 
-## 3. Bot framework and competition
+## 3. Bot framework and arena
 
-[![Bot framework](https://img.shields.io/badge/Bot%20framework-red)](#3-bot-framework-and-competition)
+[![Bot framework](https://img.shields.io/badge/Bot%20framework-red)](#3-bot-framework-and-arena)
 [![step.ipynb](https://img.shields.io/badge/notebook-step.ipynb-white)](bots/llm-example2/step.ipynb)
 
-The bot framework is the part where you write a bot, and the competition is where it
+The bot framework is the part where you write a bot, and the arena is where it
 gets judged. A bot can be anything that turns a state into a move, whether that is a
 trained policy, a prompt, a rulebook, or a tree search. To see one think, watch
 [a bot play one decision at a time](bots/llm-example2/step.ipynb).
 
-> The competition is open. Write something that plays
+> The arena is open. Write something that plays
 > [pokelike.xyz](https://pokelike.xyz/) better than mine, add it under
 > [bots/](bots/README.md), and open a pull request. Anyone can enter, and no permission
 > is needed.
@@ -267,7 +267,7 @@ prints every decision along with the screen it was made on.
 
 ## Maintainers & contributing
 
-Maintained by [@pierpierpy](https://github.com/pierpierpy). The bot competition is open
+Maintained by [@pierpierpy](https://github.com/pierpierpy). The bot arena is open
 to anyone. Fork the repo, add a folder under `bots/`, and open a pull request. A
 submission needs no permission and touches only your own folder. The full guide, and
 the rules for changing the shared library or the benchmark, are in

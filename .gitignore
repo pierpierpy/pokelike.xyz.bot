@@ -59,7 +59,7 @@ experiments/*/artifacts/
 # and are committed, the running commentary is not.
 llm-bench/*/logs/
 
-# Same for the bot competition: the code and the result.json are the submission,
+# Same for the bot arena: the code and the result.json are the submission,
 # the per-run logs from `bot bench` are local diagnostics.
 bots/*/log/
 experiments/*/log/

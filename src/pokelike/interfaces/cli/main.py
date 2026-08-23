@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--seed", type=seed_arg, default=1, help="seed of the initial run")
     s.set_defaults(func=cmd_api)
 
-    # ---- the bot competition, where your code is the entry ----------------------
+    # ---- the bot arena, where your code is the entry ----------------------
     fam = sub.add_parser(
         "bot", usage=argparse.SUPPRESS, add_help=False, formatter_class=_FORMATTER,
         epilog=_boxes([("pokelike bot", _FAMILY["pokelike bot"])]),

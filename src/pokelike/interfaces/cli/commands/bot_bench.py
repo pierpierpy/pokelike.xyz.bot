@@ -1,4 +1,4 @@
-"""Bot competition bench and board commands."""
+"""Bot arena bench and board commands."""
 
 from __future__ import annotations
 
@@ -45,12 +45,12 @@ def cmd_bench(args) -> int:
     partial = len(seeds) < len(STANDARD_SEEDS)
     records = not (args.dry_run or partial or from_path)
 
-    # Warn LLM bots that this is the bot competition, not the model benchmark.
+    # Warn LLM bots that this is the bot arena, not the model benchmark.
     #
     # Keyed on isinstance rather than --category, so the warning reaches users
     # who did not pass --category llm.
     if isinstance(bot, LLMBot):
-        print("note: this is the BOT competition, where the model is not held\n"
+        print("note: this is the BOT ARENA, where the model is not held\n"
               "  still: your prompt, view and tools are the submission, and the\n"
               "  model is whatever --model or $MODEL_ID names. To measure a MODEL\n"
               "  against a fixed harness, that is `pokelike model bench`.\n")
