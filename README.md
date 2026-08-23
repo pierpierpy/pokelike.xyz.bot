@@ -29,7 +29,9 @@ This repo is three things in one, and you can use it for any of them:
 
 - &nbsp;[Environment](#1-environment) is the core piece. It provides a headless,
   reproducible copy of the game that you can simulate runs against, drive from a script
-  or a notebook, and hand to a coding agent.
+  or a notebook, and hand to a coding agent. Use the notebook
+  [example.ipynb](src/pokelike/interfaces/python/example.ipynb) to explore how you or a bot 
+  interact with the environment via the Python interface.
 - &nbsp;[LLM agentic benchmark](#2-llm-agentic-benchmark) is an agentic harness that
   runs the same fifty seeds against every LLM. The resulting score measures a model's
   agentic and planning capability.
