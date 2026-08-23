@@ -7,10 +7,10 @@
    "model": "qwen/qwen3.7-flash",
    "harness": "v0",
    "fingerprint": {
-    "bot.py": "1814971fec3bf556",
-    "render.py": "6b8376165f05e24c",
-    "bridge.js": "168fdada15fdcf42",
-    "init.js": "6274624ff7590dd9"
+    "bot.py": "9cc33392944cb4a2",
+    "render.py": "54b455093dacadd2",
+    "bridge.js": "6ee909e8f3b666e0",
+    "init.js": "e83bb824f59e4487"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1046,6 +1046,22 @@
       "bot.py": "1814971fec3bf556"
      },
      "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
+    },
+    {
+     "on": "2026-08-23T00:31:45+00:00",
+     "was": {
+      "bot.py": "1814971fec3bf556",
+      "render.py": "6b8376165f05e24c",
+      "bridge.js": "168fdada15fdcf42",
+      "init.js": "6274624ff7590dd9"
+     },
+     "now": {
+      "bot.py": "9cc33392944cb4a2",
+      "render.py": "54b455093dacadd2",
+      "bridge.js": "6ee909e8f3b666e0",
+      "init.js": "e83bb824f59e4487"
+     },
+     "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
     }
    ]
   }

@@ -7,13 +7,13 @@
    "model": "openai/gpt-5-nano",
    "harness": "v4",
    "fingerprint": {
-    "bot.py": "934af65e09fbf588",
-    "render.py": "844d2cc05b8abe58",
-    "bridge.js": "ed4607926573b2cc",
-    "init.js": "6274624ff7590dd9",
-    "shared/browser.py": "e4600def5df8fc88",
-    "shared/game.py": "454435d2fc44ae19",
-    "shared/runner.py": "0feb543e1f239148"
+    "bot.py": "037629e696c2ead7",
+    "render.py": "dec2e18133aef09f",
+    "bridge.js": "ca47c33140fb5924",
+    "init.js": "18d492c8387bef12",
+    "shared/browser.py": "e3bb7b57ab662c92",
+    "shared/game.py": "b8586c4ec22bedad",
+    "shared/runner.py": "d0a794ca23da221e"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1618,6 +1618,28 @@
       "shared/runner.py": "0feb543e1f239148"
      },
      "why": "regions: core/runner.py changed twice more, to stamp the region on a campaign's flattened trace and to make a campaign answer every column a run answers. Every row here played Kanto under the code of its day; its numbers are untouched."
+    },
+    {
+     "on": "2026-08-23T00:31:45+00:00",
+     "was": {
+      "bot.py": "934af65e09fbf588",
+      "render.py": "844d2cc05b8abe58",
+      "bridge.js": "ed4607926573b2cc",
+      "init.js": "6274624ff7590dd9",
+      "shared/browser.py": "e4600def5df8fc88",
+      "shared/game.py": "454435d2fc44ae19",
+      "shared/runner.py": "0feb543e1f239148"
+     },
+     "now": {
+      "bot.py": "037629e696c2ead7",
+      "render.py": "dec2e18133aef09f",
+      "bridge.js": "ca47c33140fb5924",
+      "init.js": "18d492c8387bef12",
+      "shared/browser.py": "e3bb7b57ab662c92",
+      "shared/game.py": "b8586c4ec22bedad",
+      "shared/runner.py": "d0a794ca23da221e"
+     },
+     "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
     }
    ]
   }

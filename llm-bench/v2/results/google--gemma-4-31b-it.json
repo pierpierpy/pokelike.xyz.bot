@@ -7,10 +7,10 @@
    "model": "google/gemma-4-31b-it",
    "harness": "v2",
    "fingerprint": {
-    "bot.py": "967f0d88d9c26cc6",
-    "render.py": "6b8376165f05e24c",
-    "bridge.js": "168fdada15fdcf42",
-    "init.js": "6274624ff7590dd9"
+    "bot.py": "2d5be7b5d3e21abc",
+    "render.py": "f7c5d32a0bf767a8",
+    "bridge.js": "fd6e097dc5df75e2",
+    "init.js": "6e83f9da04247e56"
    },
    "game": {
     "file": "bundle.eceae50bbd.js",
@@ -1266,6 +1266,22 @@
       "bot.py": "967f0d88d9c26cc6"
      },
      "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
+    },
+    {
+     "on": "2026-08-23T00:31:45+00:00",
+     "was": {
+      "bot.py": "967f0d88d9c26cc6",
+      "render.py": "6b8376165f05e24c",
+      "bridge.js": "168fdada15fdcf42",
+      "init.js": "6274624ff7590dd9"
+     },
+     "now": {
+      "bot.py": "2d5be7b5d3e21abc",
+      "render.py": "f7c5d32a0bf767a8",
+      "bridge.js": "fd6e097dc5df75e2",
+      "init.js": "6e83f9da04247e56"
+     },
+     "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
     }
    ]
   }

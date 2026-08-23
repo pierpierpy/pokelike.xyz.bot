@@ -578,7 +578,7 @@
  ],
  "notes": {},
  "artifacts": [],
- "fingerprint": "ee3e47ed63cbda604b54942f69b068ab3ce62acd4ae55ce744ef94a540881dfd",
+ "fingerprint": "d84377435f74881e34dc89aaac94d458793f6dd0d9ab2103ab4228035bea7e47",
  "refingerprinted": [
   {
    "on": "2026-08-21T10:55:11+00:00",
@@ -589,6 +589,16 @@
     "fingerprint": "ee3e47ed63cbda604b54942f69b068ab3ce62acd4ae55ce744ef94a540881dfd"
    },
    "why": "pythonic bot API rename (choose->act, on_start->reset, on_end->finish, rearrange->reorder, explain->reason, notes->metadata; LLMBot knobs->LLMConfig); behavior unchanged, verified by full pytest + identical live runs"
+  },
+  {
+   "on": "2026-08-23T00:31:45+00:00",
+   "was": {
+    "fingerprint": "ee3e47ed63cbda604b54942f69b068ab3ce62acd4ae55ce744ef94a540881dfd"
+   },
+   "now": {
+    "fingerprint": "d84377435f74881e34dc89aaac94d458793f6dd0d9ab2103ab4228035bea7e47"
+   },
+   "why": "Comment/docstring rewrite (Plain Direct style pass, see commit e3e845b); reasoning_effort was added to LLMConfig in the same commit but defaults to None and no ranked bot or recorded pass sets it, so behavior did not change for any result re-stamped here"
   }
  ]
 }
