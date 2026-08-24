@@ -265,6 +265,91 @@ def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
     assert watch.read(d, watch._containers()).state == "stalled"
 
 
+def _curve(bench, badges: list[int], folder_name: str = "20260820-170000"):
+    """Writes a pass whose finished runs carry the given badges, in play order.
+
+    One extra run is appended because a running pass counts its last run as still
+    in flight, so the caller's list is what `badge_curve` has to report.
+    """
+    d = bench / "v9" / "logs" / folder_name
+    rows = []
+    for i, b in enumerate(badges + [0]):
+        rows.append(_row(10000 + i, 0, f"2026-08-20T17:{i:02d}:00", badges=b))
+        rows.append(_row(10000 + i, 1, f"2026-08-20T17:{i:02d}:30", badges=b))
+    _trace(d, "a/b", rows)
+    return d
+
+
+def test_the_learning_delta_says_nothing_until_there_are_enough_runs(bench):
+    """Five runs cannot be split into two halves that do not share a run."""
+    d = _curve(bench, [1, 2, 3, 4, 5])
+    assert watch.read(d).learn is None
+
+
+def test_the_learning_delta_compares_the_two_ends_of_the_pass(bench):
+    """Six finished runs split into two threes, and the sign says which way it went."""
+    d = _curve(bench, [0, 0, 0, 2, 2, 2])
+    p = watch.read(d)
+    assert p.badge_curve == [0, 0, 0, 2, 2, 2]
+    assert p.learn == 2.0
+    d2 = _curve(bench, [3, 3, 3, 0, 0, 0], folder_name="20260820-180000")
+    assert watch.read(d2).learn == -3.0
+
+
+def test_past_twenty_runs_the_window_is_the_one_the_standings_use(bench):
+    """The live number has to converge on what the finished pass will report.
+
+    Below twenty runs the window is half of what has finished, so a trend shows up
+    early; at twenty and beyond it is the standings' ten, and the two agree.
+    """
+    from pokelike.logging import LEARN_K
+
+    badges = [0] * 10 + [1] * 12
+    d = _curve(bench, badges)
+    p = watch.read(d)
+    assert len(p.badge_curve) == 22
+    # Last ten are all 1, first ten all 0.
+    assert p.learn == 1.0
+    assert LEARN_K == 10
+
+
+def test_the_chart_is_absent_until_it_would_mean_something(bench):
+    """A chart of four runs invites a conclusion the data cannot carry."""
+    import importlib
+    dash = importlib.import_module("pokelike.harness.watch.dashboard")
+
+    d = _curve(bench, [1, 2, 3, 4])
+    assert dash._progress(watch.read(d)) is None
+
+
+def test_the_chart_draws_one_bar_per_finished_run(bench):
+    """The horizontal axis is the pass in play order, so the bars and runs match."""
+    import importlib
+    from rich.console import Console
+    dash = importlib.import_module("pokelike.harness.watch.dashboard")
+
+    d = _curve(bench, [0, 1, 2, 3, 2, 1, 0, 3])
+    panel = dash._progress(watch.read(d))
+    assert panel is not None
+    text = "".join(seg.text for seg in
+                   Console(width=140, no_color=True).render(panel))
+    bars = [ln for ln in text.splitlines() if "badges/run" in ln]
+    assert bars, "the badges row is drawn"
+    drawn = sum(ch in dash._BLOCKS[1:] for ch in bars[0])
+    assert drawn == 8, f"eight finished runs, eight bars, got {drawn}"
+
+
+def test_a_flat_pass_does_not_pretend_to_have_a_trend(bench):
+    """Identical runs must not be stretched to fill the height and read as movement."""
+    import importlib
+    dash = importlib.import_module("pokelike.harness.watch.dashboard")
+
+    d = _curve(bench, [1] * 8)
+    p = watch.read(d)
+    assert p.learn == 0.0
+    assert len(set(dash._spark([1.0] * 8, 1.0, 1.0))) == 1
+
+
 def test_the_conversations_file_does_not_hide_the_trace(bench, monkeypatch):
     """A pass stays live when the file it writes most often is newer than its trace.
 

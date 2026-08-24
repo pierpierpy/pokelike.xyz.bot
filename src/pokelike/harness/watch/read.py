@@ -89,6 +89,32 @@ class Pass:
     plan: str = ""
 
     @property
+    def badge_curve(self) -> list[int]:
+        """Returns the badges of the finished runs, in the order they were played."""
+        finished = self.runs[: self.done] if self.state == "running" else self.runs
+        return [r.badges for r in finished]
+
+    @property
+    def learn(self) -> float | None:
+        """Returns the last k runs' mean badges minus the first k's, or None if too early.
+
+        This is the `learn` column of the standings, computed while the pass is
+        still going. The window is the standings' k once twenty runs are in, and
+        half the finished runs before that, so the two halves never overlap and the
+        number converges to the one the finished pass will report. Fewer than six
+        runs says nothing worth printing.
+        """
+        from ...logging import LEARN_K
+
+        curve = self.badge_curve
+        if len(curve) < 6:
+            return None
+        k = min(LEARN_K, len(curve) // 2)
+        first = sum(curve[:k]) / k
+        last = sum(curve[-k:]) / k
+        return round(last - first, 2)
+
+    @property
     def settings_text(self) -> str:
         """Returns this pass's knob values as `key=value,key=value`.
 

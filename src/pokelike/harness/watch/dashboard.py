@@ -140,11 +140,83 @@ def _memory(p: "Pass"):
     return Panel(body, title=title, title_align="left", border_style="dim")
 
 
+_BLOCKS = " ▁▂▃▄▅▆▇█"
+
+
+def _spark(values: list[float], lo: float, hi: float) -> str:
+    """Draws one bar per value, scaled between lo and hi.
+
+    The scale is passed in rather than taken from the data so that two rows drawn
+    one under the other can be read against each other, and so a flat run of
+    identical values does not stretch to fill the height.
+    """
+    if hi <= lo:
+        return _BLOCKS[1] * len(values)
+    out = []
+    for v in values:
+        frac = (v - lo) / (hi - lo)
+        idx = min(len(_BLOCKS) - 1, max(1, int(round(frac * (len(_BLOCKS) - 1)))))
+        out.append(_BLOCKS[idx])
+    return "".join(out)
+
+
+def _progress(p: "Pass"):
+    """Returns a panel showing whether the model is getting better as the pass goes.
+
+    Two rows over the same horizontal axis, one bar per finished run in play
+    order. The first row is the badges of each run, which is noisy because seeds
+    differ in difficulty. The second is the mean of every run up to that point,
+    which is the line to read for a trend, since it only moves when a run pulls
+    the average with it.
+
+    Each row carries its own vertical range, printed beside it. A shared range
+    would flatten the mean into a straight line, because the mean of thirty runs
+    moves within a few tenths of a badge while single runs swing by whole badges,
+    and a flat line would read as no trend rather than as the wrong scale.
+
+    The panel is left out entirely before six runs, because the two halves of the
+    comparison would share runs and the number would say nothing.
+    """
+    from rich.panel import Panel
+    from rich.table import Table
+
+    curve = p.badge_curve
+    if len(curve) < 6:
+        return None
+    running = [sum(curve[: i + 1]) / (i + 1) for i in range(len(curve))]
+    grid = Table.grid(padding=(0, 1))
+    grid.add_column(style="bold cyan", no_wrap=True)
+    grid.add_column(no_wrap=True)
+    grid.add_column(style="dim", no_wrap=True)
+
+    b_hi = max(curve) or 1
+    grid.add_row("badges/run",
+                 f"[dim]{_spark([float(c) for c in curve], 0, float(b_hi))}[/dim]",
+                 f"0 to {b_hi}")
+    m_lo, m_hi = min(running), max(running)
+    grid.add_row("mean so far", _spark(running, m_lo, m_hi),
+                 f"{m_lo:.2f} to {m_hi:.2f}, now {running[-1]:.2f}")
+    delta = p.learn
+    if delta is not None:
+        k = min(10, len(curve) // 2)
+        first = sum(curve[:k]) / k
+        last = sum(curve[-k:]) / k
+        tone = "green" if delta > 0 else "red" if delta < 0 else "white"
+        grid.add_row("learn",
+                     f"first {k} runs {first:.2f}   last {k} runs {last:.2f}   "
+                     f"[{tone}]{delta:+.2f}[/{tone}]", "")
+    return Panel(grid, title="is it improving", title_align="left",
+                 border_style="dim")
+
+
 def render(p: "Pass", containers: list[str]):
     from rich.console import Group
 
-    return Group(_panel(p, containers), _runs_table(p), _turn(p),
-                 _team_and_map(p), _memory(p))
+    # The chart is absent for the first few runs, so the parts are filtered rather
+    # than leaving a hole in the layout.
+    parts = [_panel(p, containers), _runs_table(p), _progress(p), _turn(p),
+             _team_and_map(p), _memory(p)]
+    return Group(*[x for x in parts if x is not None])
 
 
 def dashboard(version: str | None = None, once: bool = False,

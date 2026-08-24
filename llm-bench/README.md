@@ -210,6 +210,22 @@ and route the model is holding. With more than one pass running, the command ask
 mean. Passing `--stamp` or `--model` (a prefix is enough) answers that question in
 advance.
 
+Both views also report whether the model is getting better as the pass goes. The `learn`
+column holds the mean badges of the pass's last runs minus its first, in play order, which is
+the same quantity the standings report under that name, computed on what has finished so far.
+The window is the standings' ten runs at each end once twenty runs are in, and half the
+finished runs before that, so a trend appears early and the number converges on the one the
+finished pass will publish. Fewer than six finished runs prints a dash, because the two halves
+would otherwise share runs.
+
+The single-pass view adds a small chart above the turn it is playing. The `badges/run` row
+draws one bar per finished run and is meant to look noisy, since the fifty seeds differ in
+difficulty. The `mean so far` row is the average of every run up to that point and is the row
+to read for a trend, because it only moves when a run pulls the average with it. Each row
+carries its own vertical range, printed beside it, since the mean of thirty runs moves within a
+few tenths of a badge while single runs swing by whole badges, and one shared range would
+flatten the mean into a straight line that reads as no trend rather than as the wrong scale.
+
 Long passes belong in Docker, and the `--docker` flag runs the pass inside a container
 instead of on the host:
 

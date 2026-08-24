@@ -40,6 +40,7 @@ def overview(version: str | None = None) -> int:
     t.add_column("set")
     t.add_column("runs", justify="right")
     t.add_column("badges~", justify="right")
+    t.add_column("learn", justify="right")
     t.add_column("state")
     t.add_column("last", justify="right")
     for d in folders_found:
@@ -53,6 +54,7 @@ def overview(version: str | None = None) -> int:
         age = time.time() - _touched(d)
         t.add_row(d.name, p.version, p.model, p.settings_text or "-",
                   f"{p.done}/{p.wanted or '?'}", f"{mean:.2f}",
+                  "[dim]-[/dim]" if p.learn is None else f"{p.learn:+.2f}",
                   f"[{tone}]{p.state}[/{tone}]",
                   f"{age / 60:.0f} min" if age < 5400 else f"{age / 3600:.0f} h")
     console.print(t)
@@ -86,6 +88,7 @@ def _running_table(version: str | None):
     t.add_column("set")
     t.add_column("progress", no_wrap=True)
     t.add_column("badges~", justify="right")
+    t.add_column("learn", justify="right")
     t.add_column("tok in/out", justify="right")
     t.add_column("cost", justify="right")
     t.add_column("fallback", justify="right")
@@ -122,8 +125,19 @@ def _running_table(version: str | None):
             per = sum(r.secs for r in finished) / done
             rest = (total - done) * per
             left = f"{rest / 3600:.1f}h" if rest > 5400 else f"{rest / 60:.0f}m"
+        # Improving or not, over the pass so far. Green up, red down, and a dash
+        # until there are enough finished runs for the two halves to differ.
+        delta = p.learn
+        if delta is None:
+            learn_cell = "[dim]-[/dim]"
+        elif delta > 0:
+            learn_cell = f"[green]+{delta:.2f}[/green]"
+        elif delta < 0:
+            learn_cell = f"[red]{delta:.2f}[/red]"
+        else:
+            learn_cell = "+0.00"
         t.add_row(str(i), p.version, p.model, p.settings_text or "[dim]-[/dim]",
-                  bar, f"{mean:.2f}",
+                  bar, f"{mean:.2f}", learn_cell,
                   f"{_tok(tin)}/{_tok(tout)}", money, fell_cell,
                   left, f"[dim]{d.name}[/dim]")
     return t, len(running)
