@@ -22,7 +22,7 @@ Python, or over an HTTP API.
 
 <p align="center">
   <img src="img/reinforcement_learning.gif" alt="A trained policy playing a run"><br>
-  <sub><i>A trained RL policy mid-run. It just keeps sending Squirtle in, apparently. lol</i></sub>
+  <sub><i>A trained RL policy mid-run. It just keeps using Squirtle, apparently. lol</i></sub>
 </p>
 
 This repo is three things in one, and you can use it for any of them:
