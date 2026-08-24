@@ -44,6 +44,58 @@ def memory_harness():
     return cls(seed=0, model="test-model", **OFFLINE)
 
 
+def test_a_second_pass_from_one_commit_reuses_the_image_it_already_built(monkeypatch):
+    """Rebuilding a tag that is already on disk takes the name off a running pass.
+
+    Two passes launched from the same commit ask for the same tag. The second
+    `--build` moves that tag onto a fresh image, and the first pass is left running
+    an image with no name, which is why `docker ps` printed a bare id for every
+    container but the newest. An image tagged with a bare commit can only have come
+    from a clean tree at that commit, so the copy on disk holds that code already
+    and there is nothing to rebuild.
+    """
+    import importlib
+    import subprocess
+    dk = importlib.import_module("pokelike.interfaces.cli.commands.docker")
+
+    class Ok:
+        returncode = 0
+
+    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: Ok())
+    assert dk._needs_build("924aeae") is False
+
+
+def test_a_tag_that_names_no_particular_code_is_always_rebuilt(monkeypatch):
+    """A dirty tree and a checkout outside git both name content that can change.
+
+    `-dirty` is one tag covering every uncommitted state, so the image behind it is
+    never evidence of what is on disk now, and `latest` says even less.
+    """
+    import importlib
+    import subprocess
+    dk = importlib.import_module("pokelike.interfaces.cli.commands.docker")
+
+    class Ok:
+        returncode = 0
+
+    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: Ok())
+    assert dk._needs_build("924aeae-dirty") is True
+    assert dk._needs_build("latest") is True
+
+
+def test_a_commit_never_built_here_is_built(monkeypatch):
+    """A tag with no image behind it has to be built, or the pass has nothing to run."""
+    import importlib
+    import subprocess
+    dk = importlib.import_module("pokelike.interfaces.cli.commands.docker")
+
+    class Missing:
+        returncode = 1
+
+    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: Missing())
+    assert dk._needs_build("deadbee") is True
+
+
 @pytest.mark.parametrize("version,expected", [
     ("v0", {}),
     ("v2", {}),

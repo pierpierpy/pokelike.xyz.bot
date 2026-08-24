@@ -55,7 +55,11 @@ def _in_docker(args) -> int:
     # A short random suffix so two passes of the same model can run at once.
     name = args.name or f"pk_{args.harness}_{model}_{uuid.uuid4().hex[:4]}"
 
-    cmd = ["docker", "compose", "-f", str(compose), "run", "--build", "--rm", "-d",
+    build = _needs_build(tag)
+    if not build:
+        print(f"  reusing pokelike-llm-bench:{tag}, already built from this commit")
+    cmd = ["docker", "compose", "-f", str(compose), "run",
+           *(["--build"] if build else []), "--rm", "-d",
            "--name", name, "bench", *passthru]
     # Echo the command with the API key masked.
     shown, mask = [], False
@@ -100,6 +104,31 @@ def reap_exited() -> list[str]:
     except (OSError, subprocess.SubprocessError):
         return []
     return ids
+
+
+def _needs_build(tag: str) -> bool:
+    """Returns whether the image has to be built before this pass can run.
+
+    A build is skipped only when an image already carries this exact tag and the
+    tag names a commit, because a clean tree at that commit is the only thing that
+    produces such a tag, so the image on disk holds that code by construction. A
+    dirty tree gets a `-dirty` tag, which names no particular content and is always
+    rebuilt, and so is `latest` outside git.
+
+    Rebuilding every time was what made `docker ps` stop naming the image of
+    passes already running: two passes launched from one commit ask for the same
+    tag, and the second build moves that tag onto a fresh image, leaving the first
+    pass on an image that no longer has a name.
+    """
+    if tag == "latest" or tag.endswith("-dirty"):
+        return True
+    try:
+        r = subprocess.run(["docker", "image", "inspect",
+                            f"pokelike-llm-bench:{tag}"],
+                           capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return r.returncode != 0
 
 
 def _image_tag(root: Path) -> str:

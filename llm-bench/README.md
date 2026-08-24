@@ -218,11 +218,17 @@ uv run pokelike model bench --harness v5 --model a/b --docker
 ```
 
 The `--docker` flag forwards the same benchmark flags untouched, and the flag also handles the
-parts that are easy to get wrong by hand. The image is rebuilt first, so a pass can
-never run stale code. The container removes itself when the pass ends. The container is named after the harness, the model, and a short random suffix, so two
+parts that are easy to get wrong by hand. The image is tagged with the commit it was built
+from, so a pass can never run stale code, and the image is rebuilt whenever no image carries
+that tag yet. A commit whose image is already on disk is reused instead, because a tag naming
+a bare commit can only come from a clean tree at that commit. Reusing it is also what lets
+`docker ps` keep naming the image of passes that are already running: rebuilding a tag moves
+it onto a fresh image and leaves the earlier passes on an image with no name. A tree with
+uncommitted changes is tagged `-dirty` and always rebuilt, since one such tag covers every
+uncommitted state and is never evidence of what is on disk now. The container removes itself
+when the pass ends. The container is named after the harness, the model, and a short random suffix, so two
 passes of the same model can run at once and remain distinguishable. The flag also
-clears away any bench container that has already exited, and tags the image with the
-commit the image was built from, so running `docker ps` says which code each pass is playing.
+clears away any bench container that has already exited.
 The compose setup behind the flag is in [`docker/`](docker/), and the compose file sets `shm_size: 2gb`
 because Chromium needs far more than Docker's default, mounts your `site/` read-only,
 keeps only `llm-bench/` writable, and runs the container as your user rather than as

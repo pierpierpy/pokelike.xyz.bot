@@ -244,8 +244,11 @@ update, or a laptop sleeping. The build context is the **repo root** and
   container and lose it on exit.
 
 **`pokelike model bench ... --docker`** is how a pass goes into a container: it
-forwards the flags you gave it untouched to the compose command, adding `--build` (so
-a stale image can never quietly run old code), `--rm` (the container removes itself
+forwards the flags you gave it untouched to the compose command, adding `--build` when no
+image carries this commit's tag yet (so a stale image can never quietly run old code, while
+a commit already built here is reused, because rebuilding a tag moves it onto a new image and
+leaves passes already running on an image with no name; a `-dirty` tree is always rebuilt),
+`--rm` (the container removes itself
 when the pass ends) and `-d`, and names the container after the harness, the model and
 a short random suffix, which is how two passes of the same model can run at once and
 how `model watch` knows what is up. It also removes any bench container that has
