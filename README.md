@@ -37,7 +37,7 @@ This repo is three things in one, and you can use it for any of them:
 - &nbsp;![](https://img.shields.io/badge/-yellow)
   [LLM agentic benchmark](#2-llm-agentic-benchmark) is an agentic harness that
   runs the same fifty seeds against every LLM. The resulting score measures a model's
-  agentic and planning capability.
+  agentic and planning capability. Here's the [latest results](llm-bench/README.md).
 - &nbsp;![](https://img.shields.io/badge/-red)
   [Bot framework and arena](#3-bot-framework-and-arena) is the part where you write
   a bot, and the goal is to beat the game. A bot can be anything that turns a state into
