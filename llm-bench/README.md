@@ -37,6 +37,10 @@ Contents
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.36 | 0.0271 |
 | 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.10 | 0.0221 |
+| 3 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | 0.00 | 0.0000 |
+| 4 | `inclusionai/ling-3.0-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.109 | 4 | 0 | +0.00 | 27 | 215610 | 29994 | 0.002 | 0.32 | 0.0064 |
+| 5 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
+| 6 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -234,17 +238,14 @@ uv run pokelike model bench --harness v5 --model a/b --docker
 ```
 
 The `--docker` flag forwards the same benchmark flags untouched, and the flag also handles the
-parts that are easy to get wrong by hand. The image is tagged with the commit it was built
-from, so a pass can never run stale code, and the image is rebuilt whenever no image carries
-that tag yet. A commit whose image is already on disk is reused instead, because a tag naming
-a bare commit can only come from a clean tree at that commit. Reusing it is also what lets
-`docker ps` keep naming the image of passes that are already running: rebuilding a tag moves
-it onto a fresh image and leaves the earlier passes on an image with no name. A tree with
-uncommitted changes is tagged `-dirty` and always rebuilt, since one such tag covers every
-uncommitted state and is never evidence of what is on disk now. The container removes itself
-when the pass ends. The container is named after the harness, the model, and a short random suffix, so two
+parts that are easy to get wrong by hand. The image is rebuilt first, so a pass can
+never run stale code. The container removes itself when the pass ends. The container is named after the harness, the model, and a short random suffix, so two
 passes of the same model can run at once and remain distinguishable. The flag also
-clears away any bench container that has already exited.
+clears away any bench container that has already exited, and tags the image with the
+commit the image was built from. Rebuilding moves that tag onto the new image, so a
+container that is already running keeps playing the code it started with while `docker ps`
+shows it by image id rather than by name; `docker inspect <container>` still reports the
+tag it was launched from under `Config.Image`.
 The compose setup behind the flag is in [`docker/`](docker/), and the compose file sets `shm_size: 2gb`
 because Chromium needs far more than Docker's default, mounts your `site/` read-only,
 keeps only `llm-bench/` writable, and runs the container as your user rather than as

@@ -68,8 +68,7 @@ def model_bench_args(s) -> None:
                    help="play the seeds and print, but record nothing")
     s.add_argument("--docker", action="store_true",
                    help="run this same command inside the container instead of here: "
-                        "builds the image unless this commit is already built, then "
-                        "launches it detached and "
+                        "rebuilds the image, then launches it detached and "
                         "self-removing. Prints the name to watch it by")
     s.add_argument("--name", default="", metavar="NAME",
                    help="container name for --docker. The default, "
