@@ -124,7 +124,7 @@ Think briefly, then call `play`. Always call `play`."""
         prompt=PROMPT,
 
         temperature=0.3,        # low but not zero, because zero is not reproducible
-        reasoning_effort="low", # the model reasons before answering, and None turns reasoning off
+        reasoning_effort="low", # the model reasons before answering, and "none" turns reasoning off
         max_tokens=1200,        # a paragraph, a plan, and a play call
         max_rounds=6,           # this prompt asks for two or three tools before play
         retries=5,              # a 429 is not the model's fault, so try again
