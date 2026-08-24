@@ -42,6 +42,8 @@ def _panel(p: "Pass", containers: list[str]):
             "FAILED": "red"}.get(p.state, "white")
     grid.add_row("state", f"[{tone}]{p.state}[/{tone}]"
                  + (f"   [dim]{', '.join(containers)}[/dim]" if containers else ""))
+    if p.settings_text:
+        grid.add_row("set", f"[cyan]{p.settings_text}[/cyan]")
     if p.notes_max:
         grid.add_row("notes cap", str(p.notes_max))
     grid.add_row("trace", f"[dim]{p.trace}[/dim]")
@@ -52,7 +54,7 @@ def _runs_table(p: "Pass", limit: int = 12):
     from rich.table import Table
 
     t = Table(expand=False, border_style="dim", header_style="bold")
-    for name in ("seed", "badges", "score", "steps", "in", "out", "fell", "secs"):
+    for name in ("seed", "badges", "score", "steps", "in", "out", "fallback", "secs"):
         t.add_column(name, justify="right")
     finished = p.runs[: p.done] if p.state == "running" else p.runs
     for r in finished[-limit:]:
@@ -60,7 +62,9 @@ def _runs_table(p: "Pass", limit: int = 12):
                   "[dim]-[/dim]" if r.score is None else str(r.score),
                   str(r.steps),
                   _tok(r.tokens_in), _tok(r.tokens_out),
-                  f"[yellow]{r.fell}[/yellow]" if r.fell else "0",
+                  ("0" if not r.fell
+                   else f"[yellow]{r.fell_share * 100:.1f}%[/yellow]"
+                   if r.fell_share > 0.1 else f"{r.fell_share * 100:.1f}%"),
                   f"{r.secs:.0f}" if r.secs else "[dim]-[/dim]")
     if not finished:
         t.add_row(*["[dim]-[/dim]"] * 8)

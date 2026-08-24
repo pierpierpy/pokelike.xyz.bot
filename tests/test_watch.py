@@ -432,9 +432,48 @@ def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
                         lambda *a, **k: {"a/b": {"in": 1e-6, "out": 1e-5}})
     table, n = ov._running_table(None)
     assert n == 1
-    assert [c.header for c in table.columns][6] == "cost", "cost sits beside the tokens"
-    cells = [str(c) for c in table.columns[6]._cells]
+    # The column is found by header, so inserting a column does not break this.
+    cost_col = next(c for c in table.columns if c.header == "cost")
+    cells = [str(c) for c in cost_col._cells]
     assert cells == ["$2.00"]
+
+
+def test_the_set_column_carries_a_versions_own_knob(bench, monkeypatch):
+    """Two passes of one model differ only by `--set`, so the table has to show it.
+
+    Four v7 passes of the same model at four reasoning levels are otherwise
+    identical in every column, and the row is unreadable without the override
+    that tells them apart.
+    """
+    import importlib
+    ov = importlib.import_module("pokelike.harness.watch.overview")
+
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    cmd = json.loads((d / "command.json").read_text(encoding="utf-8"))
+    cmd["settings"] = {"reasoning": "high", "notes": "4"}
+    (d / "command.json").write_text(json.dumps(cmd), encoding="utf-8")
+    monkeypatch.setattr(ov, "_get_containers", lambda: [])
+
+    assert watch.read(d).settings_text == "notes=4,reasoning=high"
+    table, _ = ov._running_table(None)
+    set_col = next(c for c in table.columns if c.header == "set")
+    assert "reasoning=high" in str(set_col._cells[0])
+
+
+def test_a_pass_with_no_overrides_shows_a_dash_in_the_set_column(bench, monkeypatch):
+    """A pass that took the harness defaults recorded no settings, and says so."""
+    import importlib
+    ov = importlib.import_module("pokelike.harness.watch.overview")
+
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    monkeypatch.setattr(ov, "_get_containers", lambda: [])
+
+    assert watch.read(d).settings_text == ""
+    table, _ = ov._running_table(None)
+    set_col = next(c for c in table.columns if c.header == "set")
+    assert "-" in str(set_col._cells[0])
 
 
 def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
@@ -453,8 +492,9 @@ def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
     monkeypatch.setattr("pokelike.harness.llmbench.pricing.cached_prices",
                         lambda *a, **k: {"someone/else": {"in": 1e-6, "out": 1e-5}})
     table, _ = ov._running_table(None)
-    assert "-" in str(table.columns[6]._cells[0])
-    assert "$" not in str(table.columns[6]._cells[0])
+    cost_col = next(c for c in table.columns if c.header == "cost")
+    assert "-" in str(cost_col._cells[0])
+    assert "$" not in str(cost_col._cells[0])
 
 
 def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch):

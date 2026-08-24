@@ -44,6 +44,62 @@ def memory_harness():
     return cls(seed=0, model="test-model", **OFFLINE)
 
 
+@pytest.mark.parametrize("version,expected", [
+    ("v0", {}),
+    ("v2", {}),
+    ("v4", {"notes": 12}),
+    ("v6", {"notes": 40}),
+    ("v7", {"notes": 40, "reasoning": None}),
+])
+def test_each_version_reports_only_the_knobs_it_really_accepts(version, expected):
+    """A knob is what the frozen constructor accepts, not what the class happens to hold.
+
+    v2 carries a `NOTES_MAX` attribute and still refuses `--set notes=4`, because
+    its constructor never pops that key and raises on anything left over. Reading
+    the attribute instead of the constructor claimed a knob v2 does not have, which
+    would have put a column of lies in the v2 table.
+    """
+    assert dict(L.version_settings(version)) == expected
+
+
+def test_a_row_reports_the_default_for_a_knob_it_did_not_override():
+    """Every row states what it ran with, so a blank never has to be interpreted."""
+    assert L.settings_text("v7", None) == "notes=40,reasoning=off"
+    assert L.settings_text("v7", {"reasoning": "high"}) == "notes=40,reasoning=high"
+    assert L.settings_text("v6", {"notes": "4"}) == "notes=4"
+    # A version with no knobs of its own contributes no column at all.
+    assert L.settings_text("v2", None) == ""
+
+
+def test_a_knob_added_by_a_later_version_needs_no_edit_here(monkeypatch):
+    """A new `--set` key must reach every table and `model watch` on its own.
+
+    Nothing lists the knobs by name, so a version that starts accepting one is
+    picked up from its own constructor. The seven flags shared by every version
+    stay out, since they say nothing about which question a row answers. The
+    version named here is a real one, because only the class is being stood in
+    for; the path still has to resolve.
+    """
+    from pokelike.bot import catalogue
+
+    class Later:
+        CACA = "on"
+        TEMPERATURE = 0.7
+
+        def __init__(self, **overrides):
+            self.temperature = overrides.pop("temperature", self.TEMPERATURE)
+            self.caca = overrides.pop("caca", self.CACA)
+
+    monkeypatch.setattr(catalogue, "load_class", lambda *_a, **_k: Later)
+    L.version_settings.cache_clear()
+    try:
+        assert dict(L.version_settings("v7")) == {"caca": "on"}
+        assert L.settings_text("v7", None) == "caca=on"
+        assert L.settings_text("v7", {"caca": "off"}) == "caca=off"
+    finally:
+        L.version_settings.cache_clear()
+
+
 @pytest.mark.parametrize("version", L.versions())
 def test_every_harness_is_loadable_and_reports_itself(version):
     """Catches what a mechanical copy gets wrong.

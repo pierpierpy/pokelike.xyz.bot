@@ -37,6 +37,7 @@ def overview(version: str | None = None) -> int:
     t.add_column("started")
     t.add_column("v")
     t.add_column("model", no_wrap=True, min_width=26)
+    t.add_column("set")
     t.add_column("runs", justify="right")
     t.add_column("badges~", justify="right")
     t.add_column("state")
@@ -50,7 +51,7 @@ def overview(version: str | None = None) -> int:
         tone = {"running": "green", "done": "cyan", "stalled": "yellow",
                 "stopped": "blue", "FAILED": "red"}.get(p.state, "white")
         age = time.time() - _touched(d)
-        t.add_row(d.name, p.version, p.model,
+        t.add_row(d.name, p.version, p.model, p.settings_text or "-",
                   f"{p.done}/{p.wanted or '?'}", f"{mean:.2f}",
                   f"[{tone}]{p.state}[/{tone}]",
                   f"{age / 60:.0f} min" if age < 5400 else f"{age / 3600:.0f} h")
@@ -82,11 +83,12 @@ def _running_table(version: str | None):
     t.add_column("#", justify="right")
     t.add_column("v")
     t.add_column("model", no_wrap=True, min_width=26)
+    t.add_column("set")
     t.add_column("progress", no_wrap=True)
     t.add_column("badges~", justify="right")
     t.add_column("tok in/out", justify="right")
     t.add_column("cost", justify="right")
-    t.add_column("fell", justify="right")
+    t.add_column("fallback", justify="right")
     t.add_column("eta", justify="right")
     t.add_column("stamp", justify="right")
     for i, d in enumerate(running, 1):
@@ -104,6 +106,14 @@ def _running_table(version: str | None):
         tin = sum(r.tokens_in for r in finished)
         tout = sum(r.tokens_out for r in finished)
         fell = sum(r.fell for r in finished)
+        turns = sum(r.steps for r in finished)
+        # A share, not a count: the flag at a tenth of the turns is what the
+        # standings flag too, and a count cannot be compared between passes of
+        # different lengths.
+        share = (fell / turns) if turns else 0.0
+        fell_cell = "0" if not fell else f"{share * 100:.1f}%"
+        if share > 0.1:
+            fell_cell = f"[yellow]{fell_cell}[/yellow]"
         # This is the dollar value of tokens consumed so far.
         spent = cost(tin, tout, price.get(p.model))
         money = f"${spent:.2f}" if spent is not None else "[dim]-[/dim]"
@@ -112,9 +122,9 @@ def _running_table(version: str | None):
             per = sum(r.secs for r in finished) / done
             rest = (total - done) * per
             left = f"{rest / 3600:.1f}h" if rest > 5400 else f"{rest / 60:.0f}m"
-        t.add_row(str(i), p.version, p.model, bar, f"{mean:.2f}",
-                  f"{_tok(tin)}/{_tok(tout)}", money,
-                  f"[yellow]{fell}[/yellow]" if fell else "0",
+        t.add_row(str(i), p.version, p.model, p.settings_text or "[dim]-[/dim]",
+                  bar, f"{mean:.2f}",
+                  f"{_tok(tin)}/{_tok(tout)}", money, fell_cell,
                   left, f"[dim]{d.name}[/dim]")
     return t, len(running)
 

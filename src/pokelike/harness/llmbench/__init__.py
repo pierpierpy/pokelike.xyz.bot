@@ -15,7 +15,8 @@ luck.
 
 Submodules:
 
-- versions.py: paths, fingerprints, slug, version discovery, cross_run_memory
+- versions.py: paths, fingerprints, slug, version discovery, cross_run_memory,
+  and the knobs a version accepts through `--set`
 - command.py: session_dir, parse_settings, record_command, records
 - results.py: record, load, stats, learning, _as_pass (the stored record)
 - tables.py: format_table, markdown_table, write_readme (presentation)
@@ -44,7 +45,9 @@ from .versions import (  # noqa: F401
     harness_path,
     render_path,
     script_paths,
+    settings_text,
     slug,
+    version_settings,
     versions,
 )
 

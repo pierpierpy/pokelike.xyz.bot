@@ -35,62 +35,68 @@ Contents
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.18 | 0.0237 |
-| 2 | `deepseek/deepseek-v4-flash` | `reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 0.96 | 0.0193 |
+| 1 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.36 | 0.0271 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.10 | 0.0221 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
 
-`set` is what `--set` overrode for that row's pass(es); `_(default)_` means the harness ran with no override. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
+`set` lists the knobs this harness version has of its own, with the value each pass ran under. A pass that passed no `--set` shows the harness default, so every row states what it ran with. The flags every version shares are left out because they say nothing about which question a row answers. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
 
 ### Harness `v6`
 
-| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.39 | 0.0278 |
+| # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.59 | 0.0319 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
+
+`set` lists the knobs this harness version has of its own, with the value each pass ran under. A pass that passed no `--set` shows the harness default, so every row states what it ran with. The flags every version shares are left out because they say nothing about which question a row answers. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
 
 ### Harness `v5`
 
-| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **0.96** | 0.185 | 8 | 0 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
+| # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `Qwen/Qwen3.8-27B-FP8` | `notes=12` | 1 | 50 | **0.96** | 0.185 | 8 | 0 | -0.50 | 12 | 194993 | 87825 | 0.035 | n/a | n/a |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
+
+`set` lists the knobs this harness version has of its own, with the value each pass ran under. A pass that passed no `--set` shows the harness default, so every row states what it ran with. The flags every version shares are left out because they say nothing about which question a row answers. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
 
 ### Harness `v4`
 
-| # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
-|--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `moonshotai/kimi-k2.6` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.75 | 0.0151 |
-| 3 | `google/gemini-3.7-flash` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
-| 4 | `qwen/qwen3.7-flash` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
-| 5 | `Qwen/Qwen3.8-27B-FP8` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
-| 6 | `openai/gpt-5.6-luna-pro` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
-| 7 | `z-ai/glm-4.7-flash` | 1 | 50 | **0.98** | 0.105 | 4 | 0 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
-| 8 | `x-ai/grok-4.3` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
-| 9 | `meta-llama/llama-4-scout` | 1 | 50 | **0.9** | 0.129 | 4 | 0 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
-| 10 | `openai/gpt-5-nano` | 1 | 50 | **0.8** | 0.099 | 3 | 0 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
-| 11 | `mistralai/mistral-medium-3.1` | 1 | 50 | **0.78** | 0.092 | 3 | 0 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
-| 12 | `google/gemini-2.5-flash-lite` | 1 | 50 | **0.72** | 0.107 | 3 | 0 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
+| # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
+|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | `moonshotai/kimi-k2.6` | `notes=12` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.86 | 0.0173 |
+| 3 | `google/gemini-3.7-flash` | `notes=12` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
+| 4 | `qwen/qwen3.7-flash` | `notes=12` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
+| 5 | `Qwen/Qwen3.8-27B-FP8` | `notes=12` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
+| 6 | `openai/gpt-5.6-luna-pro` | `notes=12` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.30 | 12 | 595656 | 28470 | 0.0 | 7.66 | 0.1533 |
+| 7 | `z-ai/glm-4.7-flash` | `notes=12` | 1 | 50 | **0.98** | 0.105 | 4 | 0 | +0.10 | 12 | 122116 | 25168 | 0.082 | 0.87 | 0.0174 |
+| 8 | `x-ai/grok-4.3` | `notes=12` | 1 | 50 | **0.96** | 0.09 | 4 | 0 | -0.50 | 12 | 88076 | 6292 | 0.0 | 6.29 | 0.1258 |
+| 9 | `meta-llama/llama-4-scout` | `notes=12` | 1 | 50 | **0.9** | 0.129 | 4 | 0 | -0.10 | 12 | 134145 | 1390 | 0.07 | 0.69 | 0.0138 |
+| 10 | `openai/gpt-5-nano` | `notes=12` | 1 | 50 | **0.8** | 0.099 | 3 | 0 | -0.30 | 12 | 64021 | 28691 | 0.002 | 0.73 | 0.0147 |
+| 11 | `mistralai/mistral-medium-3.1` | `notes=12` | 1 | 50 | **0.78** | 0.092 | 3 | 0 | +0.10 | 12 | 110381 | 3091 | 0.002 | 2.52 | 0.0503 |
+| 12 | `google/gemini-2.5-flash-lite` | `notes=12` | 1 | 50 | **0.72** | 0.107 | 3 | 0 | +1.10 | 6 | 60310 | 3148 | 0.0 | 0.36 | 0.0073 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
 `learn` is the last 10 runs of a pass minus its first 10, in the order played. This harness lets the model keep notes between runs, so that column is what it exists to measure. `badges~` is a mean over a learning curve here.
+
+`set` lists the knobs this harness version has of its own, with the value each pass ran under. A pass that passed no `--set` shows the harness default, so every row states what it ran with. The flags every version shares are left out because they say nothing about which question a row answers. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
 
 ### Harness `v2`
 
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | 0 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
-| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.61 | 0.0122 |
+| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.49 | 0.0098 |
 | 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | 0 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
 | 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | 0 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 

@@ -50,6 +50,16 @@ class Run:
     map_view: str = ""
 
     @property
+    def fell_share(self) -> float:
+        """Returns the fraction of this run's turns that the harness decided, not the model.
+
+        A raw count cannot be read without knowing how long the run was, since two
+        fallbacks in a ten-turn run and two in a hundred-turn run are different
+        measurements.
+        """
+        return (self.fell / self.steps) if self.steps else 0.0
+
+    @property
     def secs(self) -> float:
         try:
             a = datetime.fromisoformat(self.first_at)
@@ -72,10 +82,24 @@ class Pass:
     notes_max: int = 0
     started: str = ""
     state: str = "running"
+    settings: dict[str, Any] = field(default_factory=dict)
     runs: list[Run] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     notes_live: list[str] = field(default_factory=list)
     plan: str = ""
+
+    @property
+    def settings_text(self) -> str:
+        """Returns this pass's knob values as `key=value,key=value`.
+
+        The version's own knobs are asked of the harness rather than listed here,
+        so a knob added by a later version shows up in `model watch` for free, the
+        same way it shows up in the standings. A knob the pass did not override
+        reports the harness default, which is what it actually ran with.
+        """
+        from ..llmbench.versions import settings_text
+
+        return settings_text(self.version, self.settings)
 
     @property
     def done(self) -> int:
@@ -146,6 +170,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         workers=int(cmd.get("workers") or 1),
         notes_max=int(cmd.get("notes") or 0),
         started=cmd.get("at", ""),
+        settings=dict(cmd.get("settings") or {}),
     )
 
     by_seed: dict[int, Run] = {}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 from pathlib import Path
 
 # --------------------------------------------------------------------------- paths
@@ -139,3 +140,75 @@ def cross_run_memory(version: str) -> bool:
     from ...bot.catalogue import load_class
 
     return bool(getattr(load_class(harness_path(version)), "CROSS_RUN_MEMORY", False))
+
+
+# The seven flags every version shares. They mean the same thing everywhere, so
+# they say nothing about which question a row answers and are left out of the
+# tables. Anything else a constructor accepts is that version's own knob.
+SHARED_SETTINGS = frozenset({
+    "prompt", "temperature", "max_tokens", "max_rounds", "memory", "view",
+    "token_budget",
+})
+
+
+@lru_cache(maxsize=None)
+def version_settings(version: str) -> tuple[tuple[str, object], ...]:
+    """Returns this version's own knobs and the default each one takes.
+
+    A knob is a `--set` key the constructor accepts beyond the seven shared ones,
+    found by reading the frozen source for the `overrides.pop("name", ...)` that
+    accepts it. Reading the source rather than keeping a list here is what makes a
+    later version's new knob appear in every table and in `model watch` with no
+    edit anywhere, and the harnesses cannot declare it themselves because they are
+    frozen.
+
+    The default is the class attribute named on the same line, so a row that
+    overrode nothing can still report what it ran with. The result is a tuple of
+    pairs rather than a dict because it is cached, and it is empty both for a
+    version with no knobs of its own and for one whose harness cannot be loaded.
+    """
+    import inspect
+    import re
+
+    from ...bot.catalogue import load_class
+
+    try:
+        cls = load_class(harness_path(version))
+        src = inspect.getsource(cls.__init__)
+    except Exception:
+        # A version with no harness on disk tells us nothing about its knobs, and
+        # a reader asking about one must not fail because of it.
+        return ()
+
+    found: list[tuple[str, object]] = []
+    for line in src.splitlines():
+        m = re.search(r'overrides\.pop\(\s*["\'](\w+)["\']', line)
+        if not m or m.group(1) in SHARED_SETTINGS:
+            continue
+        attr = re.search(r'self\.([A-Z][A-Z_0-9]*)', line)
+        found.append((m.group(1),
+                      getattr(cls, attr.group(1), None) if attr else None))
+    return tuple(found)
+
+
+def settings_text(version: str, overrides: dict | None) -> str:
+    """Returns a row's knob values as `key=value,key=value`, defaults filled in.
+
+    A pass that overrode nothing still ran with something, so the default is
+    printed rather than a blank, which is what makes two rows of the same model
+    comparable at a glance. A knob whose default is None prints as `off`, the word
+    the harness itself uses for it.
+
+    When the version's knobs cannot be read, the overrides that were recorded are
+    printed as they stand, because that is all that is known and hiding them would
+    say less than showing them.
+    """
+    knobs = version_settings(version)
+    given = overrides or {}
+    if not knobs:
+        return ",".join(f"{k}={v}" for k, v in sorted(given.items()))
+    parts = []
+    for name, default in knobs:
+        value = given.get(name, default)
+        parts.append(f"{name}={'off' if value is None else value}")
+    return ",".join(parts)
