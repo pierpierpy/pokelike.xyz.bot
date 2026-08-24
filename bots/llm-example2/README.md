@@ -70,7 +70,7 @@ This first group is values. Changing them takes no code, just a different number
 | `prompt` | the shared rules | `PROMPT` | the system message. **This is the submission** |
 | `model` | `$MODEL_ID` | unset | which model plays |
 | `temperature` | 0.6 | 0.3 | sampling |
-| `reasoning_effort` | `None` (not sent) | `"low"` | how hard the model thinks before it answers. Accepts `"minimal"`, `"low"`, `"medium"`, `"high"`, and `"none"` to ask for no reasoning at all. Python `None` sends no field, which is not the same as off: the provider then applies its own default, and on some models that is more reasoning than `"high"` would give |
+| `reasoning_effort` | `None` (off) | `"low"` | the model reasons before answering; `None`, `"minimal"`, `"low"`, `"medium"`, or `"high"` |
 | `max_tokens` | 1500 | 1200 | ceiling on one answer |
 | `max_rounds` | 4 | 6 | tool rounds before the turn is lost to the fallback |
 | `retries` | 4 | 5 | attempts on a transient HTTP failure |

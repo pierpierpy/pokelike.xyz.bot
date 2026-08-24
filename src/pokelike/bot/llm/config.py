@@ -53,11 +53,9 @@ class LLMConfig(BaseModel):
     temperature: float = 0.6
     max_tokens: int = 1500
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None
-    # None omits the field, which is not the same as off: the provider then applies
-    # its own default, and a model whose deployment reasons freely produces more
-    # under it than it does at "high". Pass "none" to ask for no reasoning. Not
-    # every provider supports every value; a model that only accepts a subset
-    # raises its own HTTP error.
+    # None omits the field entirely, for a model that rejects it. Everything else
+    # is sent as OpenAI's reasoning_effort. Not every provider supports every
+    # value; a model that only accepts a subset raises its own HTTP error.
     max_rounds: int = 4                          # maximum tool rounds before the turn is given up
     memory: int = 6                              # number of past turns replayed; -1 keeps all
     token_budget: int = 0                        # per-run token cap; 0 means no limit

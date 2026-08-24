@@ -35,9 +35,8 @@ def call_model_http(
 
     Returns (message_dict, usage_dict). Raises LLMConfigError for permanent
     failures, LLMError for transient ones, and LLMBudgetError when the token
-    budget is spent. A reasoning_effort of None omits the field, so the provider's
-    own default decides how much the model reasons; a provider that rejects the
-    field surfaces its own HTTP error.
+    budget is spent. When reasoning_effort is not None, the model reasons before
+    answering; a provider that rejects the field surfaces its own HTTP error.
     """
     if token_budget and tokens_used >= token_budget:
         raise LLMBudgetError(
