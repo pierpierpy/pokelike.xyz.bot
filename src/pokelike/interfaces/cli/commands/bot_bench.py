@@ -61,7 +61,7 @@ def cmd_bench(args) -> int:
     server, game = _server_and_game(args)
     try:
         # --- logging, using the same file format the model benchmark uses ---
-        from ....logging import Conversations, PassLog
+        from ....logging import CHAT_SUFFIX, Conversations, PassLog
         from ....logging.trace import enrich_decision
 
         # Resolve the bot folder.
@@ -112,7 +112,7 @@ def cmd_bench(args) -> int:
 
         # Record every model exchange beside the trace. Bots that call no model
         # (random, a policy) simply write no file.
-        chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
+        chat = Conversations(log.path.with_name(log.path.stem + CHAT_SUFFIX))
         if not getattr(args, "no_conv", False):
             chat.watch(bot)
 

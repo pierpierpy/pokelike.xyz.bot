@@ -18,6 +18,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+# Both benchmarks name their conversations file with this suffix, so the name
+# lives here rather than in each of the two places that opens the file.
+CHAT_SUFFIX = "-chat.jsonl"
+
 
 class Conversations:
     """Writes every model exchange of a pass, one JSON object per decision.

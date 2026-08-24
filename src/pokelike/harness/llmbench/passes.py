@@ -14,7 +14,7 @@ from typing import Any
 from ...arena.bench import STANDARD_SEEDS, run_benchmark
 from ...core.browser import normalise_region, region_name
 from ...logging.trace import enrich_decision
-from ...logging import Conversations, PassLog
+from ...logging import CHAT_SUFFIX, Conversations, PassLog
 from .results import _as_pass, learning
 from .versions import (ROOT, cross_run_memory, fingerprints,
                        harness_path, script_paths, slug)
@@ -45,7 +45,7 @@ def play_model(game, version: str, model: str, site: Path,
                   attempt=attempt, memory=cross_run_memory(version),
                   region=region_name(normalise_region(region)) if region != 1 else None)
     # Records what the model was actually sent, beside the decision trace.
-    chat = Conversations(log.path.with_name(log.path.stem + "-chat.jsonl"))
+    chat = Conversations(log.path.with_name(log.path.stem + CHAT_SUFFIX))
     if conversations:
         chat.watch(bot)
     last = [time.time()]

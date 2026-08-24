@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .liveness import _alive_fresh
+from .liveness import _alive_fresh, heartbeat
 
 # The runs file uses this suffix and is written beside the trace.
 RUNS_SUFFIX = "-runs.jsonl"
@@ -90,10 +90,31 @@ class Pass:
 # ----------------------------------------------------------------------- reading
 
 
+def _companions(files: list[Path]) -> set[Path]:
+    """Returns the files that belong to another file in the list rather than standing alone.
+
+    Every file a pass writes is its trace's stem plus a suffix, so
+    `<stem>-chat.jsonl` and `<stem>-runs.jsonl` sit beside `<stem>.jsonl`. A file
+    is therefore a companion when its name starts with another file's stem
+    followed by a dash. Reading the relationship off the names keeps this
+    correct when a pass starts writing a new kind of file, which a list of known
+    suffixes would not.
+    """
+    return {f for f in files
+            if any(f.name.startswith(g.stem + "-") for g in files if g != f)}
+
+
 def newest_trace(folder: Path) -> Path | None:
-    """Returns the most recent .jsonl in the folder that is not the runs file."""
-    # The runs file is excluded because it is also .jsonl.
-    traces = [f for f in folder.glob("*.jsonl") if not f.name.endswith(RUNS_SUFFIX)]
+    """Returns the trace of the most recently active pass in the folder.
+
+    The companion files are excluded before the comparison because they are
+    written more often than the trace itself. The conversations file is appended
+    on every model call, so comparing modification times across all of them
+    would pick it and every path derived from it, the heartbeat included, would
+    name a file that does not exist.
+    """
+    files = list(folder.glob("*.jsonl"))
+    traces = [f for f in files if f not in _companions(files)]
     return max(traces, key=lambda f: f.stat().st_mtime, default=None)
 
 
@@ -174,7 +195,7 @@ def read(folder: Path, up: list[str] | None = None) -> Pass | None:
         p.state = "stopped"
     elif "\ndone " in text:
         p.state = "done"
-    elif _alive_fresh(trace) and not _owner_gone(trace, up):
+    elif _alive_fresh(folder) and not _owner_gone(folder, up):
         # The heartbeat is fresh and the owner process is not provably gone.
         p.state = "running"
     else:
@@ -270,7 +291,7 @@ def _add_scores(trace: Path, p: "Pass") -> None:
             r.score = by_seed[r.seed]
 
 
-def _owner_gone(trace: Path, up: list[str] | None) -> bool:
+def _owner_gone(folder: Path, up: list[str] | None) -> bool:
     """Returns True when the pass's owner process is provably no longer there.
 
     The function returns True only when the heartbeat file names an owner
@@ -280,7 +301,9 @@ def _owner_gone(trace: Path, up: list[str] | None) -> bool:
     # Locally the pid is checked directly; for a container the id is compared
     # against the list of running containers. Anything unknown leaves the
     # heartbeat as the only signal.
-    alive = trace.with_suffix(".alive")
+    alive = heartbeat(folder)
+    if alive is None:
+        return False
     try:
         text = alive.read_text(encoding="utf-8", errors="replace")
     except OSError:

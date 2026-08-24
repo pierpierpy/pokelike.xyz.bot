@@ -15,6 +15,7 @@ import time
 import pytest
 
 from pokelike.harness import watch
+from pokelike.harness.watch.read import newest_trace
 
 
 def _trace(folder, model: str, rows: list[dict], alive: bool | float = True) -> None:
@@ -262,6 +263,28 @@ def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
     monkeypatch.setattr(watch, "_containers", lambda: ["pk_v4_qwen-qwen3-7-flash"])
     assert watch.live() == []
     assert watch.read(d, watch._containers()).state == "stalled"
+
+
+def test_the_conversations_file_does_not_hide_the_trace(bench, monkeypatch):
+    """A pass stays live when the file it writes most often is newer than its trace.
+
+    The heartbeat's name is derived from whichever file is taken as the trace, and
+    the conversations file shares the trace's stem with `-chat` added. That file is
+    appended on every model call, so it is almost always the newest .jsonl in the
+    folder. Taking it as the trace looks for a `-chat.alive` heartbeat that nothing
+    writes, and a pass playing right now reads as stalled.
+    """
+    d = bench / "v9" / "logs" / "20260820-170000"
+    _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
+    chat = d / "a--b-pass1-chat.jsonl"
+    chat.write_text('{"seed": 10000, "messages": []}\n', encoding="utf-8")
+    later = time.time() + 10
+    os.utime(chat, (later, later))
+    monkeypatch.setattr(watch, "_containers", lambda: [])
+
+    assert newest_trace(d).name == "a--b-pass1.jsonl"
+    assert watch.read(d).state == "running"
+    assert [x.name for x in watch.live()] == [d.name]
 
 
 def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
@@ -634,7 +657,7 @@ def test_a_pass_outside_a_container_is_not_killed_off_by_other_containers(bench)
 
     folder, trace = _pass_owned_by(bench, os.getpid(), socket.gethostname())
     up = ["pk_v4_something", "5953fbc2470e"]
-    assert rd._owner_gone(trace, up) is False
+    assert rd._owner_gone(folder, up) is False
     assert watch.read(folder, up).state == "running"
 
 
@@ -650,7 +673,7 @@ def test_a_local_pass_whose_process_is_gone_is_over_at_once(bench):
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
     folder, trace = _pass_owned_by(bench, dead.pid, socket.gethostname())
-    assert rd._owner_gone(trace, ["pk_v4_something"]) is True
+    assert rd._owner_gone(folder, ["pk_v4_something"]) is True
     assert watch.read(folder, ["pk_v4_something"]).state != "running"
 
 
@@ -660,10 +683,10 @@ def test_a_container_pass_follows_its_container(bench):
     rd = importlib.import_module("pokelike.harness.watch.read")
 
     folder, trace = _pass_owned_by(bench, 10, "5953fbc2470e")
-    assert rd._owner_gone(trace, ["pk_v4_x", "5953fbc2470e"]) is False
-    assert rd._owner_gone(trace, ["pk_v4_x", "aaaaaaaaaaaa"]) is True
+    assert rd._owner_gone(folder, ["pk_v4_x", "5953fbc2470e"]) is False
+    assert rd._owner_gone(folder, ["pk_v4_x", "aaaaaaaaaaaa"]) is True
     # Nothing to compare against is not evidence of death.
-    assert rd._owner_gone(trace, []) is False
+    assert rd._owner_gone(folder, []) is False
 
 
 def test_a_pass_that_never_said_who_it_is_falls_back_to_the_heartbeat(bench):
@@ -673,5 +696,5 @@ def test_a_pass_that_never_said_who_it_is_falls_back_to_the_heartbeat(bench):
 
     folder, trace = _pass_owned_by(bench, 10, "5953fbc2470e")
     trace.with_suffix(".alive").write_text("", encoding="utf-8")
-    assert rd._owner_gone(trace, ["pk_v4_x"]) is False
+    assert rd._owner_gone(folder, ["pk_v4_x"]) is False
     assert watch.read(folder, ["pk_v4_x"]).state == "running"

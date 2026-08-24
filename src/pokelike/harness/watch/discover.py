@@ -38,12 +38,11 @@ def folders(version: str | None = None) -> list[Path]:
     """Returns every pass directory that has a trace, most recently written first."""
     bench = _bench()
     # This import is local to avoid a circular import between the two modules.
-    from .read import RUNS_SUFFIX
+    from .read import newest_trace
 
     versions = [bench / version] if version else sorted(bench.glob("v*"))
     dirs = [d for v in versions for d in (v / "logs").glob("*")
-            if d.is_dir() and any(f for f in d.glob("*.jsonl")
-                                  if not f.name.endswith(RUNS_SUFFIX))]
+            if d.is_dir() and newest_trace(d) is not None]
     return sorted(dirs, key=_touched, reverse=True)
 
 
@@ -111,7 +110,7 @@ def live(version: str | None = None) -> list[Path]:
     passes from before the heartbeat existed) when a container is up for the model.
     A pass whose log already says `done` or `FAILED` is never included.
     """
-    from .read import RUNS_SUFFIX, read
+    from .read import read
 
     up = _get_containers()
     return [d for d in folders(version)
@@ -149,7 +148,7 @@ def pick(version: str | None = None, stamp: str | None = None,
     from rich.console import Console
     from rich.prompt import IntPrompt
 
-    from .read import RUNS_SUFFIX, read
+    from .read import read
 
     if stamp or model:
         for d in folders(version):

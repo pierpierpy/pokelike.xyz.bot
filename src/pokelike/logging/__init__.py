@@ -5,7 +5,7 @@ file stem, header lines, and a memory flag; the writer knows nothing about
 harnesses or models. Domain-specific text is passed in by the caller.
 """
 
-from .conversation import Conversations
+from .conversation import CHAT_SUFFIX, Conversations
 from .heartbeat import HEARTBEAT_SECS, HEARTBEAT_STALE, HeartbeatThread
 from .passlog import LEARN_K, PassLog
 from .trace import enrich_decision
