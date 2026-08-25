@@ -279,19 +279,20 @@ def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
     path = _bench() / "README.md"
     order = list(reversed(versions()))
     blocks = [markdown_table(v, price) for v in order]
-    # The newest version carries its cost frontier, and the older ones do not. Every
-    # version has an image under img/, but a reader wants the current question
-    # answered here rather than six charts to scroll past, and the images are one
-    # click away for anyone who wants an older one.
-    if blocks and order:
-        newest = order[0]
-        img = _bench() / "img" / f"cost-{newest}.png"
+    # The newest harness that has been measured carries its cost frontier, and the
+    # older ones do not. A reader wants the current question answered here rather than
+    # six charts to scroll past, and the images are one click away for anyone who wants
+    # an older one. The search walks down the versions instead of stopping at the
+    # newest, because a harness that exists with nothing recorded under it has no chart
+    # and would otherwise take the picture off the page.
+    for k, v in enumerate(order):
+        img = _bench() / "img" / f"cost-{v}.png"
         if img.is_file():
-            lines = blocks[0].split("\n")
+            lines = blocks[k].split("\n")
             # After the `### Harness` heading and the blank line under it.
-            lines.insert(2, f"![What badges cost under {newest}]"
-                            f"(img/cost-{newest}.png)\n")
-            blocks[0] = "\n".join(lines)
+            lines.insert(2, f"![What badges cost under {v}](img/cost-{v}.png)\n")
+            blocks[k] = "\n".join(lines)
+            break
     body = "\n\n".join(blocks) if blocks else "_Nothing measured yet._"
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():

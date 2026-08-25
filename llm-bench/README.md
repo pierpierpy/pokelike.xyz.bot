@@ -36,6 +36,8 @@ _No models measured under harness `v8` yet._
 
 ### Harness `v7`
 
+![What badges cost under v7](img/cost-v7.png)
+
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `google/gemini-3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **2.56** | 0.322 | 8 | 1 | -0.10 | 20 | 427806 | 9322 | 0.0 | 8.90 | 0.1779 |
