@@ -50,6 +50,8 @@ def memory_harness():
     ("v4", {"notes": 12}),
     ("v6", {"notes": 40}),
     ("v7", {"notes": 40, "reasoning": None}),
+    # v8 states both text budgets, so both are settable rather than only enforced.
+    ("v8", {"notes": 40, "note_chars": 4000, "plan_chars": 1200, "reasoning": None}),
 ])
 def test_each_version_reports_only_the_knobs_it_really_accepts(version, expected):
     """A knob is what the frozen constructor accepts, not what the class happens to hold.
