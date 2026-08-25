@@ -141,9 +141,7 @@ def cost_chart(version: str, path: Path,
     front = _frontier(pts)
     if len(front) > 1:
         ax.step([pts[i][0] for i in front], [pts[i][1] for i in front],
-                where="post", color="#e8590c", linewidth=1.4, zorder=2,
-                label="nothing beats these on both price and badges")
-        ax.legend(fontsize=8, loc="lower right", frameon=False)
+                where="post", color="#e8590c", linewidth=1.4, zorder=2)
     for i in front:
         ax.scatter([pts[i][0]], [pts[i][1]], s=150, facecolors="none",
                    edgecolors="#e8590c", linewidths=1.4, zorder=4)
@@ -155,27 +153,27 @@ def cost_chart(version: str, path: Path,
         ax.annotate(labels[i], pts[i], textcoords="offset points", xytext=(9, 4),
                     fontsize=8, linespacing=1.2, color="#c2410c")
 
-    cap = (f"Badges against cost, harness {version}, {len(pts)} passes")
-    if unpriced:
-        cap += f" ({unpriced} left out: no published price)"
-    ax.set_title(cap + "\nring and line mark what nothing beats on both price and "
-                       "badges; bars are the standard error over fifty runs",
-                 fontsize=11, loc="left")
-    ax.set_xlabel("dollars for one pass of fifty runs, at today's list prices",
-                  fontsize=9)
-    ax.set_ylabel("mean badges a run", fontsize=9)
+    ax.set_title(f"{version} - efficient frontier", fontsize=11)
+    ax.set_xlabel("cost ($)", fontsize=9)
+    ax.set_ylabel("badges/run", fontsize=9)
     # Linear up to a dollar and logarithmic past it, because a free model has to sit
     # at zero and the interesting crowd is all under two dollars while the dearest is
     # near nine. A plain linear axis flattens the crowd into a single column.
     ax.set_xscale("symlog", linthresh=1.0, linscale=1.4)
-    ax.set_xlim(left=-0.06)
-    ax.set_xticks([0, 0.25, 0.5, 1, 2, 4, 8])
+    ax.set_xlim(-0.06, max(xs) * 1.18)
+    # The ticks double from a quarter and stop past the dearest pass, so the scale
+    # covers every point rather than ending under the ones on the right.
+    ticks = [0.0, 0.25, 0.5]
+    while ticks[-1] < max(xs):
+        ticks.append(ticks[-1] * 2)
+    ax.set_xticks(ticks)
     ax.get_xaxis().set_major_formatter(
         matplotlib.ticker.FuncFormatter(lambda v, _: "free" if v == 0 else f"${v:g}"))
     ax.tick_params(labelsize=9)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(alpha=0.25, linewidth=0.6)
+    ax.grid(alpha=0.3, linewidth=0.6)
+    ax.grid(axis="x", which="minor", alpha=0.14, linewidth=0.5)
     ax.set_axisbelow(True)
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
