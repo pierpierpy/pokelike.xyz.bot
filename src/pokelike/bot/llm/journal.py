@@ -42,6 +42,7 @@ def build_user_message(
     n_actions: int,
     *,
     notes_block: list[str] | None = None,
+    history_block: list[str] | None = None,
     plan_block: list[str] | None = None,
 ) -> str:
     """Assembles the full user message from the view, notes, plan, journal, and
@@ -51,6 +52,10 @@ def build_user_message(
     parts = [state_view]
     if notes_block:
         parts += notes_block
+    # Straight after the notes, because the two are read together, since these are
+    # the runs those notes were carried through.
+    if history_block:
+        parts += history_block
     if plan_block:
         parts += plan_block
     if journal:

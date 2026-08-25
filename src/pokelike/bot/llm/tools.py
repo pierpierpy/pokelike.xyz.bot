@@ -117,25 +117,40 @@ _STOCK_TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
 # config enables them: notes_cap > 0 adds the three memory tools, plan_chars > 0
 # adds the plan tool, and bag_tool adds the bag tool.
 
-REMEMBER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "remember",
-        "description": (
-            "Write down something you have learned about this game, to be shown "
-            "back to you on every later turn AND in later runs. Use it for "
-            "lessons that will still be true next time, not for what is on "
-            "screen now. Keep each note short and concrete."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "note": {"type": "string", "description": "one lesson, one sentence"},
+def remember_tool(note_chars: int) -> dict[str, Any]:
+    """Returns the `remember` tool, telling the model the budget a note really has.
+
+    The budget is stated because it is enforced: `Notebook.remember` truncates at
+    the same number. Left unsaid, a bot author who raises `note_chars` changes
+    nothing, since the model has no way to know it has more room and keeps writing
+    a single line.
+
+    One note still holds one idea, which is what makes a note possible to revise or
+    drop later on its own, whatever length it runs to.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "remember",
+            "description": (
+                "Write down something you have learned about this game, to be shown "
+                "back to you on every later turn AND in later runs. Use it for "
+                "lessons that will still be true next time, not for what is on "
+                f"screen now. One note holds one idea, and you have up to "
+                f"{note_chars} characters for it, so say as much as the idea needs. "
+                "Anything past that is cut off."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "note": {"type": "string",
+                             "description": f"one lesson, up to {note_chars} characters"},
+                },
+                "required": ["note"],
             },
-            "required": ["note"],
         },
-    },
-}
+    }
+
 
 REVISE_TOOL = {
     "type": "function",
@@ -175,30 +190,38 @@ FORGET_TOOL = {
     },
 }
 
-PLAN_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "plan",
-        "description": (
-            "Write down the route you mean to take through this map, and why. "
-            "It is shown back to you every turn until you change it, so it is "
-            "how a decision made now reaches the turn that has to honour it. "
-            "Calling this again replaces it. Choosing a node closes every other "
-            "node on that layer forever, so the order you take them in is most "
-            "of the game."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "route": {
-                    "type": "string",
-                    "description": "the plan, in a sentence or two",
+
+def plan_tool(plan_chars: int) -> dict[str, Any]:
+    """Returns the `plan` tool, telling the model the budget a route really has.
+
+    The same reasoning as `remember_tool`: the route is truncated at `plan_chars`,
+    so saying the number is what lets a raised budget change anything.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "plan",
+            "description": (
+                "Write down the route you mean to take through this map, and why. "
+                "It is shown back to you every turn until you change it, so it is "
+                "how a decision made now reaches the turn that has to honour it. "
+                "Calling this again replaces it. Choosing a node closes every other "
+                "node on that layer forever, so the order you take them in is most "
+                f"of the game. You have up to {plan_chars} characters, and anything "
+                "past that is cut off."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "route": {
+                        "type": "string",
+                        "description": f"the plan, up to {plan_chars} characters",
+                    },
                 },
+                "required": ["route"],
             },
-            "required": ["route"],
         },
-    },
-}
+    }
 
 BAG_TOOL = {
     "type": "function",
@@ -210,12 +233,15 @@ BAG_TOOL = {
 }
 
 
-NOTEBOOK_TOOLS = [REMEMBER_TOOL, REVISE_TOOL, FORGET_TOOL]
+def notebook_tools(note_chars: int) -> list[dict[str, Any]]:
+    """Returns the three memory tools, with the note budget stated in the first."""
+    return [remember_tool(note_chars), REVISE_TOOL, FORGET_TOOL]
 
 
 def build_tools(
     *,
     notes_cap: int = 0,
+    note_chars: int = 160,
     plan_chars: int = 0,
     bag_tool: bool = False,
     extra_tools: list[dict[str, Any]] | None = None,
@@ -228,9 +254,9 @@ def build_tools(
     """
     result = list(TOOLS)
     if notes_cap > 0:
-        result.extend(NOTEBOOK_TOOLS)
+        result.extend(notebook_tools(note_chars))
     if plan_chars > 0:
-        result.append(PLAN_TOOL)
+        result.append(plan_tool(plan_chars))
     if bag_tool:
         result.append(BAG_TOOL)
     if extra_tools:

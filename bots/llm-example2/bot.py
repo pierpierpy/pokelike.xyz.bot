@@ -123,9 +123,15 @@ Think briefly, then call `play`. Always call `play`."""
     config = LLMConfig(
         prompt=PROMPT,
 
+        # model=None,           # the model comes from --model or $MODEL_ID, and a bot
+        #                       # folder hardcoding one would fix what it is measured with
         temperature=0.3,        # low but not zero, because zero is not reproducible
         reasoning_effort="low", # the model reasons before answering, and "none" turns reasoning off
-        max_tokens=1200,        # a paragraph, a plan, and a play call
+        max_tokens=100_000,     # High enough that a model which reasons is never cut off,
+                                # since the longest reply recorded here runs to about 33k
+                                # tokens. It stops there because a provider refuses a value
+                                # above what its own model can produce, and a refused call
+                                # ends the run.
         max_rounds=6,           # this prompt asks for two or three tools before play
         retries=5,              # a 429 is not the model's fault, so try again
         token_budget=1_000_000_000,    # about 3x a normal run, and hitting the budget ends
@@ -146,7 +152,16 @@ Think briefly, then call `play`. Always call `play`."""
                                           # exist there, but a general lesson might hold.
         plan_chars=1000000,         # this gives room for a route that names its nodes
 
+        run_summary="brief",    # what a finished run tells the next one: none, line or
+                                # brief. Section 7 replaces render_run_summary, so this
+                                # value is only what is used when the model does not answer
+        run_summary_keep=10,    # how many finished runs the model still hears about
+        run_summary_chars=1200, # the budget per run, told to the model and then enforced
+
         bag_tool=True,          # this enables a shared tool that needs no code
+        # extra_tools=[],       # raw tool dicts, for a tool with no method behind it.
+        #                       # Section 2 uses the @tool decorator instead, which writes
+        #                       # the schema from the signature and wires the method up
         # The `what_lies_ahead` tool reports where each option leads. Section 4 already
         # prints that in the view every turn for free, so the tool would just be a
         # redundant round trip.
@@ -224,7 +239,43 @@ Think briefly, then call `play`. Always call `play`."""
             # A failed summary must not end a campaign that is going well.
             return super().region_cleared(done)
 
-    # -------------------------------------------------------------- 7. what is filed
+    # ------------------------------------------------- 7. what a finished run leaves
+    def render_run_summary(self, state: dict[str, Any],
+                           score: dict[str, Any] | None) -> str:
+        """Return what this run should tell the next one, written by the model itself."""
+        # The runner calls this once the run is over, through `finish`, and whatever
+        # comes back is shown at every turn of every later run, next to the notes.
+        # The default levels ("line" and "brief") state the figures. Here the model
+        # is asked instead, so the entry says what it thinks went wrong rather than
+        # what happened, and the entries accumulate into an account of its own play.
+        #
+        # Read `self.last_seen` and not `state`: the engine empties its state at game
+        # over, so `state` arrives with no team and no badges however far it got.
+        seen = self.last_seen or {}
+        run = seen.get("run") or {}
+        budget = self.cfg.run_summary_chars
+        try:
+            reply = self.call_model([
+                {"role": "system", "content":
+                    "You are playing a Pokemon roguelike, one run at a time."},
+                {"role": "user", "content":
+                    f"{self.memory_text()}\n\n"
+                    f"That run is over. Seed {self.seed}, {run.get('badges', 0)} "
+                    f"badges, {self.turns} turns, and you got as far as map "
+                    f"{run.get('map', 0)}. In under {budget} characters, say what you "
+                    f"would do differently, and be concrete about the decision that "
+                    f"cost you rather than general about strategy. This is the only "
+                    f"thing the next run will know about this one."},
+            ], tools=[])       # prose, so no tool is offered
+            said = (reply.get("content") or "").strip()
+            # Falling back to the figures is better than leaving the run unaccounted
+            # for, and `finish` cuts whatever comes back to the budget anyway.
+            return said or super().render_run_summary(state, score)
+        except Exception:      # noqa: BLE001
+            # A failed summary must not end a run that has already been played.
+            return super().render_run_summary(state, score)
+
+    # -------------------------------------------------------------- 8. what is filed
     def add_metadata(self) -> dict[str, Any]:
         """Return bot-specific metadata to record beside the score."""
         # This records only what nothing else could know. The model, harness

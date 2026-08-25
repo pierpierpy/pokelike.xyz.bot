@@ -114,7 +114,10 @@ class LLMBot(Bot):
         self._pending: tuple[int | None, int | None, str] | None = None
         # The scratchpad holds the last N finished exchanges, carried verbatim.
         self._scratch: list[list[dict[str, Any]]] = []
-        self._turn_state: dict[str, Any] | None = None
+        self.last_seen: dict[str, Any] | None = None
+        # What earlier runs left behind. Created here and never in `reset`, because
+        # a new run must not erase the record of the ones before it.
+        self.run_history: list[str] = []
         # The last exchange with the model (for inspection after the turn).
         # Copied because the caller keeps appending to the same list.
         self.last_sent: list[dict[str, Any]] = []
@@ -134,7 +137,7 @@ class LLMBot(Bot):
         # through this map, and the scratchpad is this episode's reasoning.
         self.plan = ""
         self._scratch: list[list[dict[str, Any]]] = []
-        self._turn_state: dict[str, Any] | None = None
+        self.last_seen: dict[str, Any] | None = None
         # The notebook survives reset only when cross_run_memory is on.
         if self._notebook and not self.cfg.cross_run_memory:
             self._notebook.clear()
@@ -350,7 +353,7 @@ class LLMBot(Bot):
         # between the system prompt and the fresh user message. When
         # scratch_turns is 0, the list is empty and the messages are exactly
         # [system, user].
-        self._turn_state = state
+        self.last_seen = state
         history: list[dict[str, Any]] = [m for turn in self._scratch for m in turn]
         try:
             index, why, lead, this_turn = run_turn(
@@ -369,6 +372,79 @@ class LLMBot(Bot):
             raise LLMError(str(exc)) from exc
         self._remember_turn(this_turn)
         return index, why, lead
+
+    def render_run_summary(self, state: dict[str, Any],
+                           score: dict[str, Any] | None) -> str:
+        """Returns the one entry the run that just ended leaves behind, or "".
+
+        Override this to decide what a finished run tells the next one. Everything
+        the run produced is on `self`: `last_seen` is the state as it stood at the
+        final decision, `seed`, `turns`, `calls` and `fallbacks` are the counters,
+        `journal` is what the bot did, `plan` is the route it meant to take, and
+        `call_model` is available for asking the model itself what went wrong.
+
+        Read `self.last_seen` rather than `state` for anything about the team or
+        the badges. The engine wipes its state at game over, so `state` arrives
+        here with an empty team and no badges however well the run went.
+
+        Whatever comes back is cut to `run_summary_chars`, so an override cannot
+        crowd out the turn it is shown in.
+        """
+        mode = self.cfg.run_summary
+        if mode == "none":
+            return ""
+        seen = self.last_seen or {}
+        run = seen.get("run") or {}
+        badges = run.get("badges", seen.get("badges", 0))
+        ended = (state or {}).get("screen") or "gameover"
+        line = (f"seed {self.seed}: {badges} badge{'' if badges == 1 else 's'}, "
+                f"{self.turns} turns, ended at {ended}")
+        if mode == "line":
+            return line
+        team = ", ".join(
+            f"{p.get('name')} L{p.get('level')}"
+            for p in (seen.get("team") or [])[:6])
+        return (line + f", map {run.get('map', seen.get('map', 0))}"
+                + (f", team was {team}" if team else ", team was wiped"))
+
+    def _run_history_block(self) -> list[str]:
+        """Returns the lines describing the runs behind this one, for the user message.
+
+        The wording has to fit both what this class writes and what an override
+        might, which can be the model's own account of what it got wrong rather
+        than a row of figures. So the block says where the entries came from and
+        leaves what they say to them.
+        """
+        if not self.run_history:
+            return ["", "BEFORE THIS RUN: nothing. This is your first run."]
+        n = len(self.run_history)
+        return ["", f"WHAT CAME OF YOUR LAST {n} RUN{'' if n == 1 else 'S'} "
+                    f"(newest last). You were carrying the notes above while these "
+                    f"were played, so if the runs are not improving, the notes are "
+                    f"what you can change:",
+                *(f"  {e}" for e in self.run_history)]
+
+    def finish(self, state: dict[str, Any], score: dict[str, Any] | None) -> None:
+        """Records what the finished run leaves for the next one.
+
+        Guarded, because this runs after the last turn of a run that has already
+        counted. An override that asks the model for a summary can time out or run
+        into a spent token budget, and losing the entry is the right price for
+        that. Losing the run would not be.
+        """
+        if self.cfg.run_summary == "none" or self.cfg.run_summary_keep <= 0:
+            return
+        try:
+            entry = self.render_run_summary(state, score)
+        except Exception as e:                      # noqa: BLE001 (see the docstring)
+            if self.verbose:
+                print(f"   [llm] the run summary was not written: "
+                      f"{type(e).__name__}: {e}")
+            return
+        if not entry:
+            return
+        self.run_history.append(str(entry)[: self.cfg.run_summary_chars])
+        del self.run_history[: -self.cfg.run_summary_keep]
 
     def render_scratch(self, state: dict[str, Any]) -> str:
         """Returns the text a kept turn shows where its original screen used to be."""
@@ -404,7 +480,7 @@ class LLMBot(Bot):
         """
         if self.cfg.scratch_turns == 0:
             return
-        shown = self.render_scratch(self._turn_state or {})
+        shown = self.render_scratch(self.last_seen or {})
         kept = [
             {"role": "user", "content": shown} if m.get("role") == "user" else m
             for m in turn
@@ -441,6 +517,7 @@ class LLMBot(Bot):
         cfg = getattr(self, "cfg", None) or self.config
         return build_tools(
             notes_cap=cfg.notes_cap,
+            note_chars=cfg.note_chars,
             plan_chars=cfg.plan_chars,
             bag_tool=cfg.bag_tool,
             drop_tools=cfg.drop_tools,
@@ -490,6 +567,8 @@ class LLMBot(Bot):
     def _build_user_message(self, state: dict[str, Any]) -> str:
         """Assembles the full user message from the view, journal, and instruction."""
         notes_block = self._notebook.view_block() if self._notebook else None
+        history_block = (self._run_history_block()
+                         if self.cfg.run_summary != "none" else None)
         plan_block = self._plan_block() if self.cfg.plan_chars > 0 else None
         # Show the region-crossing note only until the journal has real entries.
         journal = self.journal
@@ -500,6 +579,7 @@ class LLMBot(Bot):
             journal=journal,
             n_actions=len(state["actions"]),
             notes_block=notes_block,
+            history_block=history_block,
             plan_block=plan_block,
         )
 

@@ -39,9 +39,9 @@ Contents
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `google/gemini-3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **2.56** | 0.322 | 8 | 1 | -0.10 | 20 | 427806 | 9322 | 0.0 | 8.90 | 0.1779 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 2.00 | 0.0400 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.59 | 0.0319 |
 | 3 | `qwen/qwen3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.56** | 0.244 | 8 | 0 | -0.80 | 27 | 214175 | 72801 | 0.03 | 0.79 | 0.0159 |
-| 4 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.63 | 0.0326 |
+| 4 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.30 | 0.0259 |
 | 5 | `openai/gpt-oss-120b` | `notes=40,reasoning=medium` | 1 | 50 | **1.26** | 0.151 | 5 | 0 | +0.70 | 40 | 214536 | 22364 | 0.005 | 0.59 | 0.0117 |
 | 6 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | 0.00 | 0.0000 |
 | 7 | `inclusionai/ling-3.0-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.109 | 4 | 0 | +0.00 | 27 | 215610 | 29994 | 0.002 | 0.32 | 0.0064 |
@@ -49,9 +49,10 @@ Contents
 | 9 | `google/gemini-2.5-flash-lite` | `notes=40,reasoning=medium` | 1 | 50 | **0.94** | 0.097 | 3 | 0 | -0.20 | 26 | 101576 | 45060 | 0.05 | 1.41 | 0.0282 |
 | 10 | `stealth/ox-alpha` | `notes=40,reasoning=high` | 1 | 50 | **0.94** | 0.053 | 2 | 0 | +0.10 | 40 | 188204 | 9610 | 0.001 | 0.00 | 0.0000 |
 | 11 | `z-ai/glm-4.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **0.84** | 0.072 | 2 | 0 | +0.40 | 40 | 207929 | 28952 | 0.04 | 1.20 | 0.0241 |
-| 12 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
-| 13 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
-| 14 | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | `notes=40,reasoning=medium` | 1 | 50 | **0.72** | 0.086 | 3 | 0 | +0.00 | 40 | 114757 | 40958 | 0.114 | 0.00 | 0.0000 |
+| 12 | `anthropic/claude-haiku-4.5` | `notes=40,reasoning=medium` | 1 | 50 | **0.8** | 0.107 | 5 | 0 | +0.10 | 12 | 232720 | 29155 | 0.0 | 18.92 | 0.3785 |
+| 13 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
+| 14 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
+| 15 | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | `notes=40,reasoning=medium` | 1 | 50 | **0.72** | 0.086 | 3 | 0 | +0.00 | 40 | 114757 | 40958 | 0.114 | 0.00 | 0.0000 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -63,7 +64,7 @@ Contents
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 2.35 | 0.0470 |
+| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.87 | 0.0374 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -88,7 +89,7 @@ Contents
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `moonshotai/kimi-k2.6` | `notes=12` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.27 | 0.0255 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.02 | 0.0203 |
 | 3 | `google/gemini-3.7-flash` | `notes=12` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
 | 4 | `qwen/qwen3.7-flash` | `notes=12` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
 | 5 | `Qwen/Qwen3.8-27B-FP8` | `notes=12` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |

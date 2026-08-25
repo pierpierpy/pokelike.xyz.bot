@@ -1132,6 +1132,147 @@ def test_a_bot_that_talks_to_no_model_writes_nothing(tmp_path):
     assert not (tmp_path / "c.jsonl").exists()
 
 
+def test_by_default_a_finished_run_tells_the_next_one_nothing():
+    """The block is absent entirely, so no existing bot changes behaviour."""
+    from pokelike.bot.llm import LLMBot
+
+    bot = LLMBot(seed=0, endpoint="http://x", token="t", model="m/m")
+    bot.reset(10042)
+    bot.last_seen = {"run": {"badges": 2}}
+    bot.finish({"screen": "gameover-screen", "team": []}, None)
+    assert bot.run_history == []
+    assert bot.cfg.run_summary == "none"
+
+
+def test_a_finished_run_can_leave_a_line_or_a_fuller_note():
+    """The two levels the class writes itself, over the same finished run."""
+    from pokelike.bot.llm import LLMBot
+
+    seen = {"run": {"badges": 2, "map": 1},
+            "team": [{"name": "Bulbasaur", "level": 9, "hp": 0, "max_hp": 21}]}
+
+    def entry(level):
+        bot = LLMBot(seed=0, endpoint="http://x", token="t", model="m/m",
+                     run_summary=level)
+        bot.reset(10042)
+        bot.last_seen = seen
+        bot.turns = 17
+        bot.finish({"screen": "gameover-screen", "team": []}, None)
+        return bot.run_history[0]
+
+    line = entry("line")
+    assert "seed 10042" in line and "2 badges" in line and "17 turns" in line
+    brief = entry("brief")
+    assert line.split(",")[0] in brief and "Bulbasaur L9" in brief
+    assert len(brief) > len(line)
+
+
+def test_the_badges_come_from_the_last_turn_and_not_from_the_wiped_state():
+    """At game over the engine empties its state, so the final obs is no source.
+
+    A run that earned two badges must not be recorded as zero because the engine
+    cleared the board on the way out.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    bot = LLMBot(seed=0, endpoint="http://x", token="t", model="m/m",
+                 run_summary="line")
+    bot.reset(10042)
+    bot.last_seen = {"run": {"badges": 2}}
+    bot.turns = 17
+    bot.finish({"screen": "gameover-screen", "team": [], "run": {}}, None)
+    assert "2 badges" in bot.run_history[0]
+
+
+def test_a_summary_that_raises_costs_the_entry_and_not_the_run():
+    """`finish` runs after a run that already counted, so it must not throw.
+
+    An override is free to ask the model for the summary, and that call can time
+    out or run into a spent token budget. Losing the entry is the right price;
+    losing fifty minutes of play is not.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    class Broken(LLMBot):
+        def render_run_summary(self, state, score):
+            raise RuntimeError("the model did not answer")
+
+    bot = Broken(seed=0, endpoint="http://x", token="t", model="m/m",
+                 run_summary="line")
+    bot.reset(1)
+    bot.last_seen = {"run": {"badges": 1}}
+    bot.finish({"screen": "gameover-screen", "team": []}, None)   # must not raise
+    assert bot.run_history == []
+
+
+def test_an_override_is_held_to_the_same_two_ceilings():
+    """What an override returns is cut to length and the list is trimmed to count.
+
+    Otherwise a bot could put an unbounded block into every later turn's prompt.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    class Long(LLMBot):
+        def render_run_summary(self, state, score):
+            return "x" * 5000
+
+    bot = Long(seed=0, endpoint="http://x", token="t", model="m/m",
+               run_summary="line", run_summary_keep=3, run_summary_chars=50)
+    for i in range(6):
+        bot.reset(i)
+        bot.last_seen = {"run": {"badges": 0}}
+        bot.finish({"screen": "gameover-screen", "team": []}, None)
+    assert len(bot.run_history) == 3
+    assert all(len(e) == 50 for e in bot.run_history)
+
+
+def test_the_history_reaches_the_turn_beside_the_notes():
+    """The model reads the two together, which is the point of the block.
+
+    The notes are what it wrote; the history is what came of carrying them. Put
+    apart, neither says anything about the other.
+    """
+    from pokelike.bot.llm import LLMBot
+
+    obs = {"actions": [{"kind": "node", "id": "n1_0", "node": "catch"}],
+           "team": [], "bag": [], "map": {"nodes": []}, "run": {"badges": 0},
+           "screen": "map-screen", "seed": 1, "steps": 0}
+    sent = []
+
+    class Probe(LLMBot):
+        def render_state(self, state):
+            return "THE SCREEN"
+        def call_model(self, messages):
+            sent.append(messages[-1].get("content") or "")
+            return {"content": "", "tool_calls": [
+                {"id": "c1", "type": "function",
+                 "function": {"name": "play", "arguments": '{"index":0,"why":"x"}'}}]}
+
+    bot = Probe(seed=0, endpoint="http://x", token="t", model="m/m",
+                run_summary="line", notes_cap=4)
+    bot.reset(10041)
+    bot.last_seen = {"run": {"badges": 1}}
+    bot.turns = 9
+    bot.finish({"screen": "gameover-screen", "team": []}, None)
+    bot.reset(10042)
+    bot.act(obs)
+    assert sent, "the model was called"
+    msg = sent[-1]
+    assert "seed 10041" in msg, "the finished run reached the next run's turn"
+    assert msg.index("WHAT YOU HAVE LEARNED") < msg.index("seed 10041"), \
+        "the history follows the notes"
+
+
+def test_the_first_run_says_there_is_nothing_behind_it():
+    """An absent block and an empty one say different things to a model."""
+    from pokelike.bot.llm import LLMBot
+
+    bot = LLMBot(seed=0, endpoint="http://x", token="t", model="m/m",
+                 run_summary="line")
+    block = "\n".join(bot._run_history_block())
+    assert "first run" in block
+
+
 def test_the_scratchpad_keeps_the_words_and_drops_the_screen():
     """The last N turns travel verbatim, minus the screen they were looking at."""
     from pokelike.bot.llm import LLMBot

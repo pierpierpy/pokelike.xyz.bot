@@ -77,6 +77,17 @@ class LLMConfig(BaseModel):
     # saves a round trip and the schema tokens every turn.
     drop_tools: tuple[str, ...] = ()
 
+    # --- what the model is told about the runs behind it ---
+    # A run ends and another begins, and by default the model is told nothing about
+    # the ones before. These three turn that on:
+    #   "none"   nothing, and the block is absent entirely
+    #   "line"   one line a run, giving seed, badges, turns and where it ended
+    #   "brief"  that line, plus the team and map as they stood at the last decision
+    # Override `render_run_summary` for anything else, including asking the model
+    # itself what it thinks went wrong.
+    run_summary: str = "none"
+    run_summary_keep: int = 10    # how many past runs to carry; 0 keeps none
+    run_summary_chars: int = 600  # per-run budget, stated to the model and enforced
     # --- scratchpad, the last N finished turns travel verbatim ---
     scratch_turns: int = 0        # whole turns kept verbatim; 0 is off and -1 keeps all
     # This setting controls what fills the user slot of a kept turn:
@@ -104,6 +115,14 @@ class LLMConfig(BaseModel):
         if unknown:
             raise ValueError(f"keep_across_regions: no memory called {unknown}. "
                              f"There is: {', '.join(known)}")
+        return v
+
+    @field_validator("run_summary")
+    @classmethod
+    def _known_run_summary(cls, v: str) -> str:
+        if v not in ("none", "line", "brief"):
+            raise ValueError('run_summary must be "none", "line" or "brief". '
+                             "Override render_run_summary for anything else.")
         return v
 
     @field_validator("scratch_state")
