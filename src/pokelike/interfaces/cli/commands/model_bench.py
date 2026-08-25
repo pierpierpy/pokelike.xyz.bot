@@ -48,6 +48,14 @@ def cmd_llm_bench(args) -> int:
         table = llmbench.format_table(args.harness, price)
         print()
         print(table or f"  nothing measured yet on harness {args.harness}")
+        # The charts are drawn before the README, which embeds the newest one.
+        if llmbench.charts_available():
+            drawn = llmbench.write_charts()
+            if drawn:
+                print(f"  charts: {len(drawn)} in {drawn[0].parent}")
+        else:
+            print("  charts skipped: matplotlib is absent, so run "
+                  "`uv sync --group charts` to draw them", file=sys.stderr)
         print(f"\n  all versions: {llmbench.write_readme(price)}")
         # The pages are regenerated here so they cannot drift from the results the
         # table above was printed from.

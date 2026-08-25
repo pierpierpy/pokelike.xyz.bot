@@ -277,7 +277,21 @@ def write_pages(version: str) -> dict[str, list[Path]]:
 def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
     """Regenerates the standings block in llm-bench/README.md, newest harness first."""
     path = _bench() / "README.md"
-    blocks = [markdown_table(v, price) for v in reversed(versions())]
+    order = list(reversed(versions()))
+    blocks = [markdown_table(v, price) for v in order]
+    # The newest version carries its cost frontier, and the older ones do not. Every
+    # version has an image under img/, but a reader wants the current question
+    # answered here rather than six charts to scroll past, and the images are one
+    # click away for anyone who wants an older one.
+    if blocks and order:
+        newest = order[0]
+        img = _bench() / "img" / f"cost-{newest}.png"
+        if img.is_file():
+            lines = blocks[0].split("\n")
+            # After the `### Harness` heading and the blank line under it.
+            lines.insert(2, f"![What badges cost under {newest}]"
+                            f"(img/cost-{newest}.png)\n")
+            blocks[0] = "\n".join(lines)
     body = "\n\n".join(blocks) if blocks else "_Nothing measured yet._"
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():

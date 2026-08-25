@@ -107,3 +107,14 @@ from .passes import (  # noqa: F401
     fan_out,
     play_model,
 )
+
+# --- charts.py: the badge distribution images the README embeds
+from .charts import available as charts_available  # noqa: F401
+from .charts import cost_chart  # noqa: F401
+
+
+def write_charts():
+    """Draws every version's cost frontier under llm-bench/img/."""
+    from .charts import write_charts as _draw
+    from .versions import _bench, versions
+    return _draw(_bench(), list(versions()))

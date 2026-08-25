@@ -22,6 +22,11 @@ dev = ["pytest>=8.0"]
 # outside uv means the next sync silently removes it and the notebook stops
 # starting.
 notebook = ["ipykernel>=6.29"]
+# The badge distribution charts in llm-bench/img/. Optional on purpose: a
+# benchmark runs, records and prints its table without ever drawing one, and
+# `model board` says so and carries on when this group is absent. Anyone
+# regenerating the images needs `uv sync --group charts`.
+charts = ["matplotlib>=3.8"]
 
 [project.scripts]
 pokelike = "pokelike.interfaces.cli.main:main"
