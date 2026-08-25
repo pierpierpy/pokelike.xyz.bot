@@ -35,12 +35,15 @@ Contents
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.36 | 0.0271 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.10 | 0.0221 |
-| 3 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | 0.00 | 0.0000 |
-| 4 | `inclusionai/ling-3.0-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.109 | 4 | 0 | +0.00 | 27 | 215610 | 29994 | 0.002 | 0.32 | 0.0064 |
-| 5 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
-| 6 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
+| 1 | `google/gemini-3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **2.56** | 0.322 | 8 | 1 | -0.10 | 20 | 427806 | 9322 | 0.0 | 8.90 | 0.1779 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 2.15 | 0.0430 |
+| 3 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.75 | 0.0349 |
+| 4 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | 0.00 | 0.0000 |
+| 5 | `inclusionai/ling-3.0-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.109 | 4 | 0 | +0.00 | 27 | 215610 | 29994 | 0.002 | 0.32 | 0.0064 |
+| 6 | `google/gemini-2.5-flash-lite` | `notes=40,reasoning=medium` | 1 | 50 | **0.94** | 0.097 | 3 | 0 | -0.20 | 26 | 101576 | 45060 | 0.05 | 1.41 | 0.0282 |
+| 7 | `stealth/ox-alpha` | `notes=40,reasoning=high` | 1 | 50 | **0.94** | 0.053 | 2 | 0 | +0.10 | 40 | 188204 | 9610 | 0.001 | 0.00 | 0.0000 |
+| 8 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
+| 9 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -52,7 +55,7 @@ Contents
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 1.59 | 0.0319 |
+| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 2.52 | 0.0504 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -77,7 +80,7 @@ Contents
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `moonshotai/kimi-k2.6` | `notes=12` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 0.86 | 0.0173 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.37 | 0.0273 |
 | 3 | `google/gemini-3.7-flash` | `notes=12` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
 | 4 | `qwen/qwen3.7-flash` | `notes=12` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
 | 5 | `Qwen/Qwen3.8-27B-FP8` | `notes=12` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
@@ -100,7 +103,7 @@ Contents
 | # | model | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `qwen/qwen3.7-flash` | 1 | 50 | **1.38** | 0.18 | 5 | 0 | +0.40 | 4 | 113142 | 105691 | 0.002 | 0.86 | 0.0171 |
-| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 0.49 | 0.0098 |
+| 2 | `deepseek/deepseek-v4-flash-0731` | 1 | 50 | **1.06** | 0.152 | 6 | 0 | -0.10 | 1 | 113233 | 17709 | 0.032 | 1.04 | 0.0208 |
 | 3 | `google/gemma-4-31b-it` | 1 | 50 | **1.02** | 0.132 | 5 | 0 | +0.20 | 0 | 100760 | 1443 | 0.0 | 0.53 | 0.0106 |
 | 4 | `inclusionai/ling-3.0-flash` | 1 | 50 | **0.92** | 0.056 | 2 | 0 | +0.10 | 0 | 116843 | 17804 | 0.008 | 0.18 | 0.0036 |
 
