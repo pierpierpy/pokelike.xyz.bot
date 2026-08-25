@@ -3,10 +3,53 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import uuid
 from pathlib import Path
+
+
+PROXY_URL = "http://litellm:4000"
+
+
+def proxied_models(compose: Path) -> set[str]:
+    """Returns the model names the translating proxy serves, read from its own config.
+
+    The proxy's config is the registry, so adding a model there is what routes it
+    and removing it is what sends it back to talking to its provider directly. A
+    second list here would be one more thing to keep in step.
+
+    The parse looks for `model_name:` lines rather than loading YAML, because
+    pyyaml is not a dependency of this package and the file is one of ours.
+    """
+    path = compose.parent / "litellm.yaml"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    return {m.group(1).strip().strip('"\'')
+            for m in re.finditer(r'^\s*-?\s*model_name:\s*(.+)$', text, re.M)}
+
+
+def start_proxy(compose: Path, env: dict) -> bool:
+    """Brings the translating proxy up, and returns whether it is now running.
+
+    The call is idempotent, so a pass does not have to know whether an earlier one
+    already started it.
+    """
+    try:
+        r = subprocess.run(
+            ["docker", "compose", "-f", str(compose), "--profile", "proxy",
+             "up", "-d", "litellm"],
+            capture_output=True, text=True, timeout=300, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if r.returncode != 0:
+        print(f"  the proxy would not start:\n{r.stderr.strip()[:400]}",
+              file=sys.stderr)
+        return False
+    return True
 
 
 def _in_docker(args) -> int:
@@ -55,19 +98,44 @@ def _in_docker(args) -> int:
     # A short random suffix so two passes of the same model can run at once.
     name = args.name or f"pk_{args.harness}_{model}_{uuid.uuid4().hex[:4]}"
 
+    # COMPOSE_IGNORE_ORPHANS is set because other passes are not orphans.
+    # UID/GID ensures files written on the mount belong to this user instead of root.
+    env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true",
+           "UID": str(os.getuid()), "GID": str(os.getgid()),
+           "PK_TAG": tag}
+
+    # A model whose provider does not speak OpenAI goes through the translating
+    # proxy, and every other model goes straight to its provider as before. The
+    # endpoint and the key travel as container environment rather than as flags,
+    # so the key never appears in `ps`, and they override what .env carries for
+    # this container only.
+    routed = (args.model or "") in proxied_models(compose)
+    forward: list[str] = []
+    if routed:
+        if not start_proxy(compose, env):
+            print("  the pass was not started, because the proxy it needs is not "
+                  "running.\n  Bring it up by hand to see why:\n"
+                  f"    docker compose -f {compose} --profile proxy up litellm",
+                  file=sys.stderr)
+            return 1
+        key = os.environ.get("LITELLM_MASTER_KEY", "")
+        if not key:
+            print("  LITELLM_MASTER_KEY is missing from .env, and the proxy needs "
+                  "it to accept the pass.", file=sys.stderr)
+            return 1
+        env["FW_ENDPOINT"] = PROXY_URL
+        env["FW_TOKEN"] = key
+        forward = ["-e", "FW_ENDPOINT", "-e", "FW_TOKEN"]
+        print(f"  {args.model} goes through the proxy at {PROXY_URL}")
+
     cmd = ["docker", "compose", "-f", str(compose), "run", "--build", "--rm", "-d",
-           "--name", name, "bench", *passthru]
+           *forward, "--name", name, "bench", *passthru]
     # Echo the command with the API key masked.
     shown, mask = [], False
     for a in cmd:
         shown.append("<redacted>" if mask else a)
         mask = a == "--api-key"
     print("  " + " ".join(shown))
-    # COMPOSE_IGNORE_ORPHANS is set because other passes are not orphans.
-    # UID/GID ensures files written on the mount belong to this user instead of root.
-    env = {**os.environ, "COMPOSE_IGNORE_ORPHANS": "true",
-           "UID": str(os.getuid()), "GID": str(os.getgid()),
-           "PK_TAG": tag}
     r = subprocess.run(cmd, cwd=root, env=env)
     if r.returncode == 0:
         print(f"\n  {name} is playing. Follow it with:\n"

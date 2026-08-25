@@ -84,3 +84,35 @@ services:
     # A benchmark is not a service: it runs, it finishes, it should not come back
     # from the dead and start spending tokens again.
     restart: "no"
+
+  # A translator for the models whose provider does not speak OpenAI. The frozen
+  # harnesses cannot be taught a second protocol, so the protocol is changed
+  # outside them and only `--endpoint` moves. See litellm.yaml for which models
+  # and why, and llm-bench/README.md for what a row measured this way is worth.
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    # A profile, so `compose run bench` never drags this up. An ordinary pass
+    # talks to its provider directly and must not depend on a proxy being
+    # healthy, or on a Bedrock credential existing at all. Start it by hand:
+    #
+    #   docker compose -f llm-bench/docker/docker-compose.yml --profile proxy up -d litellm
+    #
+    # then point a pass at it with --endpoint http://litellm:4000, or by setting
+    # FW_ENDPOINT in .env. Both containers sit on this project's default network,
+    # so `litellm` resolves by service name and nothing is published to the host.
+    profiles: ["proxy"]
+    command: ["--config", "/config/litellm.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm.yaml:/config/litellm.yaml:ro
+    # AWS_BEARER_TOKEN_BEDROCK and LITELLM_MASTER_KEY come from the same gitignored
+    # .env the bench service reads, so a credential is in one place and never on a
+    # command line.
+    env_file:
+      - path: ../../.env
+        required: false
+    # Reachable from the bench container by service name and from nowhere else.
+    # Publishing a port would put an unauthenticated door to a paid account on the
+    # host's interfaces, and no part of this needs that.
+    expose:
+      - "4000"
+    restart: "no"

@@ -23,6 +23,7 @@ Contents
 - [Standings](#standings)
 - [Running it](#running-it)
 - [Reading the table](#reading-the-table)
+- [Models behind a proxy](#models-behind-a-proxy)
 - [Watching a pass](#watching-a-pass)
 
 ---
@@ -203,7 +204,36 @@ available through `--help`.
   table is printed. The cost is never stored in a result file. Storing a cost would be a
   claim about today's pricing that nobody could correct once the price changed.
 
+## Models behind a proxy
+
+Every frozen harness speaks the OpenAI chat/completions protocol, and its four files can
+never be edited once a result exists beside them. A provider that speaks something else is
+therefore reached by putting a translator in front of it rather than by teaching the harness
+a second protocol. The translator is LiteLLM, it runs as a compose service behind the
+`proxy` profile, and the models it serves are listed in
+[`docker/litellm.yaml`](docker/litellm.yaml).
+
+Nothing has to be switched by hand. Passing `--docker` with a model that appears in that
+file starts the proxy, points the container at it, and says so on the way past. Every other
+model goes straight to its provider exactly as before, so a model absent from that file is
+unaffected by any of this.
+
+Amazon Bedrock is the case that prompted it. Bedrock does expose an OpenAI-compatible
+endpoint, but it serves only the `openai.*` models there and answers `model_not_found` for
+every `anthropic.*` id, which reach it through the Anthropic Messages API instead.
+
+A row measured this way is not the same measurement as one taken straight from an
+OpenAI-compatible provider, and the difference is worth stating rather than hiding. Anthropic
+rejects any non-default `temperature` once thinking is enabled, and its own migration notes
+say to remove the parameter rather than pick a value, so the proxy drops it. A v7 row for an
+Anthropic model therefore ran at the provider's default temperature and not at v7's `0.0`,
+which is one of the settings every other v7 row shares. The `set` column does not show it,
+because that column deliberately reports only a version's own knobs. What the pass asked for
+is recorded in full in the `command.json` beside its logs, and the endpoint it used is
+recorded there too, which is the trail back to how any given row was obtained.
+
 ## Watching a pass
+
 
 ```bash
 uv run pokelike model watch                     # follow the running pass

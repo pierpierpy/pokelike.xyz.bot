@@ -1,0 +1,70 @@
+# Models that speak a protocol the harnesses cannot.
+#
+# Every frozen harness talks OpenAI chat/completions, because that is what it was
+# written against and its four files can never be edited once a result exists
+# beside them. Amazon Bedrock serves the Anthropic models through the Anthropic
+# Messages API instead, on a different path, with the system prompt in its own
+# field and tools declared as `input_schema`. Bedrock's own OpenAI-compatible
+# endpoint refuses them: it answers `model_not_found` with "doesn't support this
+# API" for every anthropic.* id, and serves only the openai.* ones.
+#
+# LiteLLM sits between the two and translates, so the harness stays frozen and
+# only the endpoint changes. What that costs in honesty is written down in
+# llm-bench/README.md under Models behind a proxy, and it is the reason a row
+# obtained this way is not the same measurement as one taken straight from an
+# OpenAI-compatible provider.
+#
+# The model_name on the left is what `--model` is given and what lands in the
+# result. Naming it after the model rather than after its Bedrock id keeps the
+# results readable and lets the id underneath change without renaming a row.
+#
+# Access is per account: sonnet-5, opus-4-7 and opus-4-8 exist in eu-central-1
+# but answer 403 with this key, so they are absent rather than commented out.
+
+model_list:
+  - model_name: anthropic/claude-sonnet-4.5
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: eu-central-1
+      thinking: {"type": "enabled", "budget_tokens": 4000}
+      additional_drop_params: ["temperature", "top_p"]
+
+  - model_name: anthropic/claude-sonnet-4.6
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-sonnet-4-6
+      aws_region_name: eu-central-1
+      thinking: {"type": "enabled", "budget_tokens": 4000}
+      additional_drop_params: ["temperature", "top_p"]
+
+  - model_name: anthropic/claude-haiku-4.5
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: eu-central-1
+      thinking: {"type": "enabled", "budget_tokens": 4000}
+      additional_drop_params: ["temperature", "top_p"]
+
+  - model_name: anthropic/claude-opus-4.5
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-opus-4-5-20251101-v1:0
+      aws_region_name: eu-central-1
+      thinking: {"type": "enabled", "budget_tokens": 4000}
+      additional_drop_params: ["temperature", "top_p"]
+
+  - model_name: anthropic/claude-opus-4.6
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-opus-4-6-v1
+      aws_region_name: eu-central-1
+      thinking: {"type": "enabled", "budget_tokens": 4000}
+      additional_drop_params: ["temperature", "top_p"]
+
+litellm_settings:
+  # A harness sends the parameters it was frozen with, and a model that rejects
+  # one of them would kill the pass on its first call. Dropping the unsupported
+  # ones keeps the pass alive, and it is also the loss of fidelity that makes a
+  # proxied row its own kind of measurement: `reasoning_effort` from v7 does not
+  # reach Bedrock as itself.
+  drop_params: true
+  # Retries belong to the harness, which counts them and reports fallback_rate.
+  # A retry here would be invisible to that column and would make a flaky pass
+  # look clean.
+  num_retries: 0
