@@ -49,6 +49,12 @@ def cmd_llm_bench(args) -> int:
         print()
         print(table or f"  nothing measured yet on harness {args.harness}")
         print(f"\n  all versions: {llmbench.write_readme(price)}")
+        # The pages are regenerated here so they cannot drift from the results the
+        # table above was printed from.
+        pages = llmbench.write_pages(args.harness)
+        for kind, paths in pages.items():
+            if paths:
+                print(f"  {kind}: {len(paths)} page(s) in {paths[0].parent}")
         return 0
 
     # Only endpoint and key from creds; the model is the thing being measured

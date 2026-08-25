@@ -88,6 +88,7 @@ from .tables import (  # noqa: F401
     README_END,
     format_table,
     markdown_table,
+    write_pages,
     write_readme,
 )
 

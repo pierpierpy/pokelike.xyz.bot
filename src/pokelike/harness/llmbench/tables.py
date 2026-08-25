@@ -13,7 +13,7 @@ from ...arena.bench import STANDARD_SEEDS
 from ...logging import LEARN_K
 from ...shared.tables import show_region as _show_region
 from .pricing import cost
-from .versions import (_bench, cross_run_memory, settings_text,
+from .versions import (_bench, cross_run_memory, settings_text, slug,
                        version_settings, versions)
 
 README_BEGIN_MARK = "<!-- BEGIN llm-bench"
@@ -151,6 +151,127 @@ def markdown_table(version: str,
                     "Two rows for the same model with different `set` values are "
                     "two different questions, not two samples of the same one."]
     return "\n".join(out)
+
+
+def _pass_head(version: str, doc: dict, p: dict, played: list) -> list[str]:
+    """Returns the heading lines shared by both kinds of page."""
+    sett = ",".join(f"{k}={v}" for k, v in (p.get("settings") or {}).items())
+    head = f"## Pass `{p.get('stamp') or 'unstamped'}`"
+    if sett:
+        head += f", `--set {sett}`"
+    mean = sum(r.get("badges") or 0 for r in played) / len(played)
+    return [head, "",
+            f"The pass played {len(played)} runs and averaged {mean:.2f} badges.", ""]
+
+
+def _played(p: dict) -> list:
+    """Returns a pass's runs in the order they were played."""
+    return sorted(p.get("runs") or [],
+                  key=lambda r: (r.get("order") is None, r.get("order"), r.get("seed")))
+
+
+def _badges(n: int) -> str:
+    """Returns the count with a noun that agrees with it."""
+    return f"{n} badge" if n == 1 else f"{n} badges"
+
+
+def notebook_page(version: str, doc: dict) -> str:
+    """Formats the notes one model kept under one harness version, as Markdown.
+
+    The page reports what the model wrote down rather than what it learned. A
+    notebook holds whatever the model chose to keep, which mixes what it saw in
+    play with what it already knew before the benchmark started, and the two
+    cannot be told apart by reading it.
+
+    Everything here comes from the recorded result, so a page can be regenerated
+    for any pass ever recorded, including one whose logs are long gone.
+    """
+    model = doc.get("model") or "unknown"
+    out = [f"# {model} under harness `{version}`", "",
+           "This page holds the notes the model kept while it played. A note is "
+           "whatever the model chose to write down through its `remember` and "
+           "`revise` tools, so the notebook records what the model thought worth "
+           "keeping. Some of it was learned in play and some of it the model "
+           "already knew, and the notebook does not distinguish them.", "",
+           "The route the model planned for each run is on its own page under "
+           "`plans/`.", ""]
+
+    for p in doc.get("passes", []):
+        played = _played(p)
+        if not played:
+            continue
+        out += _pass_head(version, doc, p, played)
+        final = played[-1].get("notebook") or []
+        if final:
+            out += ["### The notebook at the end", ""]
+            out += [f"{i}. {n}" for i, n in enumerate(final, 1)]
+            out += [""]
+        # How the notebook grew, sampled so a fifty-run pass stays readable.
+        marks = [r for i, r in enumerate(played) if i % 10 == 0 or r is played[-1]]
+        if len(marks) > 1:
+            out += ["### How it grew", "",
+                    "| run | seed | notes kept | badges |", "|--:|--:|--:|--:|"]
+            for r in marks:
+                out.append(f"| {r.get('order') or '?'} | {r.get('seed')} | "
+                           f"{len(r.get('notebook') or [])} | {r.get('badges')} |")
+            out += [""]
+    return "\n".join(out)
+
+
+def plan_page(version: str, doc: dict) -> str:
+    """Formats the route one model planned for every run, as Markdown.
+
+    A plan is what the model laid out for the map it was standing on, rewritten
+    whenever it chose to call the `plan` tool again, and the page keeps one entry
+    per run so a reader can follow how the intention changed over a pass.
+    """
+    model = doc.get("model") or "unknown"
+    out = [f"# {model} under harness `{version}`, the routes it planned", "",
+           "A plan is the route the model laid out for the map it was standing on, "
+           "through its `plan` tool. One entry per run, in the order the runs were "
+           "played.", "",
+           "The notes the model kept are on its own page under `notebooks/`.", ""]
+
+    for p in doc.get("passes", []):
+        played = _played(p)
+        if not played:
+            continue
+        out += _pass_head(version, doc, p, played)
+        best = max(played, key=lambda r: (r.get("badges") or 0, -(r.get("steps") or 0)))
+        out += [f"Its best run was seed {best.get('seed')} at "
+                f"{_badges(best.get('badges') or 0)}.", ""]
+        for r in played:
+            if not r.get("plan"):
+                continue
+            mark = " (best)" if r is best else ""
+            out += [f"**Run {r.get('order') or '?'}, seed {r.get('seed')}, "
+                    f"{_badges(r.get('badges') or 0)}{mark}**", "",
+                    "> " + str(r.get("plan")).replace("\n", "\n> "), ""]
+    return "\n".join(out)
+
+
+def write_pages(version: str) -> dict[str, list[Path]]:
+    """Writes the notebook and plan pages for every model measured under a version.
+
+    Versions that keep no notes between runs get no directories, because a page of
+    nothing invites the reader to wonder what went missing.
+    """
+    from .results import load
+
+    if not cross_run_memory(version):
+        return {}
+    docs = [d for d in load(version) if d.get("passes")]
+    if not docs:
+        return {}
+    written: dict[str, list[Path]] = {"notebooks": [], "plans": []}
+    for kind, builder in (("notebooks", notebook_page), ("plans", plan_page)):
+        out = _bench() / version / kind
+        out.mkdir(parents=True, exist_ok=True)
+        for d in docs:
+            path = out / f"{slug(d.get('model') or 'unknown')}.md"
+            path.write_text(builder(version, d) + "\n", encoding="utf-8")
+            written[kind].append(path)
+    return written
 
 
 def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
