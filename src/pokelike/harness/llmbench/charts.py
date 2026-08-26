@@ -98,6 +98,86 @@ def _frontier(points: list[tuple[float, float]]) -> list[int]:
     return sorted(keep, key=lambda i: points[i][0])
 
 
+def _monotone_curve(xs: list[float], ys: list[float],
+                    n: int = 240) -> tuple[list[float], list[float]]:
+    """Returns a dense curve through the given points that never turns back.
+
+    The tangents come from Fritsch and Carlson, so the curve rises where the points
+    rise and flattens where they flatten, and it cannot dip below a point it passes
+    through. A frontier is a staircase in truth, since nothing buys a fraction of a
+    badge, and this curve is the same claim drawn smoothly.
+    """
+    import numpy as np
+
+    x = [float(v) for v in xs]
+    y = [float(v) for v in ys]
+    if len(x) < 3:
+        return x, y
+    h = [x[i + 1] - x[i] for i in range(len(x) - 1)]
+    d = [(y[i + 1] - y[i]) / step if step else 0.0 for step, i in zip(h, range(len(h)))]
+    m = [0.0] * len(x)
+    m[0], m[-1] = d[0], d[-1]
+    for i in range(1, len(x) - 1):
+        if d[i - 1] * d[i] <= 0:
+            m[i] = 0.0
+        else:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+    out_x: list[float] = []
+    out_y: list[float] = []
+    for i in range(len(h)):
+        t = np.linspace(0, 1, max(2, n // len(h)))
+        h00 = 2 * t ** 3 - 3 * t ** 2 + 1
+        h10 = t ** 3 - 2 * t ** 2 + t
+        h01 = -2 * t ** 3 + 3 * t ** 2
+        h11 = t ** 3 - t ** 2
+        out_x += list(x[i] + t * h[i])
+        out_y += list(h00 * y[i] + h10 * h[i] * m[i]
+                      + h01 * y[i + 1] + h11 * h[i] * m[i + 1])
+    return out_x, out_y
+
+
+def _shade(ax: object, curve_x: list[float], curve_y: list[float],
+           pts: list[tuple[float, float]]) -> None:
+    """Tints the plane by how a place stands against the frontier.
+
+    A place above the frontier holds more badges than anything in the table reached at
+    that price or less, so it is tinted green. A place below the frontier is beaten by
+    something no dearer, so it is tinted red. The boundary between the two colours is
+    the drawn line itself, which is why the field is built from the same curve rather
+    than from a separate rule.
+
+    The tint is faint on purpose, because the positions and the error bars carry the
+    argument and this only says which way is better.
+    """
+    import numpy as np
+    from matplotlib.colors import TwoSlopeNorm
+
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    # The grid is even in the axis's own transformed space rather than in dollars, so
+    # one pixel of the picture covers one cell of the grid. The image is then laid over
+    # the axes as a whole, which leaves no quad edges to show as seams.
+    tx = ax.xaxis.get_transform()
+    lo, hi = tx.transform(np.array([x0, x1], dtype=float))
+    gx = tx.inverted().transform(np.linspace(lo, hi, 320))
+    gy = np.linspace(y0, y1, 260)
+    # Outside the range the frontier covers, the nearest end of it is carried across,
+    # because the cheapest pass sets what free money buys and the dearest sets the top.
+    level = np.interp(gx, np.asarray(curve_x), np.asarray(curve_y))
+    field = gy[:, None] - level[None, :]
+    # The colour saturates at the distance most of the recorded passes sit from the
+    # frontier, so the three colours carry the picture. Scaling to the whole height
+    # instead would leave everything pale, since the corners are far from the line and
+    # no pass lives there.
+    away = [abs(b - float(np.interp(c, curve_x, curve_y))) for c, b in pts]
+    reach = max(float(np.percentile(away, 85)) * 1.6, 0.3)
+    ax.imshow(field, extent=(0, 1, 0, 1), transform=ax.transAxes, origin="lower",
+              aspect="auto", cmap="RdYlGn", alpha=0.30, zorder=0,
+              norm=TwoSlopeNorm(vcenter=0.0, vmin=-reach, vmax=reach),
+              interpolation="bilinear")
+
+
 def cost_chart(version: str, path: Path,
                price: dict[str, dict[str, float]] | None = None) -> Path | None:
     """Draws what a version's badges cost, and the frontier of what is worth paying.
@@ -138,13 +218,19 @@ def cost_chart(version: str, path: Path,
     fig, ax = plt.subplots(figsize=(9.0, 5.0))
     xs = [p[0] for p in pts]
     ys = [p[1] for p in pts]
+    lo = min(y - e for y, e in zip(ys, sems))
+    hi = max(y + e for y, e in zip(ys, sems))
+    pad = (hi - lo) * 0.12 or 0.2
+    ax.set_ylim(lo - pad, hi + pad)
     ax.errorbar(xs, ys, yerr=sems, fmt="o", color="#4c6ef5", ecolor="#adb5bd",
                 elinewidth=1.2, capsize=3, markersize=7, zorder=3)
 
     front = _frontier(pts)
+    curve: tuple[list[float], list[float]] | None = None
     if len(front) > 1:
-        ax.step([pts[i][0] for i in front], [pts[i][1] for i in front],
-                where="post", color="#e8590c", linewidth=1.4, zorder=2)
+        curve = _monotone_curve([pts[i][0] for i in front],
+                               [pts[i][1] for i in front])
+        ax.plot(curve[0], curve[1], color="#e8590c", linewidth=1.6, zorder=2)
     for i in front:
         ax.scatter([pts[i][0]], [pts[i][1]], s=150, facecolors="none",
                    edgecolors="#e8590c", linewidths=1.4, zorder=4)
@@ -178,6 +264,8 @@ def cost_chart(version: str, path: Path,
     ax.grid(alpha=0.3, linewidth=0.6)
     ax.grid(axis="x", which="minor", alpha=0.14, linewidth=0.5)
     ax.set_axisbelow(True)
+    if curve is not None:
+        _shade(ax, *curve, pts)
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=140)
