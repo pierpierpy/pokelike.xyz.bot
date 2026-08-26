@@ -222,8 +222,10 @@ def seed_arg(value: str) -> int:
 def parse_seeds(text: str) -> list[int]:
     """Parse '10010,10011' or '10010-10019' (or both mixed) into a seed list.
 
-    Order is preserved because a harness that carries notes between runs treats
-    order as part of the measurement.
+    Order is preserved, so quoting the seed list a pass recorded replays that pass in
+    the order it was played. A harness that carries notes between runs accumulates
+    them as it goes, which is why the order a pass used is recorded rather than
+    assumed.
     """
     out: list[int] = []
     for part in text.replace(" ", "").split(","):

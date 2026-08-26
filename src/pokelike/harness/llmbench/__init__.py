@@ -54,6 +54,7 @@ from .versions import (  # noqa: F401
 # --- command.py: session management, seed guard
 from .command import (  # noqa: F401
     parse_settings,
+    play_order,
     record_command,
     records,
     session_dir,

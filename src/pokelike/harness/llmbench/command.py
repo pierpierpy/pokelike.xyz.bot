@@ -8,6 +8,7 @@ enter the official standings lives here too.
 from __future__ import annotations
 
 import json
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -90,8 +91,31 @@ def record_command(folder: Path, payload: dict[str, Any]) -> Path:
 def records(seeds: list[int]) -> bool:
     """Returns whether a pass over these seeds may be written to `results/`.
 
-    Only the standard fifty are accepted, compared by value and order. Order
-    matters because a harness with cross-run memory plays the seeds sequentially,
-    so the order is part of the measurement.
+    The standard fifty are accepted in any order. Comparing the sorted lists still
+    refuses a different set of seeds, a partial list and a list that repeats a seed,
+    because the comparison runs element by element.
+
+    Order used to be part of the test, since a harness with cross-run memory plays
+    the seeds one after another and the notes accumulate as it goes. Holding the order
+    fixed made the position of a run and the identity of its seed the same variable,
+    which left every question about learning within a pass unanswerable, so the order
+    is now drawn per pass and recorded instead.
     """
-    return list(seeds) == list(STANDARD_SEEDS)
+    return sorted(seeds) == list(STANDARD_SEEDS)
+
+
+def play_order(seeds: list[int], order_seed: int | None,
+               attempt: int = 1) -> list[int]:
+    """Returns the seeds in the order one pass will play them.
+
+    An `order_seed` of None hands the list back untouched, which is what every pass
+    recorded before this existed did, and what `--in-seed-order` asks for. A number
+    draws a permutation from it, so the pass replays exactly when the same number is
+    given again. The attempt number joins the draw, so each repeat of one command
+    plays its own order and the difficulty of a position averages out over passes.
+    """
+    if order_seed is None:
+        return list(seeds)
+    # Seeded from a string because Random accepts one and derives a stable state from
+    # it, which keeps the permutation reproducible across machines.
+    return random.Random(f"{order_seed}:{attempt}").sample(list(seeds), len(seeds))

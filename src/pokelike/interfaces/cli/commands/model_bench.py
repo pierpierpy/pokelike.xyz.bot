@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sys
 from datetime import datetime
 
@@ -110,6 +111,17 @@ def cmd_llm_bench(args) -> int:
     else:
         seeds = STANDARD_SEEDS[: args.runs] if args.runs else STANDARD_SEEDS
 
+    # A pass shuffles the fifty seeds unless asked not to, and the number the order
+    # was drawn from is recorded, because a pass that cannot be replayed is not a
+    # measurement. The seed list itself is left alone, so --runs still means the first
+    # N standard seeds and only the order in which they are played changes.
+    # A seed list given by hand is an order given by hand, so it is played as typed
+    # unless a number is quoted to redraw it.
+    if args.in_seed_order or (args.seeds and not args.order_seed):
+        order_seed = None
+    else:
+        order_seed = args.order_seed or random.randrange(1, 2 ** 31)
+
     # A partial seed list (fewer than 50) does not record.
     partial = not llmbench.records(seeds)
 
@@ -172,7 +184,15 @@ def cmd_llm_bench(args) -> int:
         "harness": args.harness,
         "models": models,
         "runs": len(seeds),
+        # The set this command plays. Each pass draws its own order from the number
+        # below, and the order a pass actually played is in its runs file and in its
+        # recorded result, one entry per run with the position it was played at.
         "seeds": seeds,
+        # Absent means the seeds were played from lowest to highest, which is what
+        # every pass recorded before this flag existed did.
+        **({"order_seed": order_seed} if order_seed is not None else {}),
+        **({"order_of_pass_1": llmbench.play_order(seeds, order_seed, 1)}
+           if order_seed is not None else {}),
         "workers": args.workers,
         "repeat": args.repeat,
         "records": not (args.dry_run or partial),
@@ -200,15 +220,19 @@ def cmd_llm_bench(args) -> int:
             for attempt in range(1, args.repeat + 1):
                 if args.repeat > 1:
                     print(f"\n  pass {attempt} of {args.repeat}")
+                played = llmbench.play_order(seeds, order_seed, attempt)
+                if order_seed is not None:
+                    print(f"  play order drawn from {order_seed}, starting at seed "
+                          f"{played[0]}")
                 if args.workers > 1:
-                    one = llmbench.fan_out(args.harness, model, seeds, args.workers,
+                    one = llmbench.fan_out(args.harness, model, played, args.workers,
                                            SITE_ROOT, port0=args.port + 10,
                                            folder=folder, attempt=attempt,
                                            settings=settings, region=region,
                                            campaign=campaign, **creds)
                 else:
                     one = llmbench.play_model(game, args.harness, model, SITE_ROOT,
-                                              seeds, folder=folder, attempt=attempt,
+                                              played, folder=folder, attempt=attempt,
                                               conversations=not args.no_conv,
                                               settings=settings, region=region,
                                               campaign=campaign, **creds)

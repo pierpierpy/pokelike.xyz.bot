@@ -194,7 +194,12 @@ uv run pokelike model board --harness v0                                  # prin
 
 The `--harness` flag is required because the version is the question a row answers. Two harness versions ask different things, and their results are never compared. Two
 rules are easy to miss. First, only the standard fifty seeds record a result, so using `--runs`,
-`--seeds`, or `--dry-run` will print output but record nothing. Second, a literal key on
+`--seeds`, or `--dry-run` will print output but record nothing. The fifty are accepted in any
+order, and a pass shuffles them, because playing them from lowest to highest made the position
+of a run and the identity of its seed the same thing and left any question about learning
+within a pass unanswerable. The number the order was drawn from goes into `command.json`, so
+`--order-seed` replays that exact pass, and `--in-seed-order` plays them from lowest to highest
+the way every pass before this did. Second, a literal key on
 the command line is readable by everyone on the machine and saved in your shell history,
 which is what the `.env` file above avoids (passing `--api-key @path` reads the key from
 a file if you prefer that instead). The `--set KEY=VALUE` flag passes a setting straight

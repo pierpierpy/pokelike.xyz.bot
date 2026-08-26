@@ -50,8 +50,17 @@ def model_bench_args(s) -> None:
                         "practice run: it prints the result and records nothing")
     s.add_argument("--seeds", default="",
                    help="pick the seeds yourself: 10010,10011 or 10010-10019. "
-                        "Anything other than the standard 50 records nothing, so "
-                        "this is for testing and for running two at once")
+                        "Anything other than the standard 50 in any order records "
+                        "nothing, so this is for testing and for running two at once")
+    s.add_argument("--in-seed-order", action="store_true",
+                   help="play the seeds from lowest to highest, the way every pass "
+                        "before 2026-08-26 did. A pass now shuffles them, because "
+                        "playing them in one fixed order made a run's position and "
+                        "its seed the same thing")
+    s.add_argument("--order-seed", type=int, default=0,
+                   help="draw the play order from this number instead of a fresh one. "
+                        "The number a pass used is written into command.json, so "
+                        "quoting it here replays that exact order")
     # Harness-specific settings. The shared flags above apply to every version;
     # --set reaches whatever one version declares.
     s.add_argument("--set", action="append", dest="settings", default=[],

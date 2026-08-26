@@ -160,9 +160,37 @@ def test_fifty_seeds_of_your_own_are_not_the_standard_fifty():
     assert not L.records(mine)
 
 
-def test_the_standard_seeds_shuffled_are_not_the_standard_seeds():
-    """Order is part of the measurement under a harness that keeps notes."""
-    assert not L.records(list(reversed(STANDARD_SEEDS)))
+def test_the_standard_seeds_in_any_order_are_still_the_standard_seeds():
+    """A pass draws its play order, so a permutation of the fifty has to record.
+
+    The order used to be part of the test. Holding it fixed made the position of a run
+    and the identity of its seed the same variable, which is why the order is drawn
+    per pass and written into command.json instead.
+    """
+    assert L.records(list(reversed(STANDARD_SEEDS)))
+    assert L.records(L.play_order(STANDARD_SEEDS, 42))
+
+
+def test_a_seed_played_twice_does_not_record():
+    """Fifty entries are not the fifty seeds when one of them is a repeat."""
+    doubled = list(STANDARD_SEEDS[:-1]) + [STANDARD_SEEDS[0]]
+    assert len(doubled) == len(STANDARD_SEEDS)
+    assert not L.records(doubled)
+
+
+def test_the_play_order_replays_from_its_number():
+    """A recorded order_seed has to reproduce the pass, or the pass is not a measurement."""
+    assert L.play_order(STANDARD_SEEDS, 42) == L.play_order(STANDARD_SEEDS, 42)
+    assert L.play_order(STANDARD_SEEDS, 42) != L.play_order(STANDARD_SEEDS, 43)
+    # Each repeat of one command plays its own order.
+    assert L.play_order(STANDARD_SEEDS, 42, 1) != L.play_order(STANDARD_SEEDS, 42, 2)
+    # A permutation keeps every seed exactly once.
+    assert sorted(L.play_order(STANDARD_SEEDS, 42)) == list(STANDARD_SEEDS)
+
+
+def test_no_number_leaves_the_order_alone():
+    """--in-seed-order has to give back the list every older pass played."""
+    assert L.play_order(STANDARD_SEEDS, None) == list(STANDARD_SEEDS)
 
 
 def test_a_partial_run_may_not_be_recorded():
