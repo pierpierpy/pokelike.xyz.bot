@@ -61,12 +61,12 @@ def test_a_seed_that_has_moved_on_is_a_finished_run(bench):
 
     The grouping is read from the trace, not from the columns of the human log.
     """
-    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+    _trace(bench / "v99" / "logs" / "20260820-170000", "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
         _row(10000, 1, "2026-08-20T17:00:30", badges=2),
         _row(10001, 0, "2026-08-20T17:01:00"),
     ])
-    p = watch.read(bench / "v9" / "logs" / "20260820-170000")
+    p = watch.read(bench / "v99" / "logs" / "20260820-170000")
     assert p is not None
     assert p.model == "a/b"
     assert [r.seed for r in p.runs] == [10000, 10001]
@@ -78,18 +78,18 @@ def test_a_seed_that_has_moved_on_is_a_finished_run(bench):
 
 
 def test_a_fallback_is_counted_from_the_reason(bench):
-    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+    _trace(bench / "v99" / "logs" / "20260820-170000", "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00", why="(fell back: LLMError: HTTP 400)"),
         _row(10000, 1, "2026-08-20T17:00:01"),
         _row(10001, 0, "2026-08-20T17:00:02"),
     ])
-    p = watch.read(bench / "v9" / "logs" / "20260820-170000")
+    p = watch.read(bench / "v99" / "logs" / "20260820-170000")
     assert p.runs[0].fell == 1
 
 
 def test_a_half_written_line_is_skipped_not_fatal(bench):
     """The last line is being written while this reads. The line arrives whole a moment later."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     f = d / "a--b-pass1.jsonl"
     f.write_text(f.read_text(encoding="utf-8") + '{"seed": 10001, "st',
@@ -101,7 +101,7 @@ def test_a_half_written_line_is_skipped_not_fatal(bench):
 def test_the_state_comes_from_the_log_and_not_from_the_trace_stopping(bench):
     """A trace that stops looks the same whether the pass ended or the container died.
     The state must come from the log itself."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     assert watch.read(d).state == "running"
     (d / "a--b-pass1.log").write_text("header\ndone  1 runs  0.0 badges\n",
@@ -118,7 +118,7 @@ def test_wanted_is_never_less_than_what_was_played(bench):
     A pass that says it wanted 2 but played 50 reads as a broken pass rather than
     as a file being read the wrong way.
     """
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000 + i, 0, "2026-08-20T17:00:00") for i in range(5)])
     (d / "command.json").write_text(json.dumps(
         {"runs": 0, "seeds": [10000, 10004]}), encoding="utf-8")
@@ -128,7 +128,7 @@ def test_wanted_is_never_less_than_what_was_played(bench):
 def test_the_notes_come_from_the_last_block_that_changed(bench):
     """The `unchanged` marker means the previous block still stands, so reading it
     must not clear the notes."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     (d / "a--b-pass1-notebook.log").write_text(
         "notes a/b kept between runs\n\n"
@@ -145,7 +145,7 @@ def test_the_notes_shown_are_the_ones_it_holds_this_turn(bench):
     A dashboard that said "nothing written yet" while the tool log on the line above
     showed a `remember` call is the reason this check exists.
     """
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
         _row(10001, 0, "2026-08-20T17:00:10", tools=[
@@ -165,8 +165,8 @@ def test_the_notes_shown_are_the_ones_it_holds_this_turn(bench):
 
 
 def test_newest_prefers_the_directory_written_to_last(bench):
-    old = bench / "v9" / "logs" / "20260820-160000"
-    new = bench / "v9" / "logs" / "20260820-170000"
+    old = bench / "v99" / "logs" / "20260820-160000"
+    new = bench / "v99" / "logs" / "20260820-170000"
     _trace(old, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(new, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     import os
@@ -178,7 +178,7 @@ def test_newest_prefers_the_directory_written_to_last(bench):
 
 def test_the_map_is_remembered_between_the_lines_that_carry_it(bench):
     """The map is written only when it changes, so the reader has to hold the last value."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     picture = "  layer  0 | [@]\n  layer  1 | <o> <x>"
     _trace(d, "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00", team=["Bulbasaur L5 19/19"],
@@ -191,15 +191,15 @@ def test_the_map_is_remembered_between_the_lines_that_carry_it(bench):
 
 
 def test_a_trace_without_a_team_says_so_rather_than_inventing_one(bench):
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     r = watch.read(d).runs[0]
     assert r.team == [] and r.map_view == ""
 
 
 def test_a_pass_can_be_chosen_by_stamp_or_by_model(bench):
-    a = bench / "v9" / "logs" / "20260820-160000"
-    b = bench / "v9" / "logs" / "20260820-170000"
+    a = bench / "v99" / "logs" / "20260820-160000"
+    b = bench / "v99" / "logs" / "20260820-170000"
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     assert watch.pick(stamp="160000") == a
@@ -211,8 +211,8 @@ def test_with_two_running_and_nobody_to_ask_it_says_which_it_took(
         bench, capsys, monkeypatch):
     """Without a note about which was chosen, a number could be read as the other pass."""
     monkeypatch.setattr(watch, "_containers", lambda: [])
-    a = bench / "v9" / "logs" / "20260820-160000"
-    b = bench / "v9" / "logs" / "20260820-170000"
+    a = bench / "v99" / "logs" / "20260820-160000"
+    b = bench / "v99" / "logs" / "20260820-170000"
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     assert len(watch.live()) == 2
@@ -230,8 +230,8 @@ def test_the_heartbeat_decides_what_is_live(bench, monkeypatch):
     power cut), and the dashboard must not offer it however recently the trace was
     written.
     """
-    alive = bench / "v9" / "logs" / "20260820-170000"
-    dead = bench / "v9" / "logs" / "20260820-150000"
+    alive = bench / "v99" / "logs" / "20260820-170000"
+    dead = bench / "v99" / "logs" / "20260820-150000"
     _trace(alive, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")])
     _trace(dead, "google/gemma-4-31b-it", [_row(10000, 0, "2026-08-20T15:00:00")],
            alive=time.time() - 600)
@@ -243,7 +243,7 @@ def test_the_heartbeat_decides_what_is_live(bench, monkeypatch):
 
 def test_a_fresh_heartbeat_is_live_without_any_container(bench, monkeypatch):
     """A pass played on the host has no container, so its heartbeat alone is enough."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     monkeypatch.setattr(watch, "_containers", lambda: [])
     assert [x.name for x in watch.live()] == [d.name]
@@ -257,7 +257,7 @@ def test_a_pass_with_no_heartbeat_is_not_live(bench, monkeypatch):
     pass, so the heartbeat is the only thing that answers the question, and its
     absence means the pass is dead.
     """
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "qwen/qwen3.7-flash", [_row(10000, 0, "2026-08-20T17:00:00")],
            alive=False)
     monkeypatch.setattr(watch, "_containers", lambda: ["pk_v4_qwen-qwen3-7-flash"])
@@ -271,7 +271,7 @@ def _curve(bench, badges: list[int], folder_name: str = "20260820-170000"):
     One extra run is appended because a running pass counts its last run as still
     in flight, so the caller's list is what `badge_curve` has to report.
     """
-    d = bench / "v9" / "logs" / folder_name
+    d = bench / "v99" / "logs" / folder_name
     rows = []
     for i, b in enumerate(badges + [0]):
         rows.append(_row(10000 + i, 0, f"2026-08-20T17:{i:02d}:00", badges=b))
@@ -359,7 +359,7 @@ def test_the_conversations_file_does_not_hide_the_trace(bench, monkeypatch):
     folder. Taking it as the trace looks for a `-chat.alive` heartbeat that nothing
     writes, and a pass playing right now reads as stalled.
     """
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     chat = d / "a--b-pass1-chat.jsonl"
     chat.write_text('{"seed": 10000, "messages": []}\n', encoding="utf-8")
@@ -378,8 +378,8 @@ def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
     Being offered it was the confusing part. A one-run pass, done, appeared at the top
     of the list because the pass had written most recently.
     """
-    a = bench / "v9" / "logs" / "20260820-160000"
-    b = bench / "v9" / "logs" / "20260820-170000"
+    a = bench / "v99" / "logs" / "20260820-160000"
+    b = bench / "v99" / "logs" / "20260820-170000"
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     (b / "c--d-pass1.log").write_text("header\ndone  1 runs\n", encoding="utf-8")
@@ -391,7 +391,7 @@ def test_a_finished_pass_is_not_offered_as_a_choice(bench, monkeypatch):
 
 def test_a_stale_pass_is_stalled_and_not_offered(bench, monkeypatch):
     """A pass whose heartbeat stopped is stalled and never offered to follow."""
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=time.time() - 600)
     monkeypatch.setattr(watch, "_containers", lambda: [])
     assert watch.read(d).state == "stalled"
@@ -407,8 +407,8 @@ def test_the_numbers_in_the_list_do_not_move(bench, monkeypatch):
     """
     import os
 
-    a = bench / "v9" / "logs" / "20260820-160000"
-    b = bench / "v9" / "logs" / "20260820-170000"
+    a = bench / "v99" / "logs" / "20260820-160000"
+    b = bench / "v99" / "logs" / "20260820-170000"
     _trace(a, "a/b", [_row(10000, 0, "2026-08-20T16:00:00")])
     _trace(b, "c/d", [_row(10000, 0, "2026-08-20T17:00:00")])
     # a was launched first and is the one writing now, so the two orders disagree.
@@ -433,8 +433,8 @@ def test_a_container_and_a_host_pass_sort_against_each_other(bench):
     `at` field in the command file carries its offset, which is why the sort reads
     that field.
     """
-    utc = bench / "v9" / "logs" / "20260820-150000"
-    host = bench / "v9" / "logs" / "20260820-163000"
+    utc = bench / "v99" / "logs" / "20260820-150000"
+    host = bench / "v99" / "logs" / "20260820-163000"
     _trace(utc, "a/b", [_row(10000, 0, "2026-08-20T15:00:00")])
     _trace(host, "c/d", [_row(10000, 0, "2026-08-20T16:30:00")])
     (utc / "command.json").write_text(json.dumps(
@@ -451,7 +451,7 @@ def test_nothing_running_is_not_a_finished_pass(bench, monkeypatch):
     A done (or stalled) pass shown as the thing you are watching is the exact
     confusion this removes. It looks like a live run that simply is not moving.
     """
-    done = bench / "v9" / "logs" / "20260820-170000"
+    done = bench / "v99" / "logs" / "20260820-170000"
     _trace(done, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
     (done / "a--b-pass1.log").write_text("header\ndone  1 runs\n", encoding="utf-8")
     monkeypatch.setattr(watch, "_containers", lambda: [])
@@ -470,7 +470,7 @@ def test_it_draws_what_it_read(bench):
     """The renderables are built, so a field renamed in the reader cannot go unnoticed."""
     from rich.console import Console
 
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
         # On the run in flight, which is the one the turn panel is about.
@@ -507,7 +507,7 @@ def test_the_cost_column_prices_the_tokens_counted_so_far(bench, monkeypatch):
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
 
-    _trace(bench / "v9" / "logs" / "20260820-170000", "a/b", [
+    _trace(bench / "v99" / "logs" / "20260820-170000", "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00", run_in=1_000_000, run_out=100_000),
         _row(10001, 0, "2026-08-20T17:01:00", run_in=1, run_out=1),
     ])
@@ -533,7 +533,7 @@ def test_the_set_column_carries_a_versions_own_knob(bench, monkeypatch):
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
 
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     cmd = json.loads((d / "command.json").read_text(encoding="utf-8"))
     cmd["settings"] = {"reasoning": "high", "notes": "4"}
@@ -551,7 +551,7 @@ def test_a_pass_with_no_overrides_shows_a_dash_in_the_set_column(bench, monkeypa
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
 
-    d = bench / "v9" / "logs" / "20260820-170000"
+    d = bench / "v99" / "logs" / "20260820-170000"
     _trace(d, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     monkeypatch.setattr(ov, "_get_containers", lambda: [])
 
@@ -569,7 +569,7 @@ def test_a_model_with_no_price_shows_a_dash_not_zero(bench, monkeypatch):
     import importlib
     ov = importlib.import_module("pokelike.harness.watch.overview")
 
-    _trace(bench / "v9" / "logs" / "20260820-170000", "local/qwen", [
+    _trace(bench / "v99" / "logs" / "20260820-170000", "local/qwen", [
         _row(10000, 0, "2026-08-20T17:00:00", run_in=500_000, run_out=9_000),
         _row(10001, 0, "2026-08-20T17:01:00"),
     ])
@@ -613,7 +613,7 @@ def test_the_price_list_is_fetched_once_and_a_failure_is_not_cached(monkeypatch)
 
 def test_a_pass_stopped_on_purpose_is_not_read_as_a_failure(bench):
     """The word in the log distinguishes a deliberate stop from a crash."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
     log = folder / "a--b-pass1.log"
     log.write_text("2 seeds, 1 worker\nSTOPPED after 1 runs: SystemExit: 143\n",
@@ -624,7 +624,7 @@ def test_a_pass_stopped_on_purpose_is_not_read_as_a_failure(bench):
 
 def test_a_real_failure_still_reads_as_failed(bench):
     """The distinction has to cut both ways."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")], alive=False)
     (folder / "a--b-pass1.log").write_text(
         "2 seeds, 1 worker\nFAILED after 1 runs: LLMConfigError: HTTP 401\n",
@@ -639,7 +639,7 @@ def test_the_stopper_resolves_a_stamp_prefix_and_refuses_an_ambiguous_one(bench)
     stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
 
     for stamp in ("20260820-170000-aaaa", "20260820-170000-bbbb", "20260821-180000-cccc"):
-        _trace(bench / "v9" / "logs" / stamp, "a/b",
+        _trace(bench / "v99" / "logs" / stamp, "a/b",
                [_row(10000, 0, "2026-08-20T17:00:00")])
     assert stop._folder_for("20260821-18").name == "20260821-180000-cccc"
     assert stop._folder_for("20260820-17") is None, "two match, so it must refuse"
@@ -651,7 +651,7 @@ def test_the_stopper_reads_who_owns_a_pass_from_the_heartbeat(bench):
     import importlib
     stop = importlib.import_module("pokelike.interfaces.cli.commands.model_stop")
 
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     (folder / "a--b-pass1.alive").write_text("pid=4242 host=7dae1e302082\n",
                                              encoding="utf-8")
@@ -699,7 +699,7 @@ def _runs_file(folder, model: str, rows: list[dict]) -> None:
 
 def test_a_finished_run_carries_its_score(bench):
     """The score reaches the table from the runs file, keyed by seed."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [
         _row(10000, 0, "2026-08-20T17:00:00"),
         _row(10001, 0, "2026-08-20T17:01:00"),
@@ -713,7 +713,7 @@ def test_a_finished_run_carries_its_score(bench):
 
 def test_the_runs_file_is_never_mistaken_for_the_trace(bench):
     """The runs file is a .jsonl in the same folder, and it is written last."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00", badges=3)])
     # Written after the trace, so "newest .jsonl" would pick this one.
     _runs_file(folder, "a/b", [{"seed": 10000, "score": -50, "badges": 3}])
@@ -726,7 +726,7 @@ def test_the_runs_file_is_never_mistaken_for_the_trace(bench):
 
 def test_a_pass_without_a_runs_file_has_no_score_rather_than_a_wrong_one(bench):
     """Passes started before that file existed simply have nothing to show."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     p = watch.read(folder)
     assert p is not None and p.runs[0].score is None
@@ -766,7 +766,7 @@ def test_a_pass_writes_its_runs_file_with_the_score(tmp_path):
 def _pass_owned_by(bench, pid, host):
     """Create a running pass whose heartbeat names `pid` and `host`, then return
     the folder and the trace path."""
-    folder = bench / "v9" / "logs" / "20260820-170000"
+    folder = bench / "v99" / "logs" / "20260820-170000"
     _trace(folder, "a/b", [_row(10000, 0, "2026-08-20T17:00:00")])
     trace = folder / "a--b-pass1.jsonl"
     trace.with_suffix(".alive").write_text(f"pid={pid} host={host}\n", encoding="utf-8")
