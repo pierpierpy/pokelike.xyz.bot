@@ -125,20 +125,26 @@ def preflight(version: str, model: str, endpoint: str | None = None,
             "There is one legal action, index 0. Call the play tool with index 0 "
             "and any reason. Do not answer in prose."},
     ]
-    try:
-        msg = bot.call_model(probe)
-    except Exception as e:  # noqa: BLE001
-        out.update(why=f"{type(e).__name__}: {e}",
-                   tokens_in=bot.tokens_in, tokens_out=bot.tokens_out,
-                   retries=bot.retries)
-        return out
-
-    calls = msg.get("tool_calls") or []
-    out.update(
-        tool_calls=[c.get("function", {}).get("name") for c in calls],
-        tokens_in=bot.tokens_in, tokens_out=bot.tokens_out, retries=bot.retries,
-        ok=bool(calls),
-    )
+    # The probe is asked twice before a model is turned away. A provider that
+    # answers in prose once often calls the tool on the next attempt, and one flaky
+    # answer would otherwise cost the whole pass of fifty runs.
+    calls: list[dict[str, Any]] = []
+    for _attempt in range(2):
+        try:
+            msg = bot.call_model(probe)
+        except Exception as e:  # noqa: BLE001
+            out.update(why=f"{type(e).__name__}: {e}",
+                       tokens_in=bot.tokens_in, tokens_out=bot.tokens_out,
+                       retries=bot.retries)
+            return out
+        calls = msg.get("tool_calls") or []
+        out.update(
+            tool_calls=[c.get("function", {}).get("name") for c in calls],
+            tokens_in=bot.tokens_in, tokens_out=bot.tokens_out, retries=bot.retries,
+            ok=bool(calls),
+        )
+        if calls:
+            break
     if not calls:
         out["why"] = (
             "answered, but called no tool. The harness ends a turn by calling "

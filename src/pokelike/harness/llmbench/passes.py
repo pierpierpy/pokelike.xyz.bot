@@ -70,6 +70,10 @@ def play_model(game, version: str, model: str, site: Path,
         if "plan" in n:
             # The route committed to at run end, saved per run like the notebook.
             row["plan"] = n["plan"]
+        if n.get("run_summary"):
+            # What the finished run left for the next one. A harness that writes no
+            # summary reports none, and the field is then absent rather than empty.
+            row["run_summary"] = n["run_summary"]
         last[0] = now
         log.run(row)
 

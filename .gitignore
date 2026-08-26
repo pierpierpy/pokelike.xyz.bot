@@ -67,3 +67,6 @@ experiments/*/log/
 
 # local research notes, never published
 TIPS_AND_TRICKS.md
+
+# The benchmark audit is a working document, kept out of the repo.
+BENCHMARK-AUDIT.md

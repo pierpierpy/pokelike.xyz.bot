@@ -73,10 +73,12 @@ class PassLog:
         # The notebook and plan files are opened on demand.
         self.book_path = self.path.with_name(self.path.stem + "-notebook.log")
         self.plan_path = self.path.with_name(self.path.stem + "-plan.log")
+        self.summary_path = self.path.with_name(self.path.stem + "-summary.log")
         # These are per-run JSON lines (score, badges, etc.).
         self.runs_path = self.path.with_name(self.path.stem + "-runs.jsonl")
         self.bf: Any = None
         self.pf: Any = None
+        self.sf: Any = None
         self.rf: Any = None
         self._last_book: list[str] | None = None
         self._last_plan: str | None = None
@@ -145,6 +147,7 @@ class PassLog:
                 self._say(f"       - {note}")
             self.book = book
         self._write_notebook(row)
+        self._write_summary(row)
         self._write_plan(row)
         self._write_run_row(row)
         if self.total and self.n % 10 == 0 and self.n < self.total:
@@ -238,6 +241,23 @@ class PassLog:
             self.pf.write(f"{head}\n  {plan}\n")
         self._last_plan = plan
 
+    def _write_summary(self, row: dict[str, Any]) -> None:
+        """Writes what the finished run told the next one, one block per run.
+
+        The file exists so the account a model builds of its own play can be read
+        straight through, in the order the runs were played. A harness that writes no
+        summary produces no file.
+        """
+        said = row.get("run_summary")
+        if said is None:
+            return
+        if self.sf is None:
+            self.sf = self.summary_path.open("w", encoding="utf-8", buffering=1)
+            self.sf.write(f"what each run of {self.model} told the next one\n"
+                          f"one block per finished run, in the order played\n\n")
+        head = f"run {self.n:>2}  seed {row.get('seed')}  ({row.get('badges') or 0} badges)"
+        self.sf.write(f"{head}\n  {said or '(nothing: the model wrote no summary)'}\n")
+
     def decision(self, e: dict[str, Any]) -> None:
         """Writes one decision as a JSON line to the trace file."""
         seed = e.get("seed")
@@ -283,7 +303,7 @@ class PassLog:
     def close(self) -> None:
         """Stops the heartbeat and closes all open file handles."""
         self._heartbeat.stop()
-        for fh in (self.fh, self.tf, self.bf, self.pf, self.rf):
+        for fh in (self.fh, self.tf, self.bf, self.pf, self.sf, self.rf):
             if fh is not None and not fh.closed:
                 fh.close()
 

@@ -69,6 +69,17 @@ HARNESS = 9
 # formula whose terms never fire in Story mode. Choosing a node closes the others
 # on that layer forever.
 
+PROMPT_SUMMARY_SYSTEM = """You are playing Pokelike, a Pokemon roguelike, one run \
+at a time. A run that ends is over for good, and the only thing you keep is what you \
+write down."""
+
+PROMPT_SUMMARY_USER = """That run is over. Seed %(seed)s, %(badges)s badges, \
+%(turns)s turns, and you reached map %(map)s.
+
+Write two or three sentences for your future self. Name the decision that cost you \
+this run and what you will do instead. Do not restate the numbers above, and do not \
+give general advice. This is the only thing the next run will know about this one."""
+
 GAME_RULES = """You are playing Pokelike, a Pokemon roguelike autobattler.
 
 You are an experienced Pokemon player: you know the types, their weaknesses, STAB
@@ -563,7 +574,7 @@ class HarnessV8(Bot):
     # that ends tells the following ones how it went, so the notes can be read
     # against what came of holding them.
     RUN_SUMMARY_KEEP = 10
-    RUN_SUMMARY_CHARS = 200
+    RUN_SUMMARY_CHARS = 300
     # Notes survive across runs within a pass (50 runs form one lifetime).
     CROSS_RUN_MEMORY = True
     # The notebook is the only thing that crosses a region boundary.
@@ -755,6 +766,9 @@ class HarnessV8(Bot):
             # comparable.
             "notes_max": self.notes_max,
             "plan": self.plan,
+            # What this run told the next one, saved per run beside the notebook so
+            # the account the model built of itself can be read back.
+            "run_summary": self.run_history[-1] if self.run_history else "",
             "scratch_turns": len(self.scratch),
             "fallback_rate": round(self.fallbacks / self.turns, 3) if self.turns else 0.0,
             "temperature": self.temperature,
@@ -1218,27 +1232,55 @@ class HarnessV8(Bot):
     def finish(self, state: dict[str, Any], score: dict[str, Any] | None) -> None:
         """Records what the run that just ended leaves for the next one.
 
-        The runner calls this once a run is over. The badges are read from the last
-        turn this bot saw rather than from `state`, because the engine empties its
-        state at game over and hands back an empty team and no badges however far
-        the run went.
+        The runner calls this once a run is over, and the model writes the entry
+        itself, so what carries forward is what the model thinks cost it the run
+        rather than the figures it can already see. One extra call per run pays for
+        that. The figures are the fallback, because a run left unaccounted for is
+        worse than a run accounted for plainly.
+
+        The badges are read from the last turn this bot saw rather than from
+        `state`, because the engine empties its state at game over and hands back an
+        empty team and no badges however far the run went.
 
         Guarded, because a run that reaches here has already been played and
         counted. Losing the entry costs a line of context; letting an exception out
         would cost the run.
         """
+        seen = self._last_state or {}
+        run = seen.get("run") or {}
+        badges = run.get("badges", seen.get("badges", 0))
+        where = run.get("map", seen.get("map", 0))
+        plain = (f"seed {self.seed}: {badges} badge{'' if badges == 1 else 's'}, "
+                 f"{self.turns} turns, reached map {where}")
+        entry = plain
         try:
-            seen = self._last_state or {}
-            run = seen.get("run") or {}
-            badges = run.get("badges", seen.get("badges", 0))
-            entry = (f"seed {self.seed}: {badges} badge{'' if badges == 1 else 's'}, "
-                     f"{self.turns} turns, reached map "
-                     f"{run.get('map', seen.get('map', 0))}")
-            self.run_history.append(entry[: self.RUN_SUMMARY_CHARS])
-            del self.run_history[: -self.RUN_SUMMARY_KEEP]
+            reply = self.call_model([
+                {"role": "system", "content": PROMPT_SUMMARY_SYSTEM},
+                {"role": "user", "content": PROMPT_SUMMARY_USER % {
+                    "seed": self.seed, "badges": badges, "turns": self.turns,
+                    "map": where}},
+            ], tools=[])       # prose, so no tool is offered
+            said = (reply.get("content") or "").strip().replace("\n", " ")
+            if said:
+                entry = f"seed {self.seed} ({badges} badges): {said}"
         except Exception as e:                       # noqa: BLE001 (see the docstring)
             if self.verbose:
-                print(f"   [llm] the run was not recorded: {type(e).__name__}: {e}")
+                print(f"   [llm] the run summary was not written: {type(e).__name__}: {e}")
+        self.run_history.append(self._cut(entry))
+        del self.run_history[: -self.RUN_SUMMARY_KEEP]
+
+    def _cut(self, entry: str) -> str:
+        """Returns the entry inside its budget, ending on a full sentence when it can.
+
+        A hard cut lands mid word, and the result is read by the model at every turn
+        of every later run, so the budget is spent on whole sentences and the rest is
+        dropped.
+        """
+        if len(entry) <= self.RUN_SUMMARY_CHARS:
+            return entry
+        head = entry[: self.RUN_SUMMARY_CHARS]
+        stop = max(head.rfind(". "), head.rfind("! "), head.rfind("? "))
+        return head[: stop + 1] if stop > self.RUN_SUMMARY_CHARS // 2 else head
 
     def _plan_block(self) -> list[str]:
         """Returns the current plan or the invitation to write one, shown every turn."""
@@ -1337,7 +1379,8 @@ class HarnessV8(Bot):
 
     # ------------------------------------------------------------------- HTTP
 
-    def call_model(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    def call_model(self, messages: list[dict[str, Any]],
+                   tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         if self.token_budget and self.tokens_used >= self.token_budget:
             raise LLMBudgetError(
                 f"run spent {self.tokens_used} tokens, budget is {self.token_budget}"
@@ -1345,7 +1388,9 @@ class HarnessV8(Bot):
         body = json.dumps({
             "model": self.model,
             "messages": messages,
-            "tools": self.tools(),
+            # Passing `tools=[]` asks the model for prose only, while None means
+            # this bot's usual set.
+            "tools": self.tools() if tools is None else tools,
             "tool_choice": "auto",
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
