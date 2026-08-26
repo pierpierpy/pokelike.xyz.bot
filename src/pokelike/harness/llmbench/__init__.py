@@ -110,7 +110,7 @@ from .passes import (  # noqa: F401
 
 # --- charts.py: the badge distribution images the README embeds
 from .charts import available as charts_available  # noqa: F401
-from .charts import cost_chart  # noqa: F401
+from .charts import badge_chart, cost_chart  # noqa: F401
 
 
 def write_charts():

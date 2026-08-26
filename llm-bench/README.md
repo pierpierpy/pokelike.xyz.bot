@@ -34,8 +34,6 @@ Contents
 
 ### Harness `v8`
 
-![What badges cost under v8](img/cost-v8.png)
-
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `stealth/ox-alpha` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.12** | 0.113 | 3 | 0 | -0.20 | 11 | 189966 | 2982 | 0.001 | 0.00 | 0.0000 |
@@ -50,6 +48,8 @@ Contents
 `set` lists the knobs this harness version has of its own, with the value each pass ran under. A pass that passed no `--set` shows the harness default, so every row states what it ran with. The flags every version shares are left out because they say nothing about which question a row answers. Two rows for the same model with different `set` values are two different questions, not two samples of the same one.
 
 ### Harness `v7`
+
+![What badges cost under v7](img/cost-v7.png)
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|

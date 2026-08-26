@@ -279,20 +279,22 @@ def write_readme(price: dict[str, dict[str, float]] | None = None) -> Path:
     path = _bench() / "README.md"
     order = list(reversed(versions()))
     blocks = [markdown_table(v, price) for v in order]
-    # The newest harness that has been measured carries its cost frontier, and the
-    # older ones do not. A reader wants the current question answered here rather than
-    # six charts to scroll past, and the images are one click away for anyone who wants
-    # an older one. The search walks down the versions instead of stopping at the
-    # newest, because a harness that exists with nothing recorded under it has no chart
-    # and would otherwise take the picture off the page.
-    for k, v in enumerate(order):
-        img = _bench() / "img" / f"cost-{v}.png"
-        if img.is_file():
-            lines = blocks[k].split("\n")
-            # After the `### Harness` heading and the blank line under it.
-            lines.insert(2, f"![What badges cost under {v}](img/cost-{v}.png)\n")
-            blocks[k] = "\n".join(lines)
-            break
+    # One version carries its cost frontier and the others do not, because a reader
+    # wants the current question answered here rather than seven charts to scroll
+    # past, and every image is one click away. The version chosen is the one with the
+    # most recorded passes, since that is where the picture rests on the most
+    # evidence. A new harness therefore takes the page only once it has been measured
+    # more than the old one, rather than the day its directory appears.
+    from .charts import _rows
+
+    measured = [(len(_rows(v)), k, v) for k, v in enumerate(order)
+                if (_bench() / "img" / f"cost-{v}.png").is_file()]
+    if measured:
+        _, k, v = max(measured)
+        lines = blocks[k].split("\n")
+        # After the `### Harness` heading and the blank line under it.
+        lines.insert(2, f"![What badges cost under {v}](img/cost-{v}.png)\n")
+        blocks[k] = "\n".join(lines)
     body = "\n\n".join(blocks) if blocks else "_Nothing measured yet._"
     generated = f"{README_BEGIN}\n\n{body}\n\n{README_END}"
     if path.is_file():

@@ -23,6 +23,9 @@ from typing import Any
 # Badges cap at eight, because the engine has eight gym leaders and the Elite
 # Four after them awards none. The axis is fixed to that range so every version's
 # chart is read against the same scale.
+# A version needs this many recorded passes before its curve means anything.
+MIN_PASSES = 3
+
 BADGE_MAX = 8
 
 
@@ -182,6 +185,90 @@ def cost_chart(version: str, path: Path,
     return path
 
 
+def _progress(version: str) -> list[dict[str, Any]]:
+    """Returns each full pass of a version with its badges in the order played.
+
+    Play order is what matters here rather than seed order, because the notes
+    accumulate as the pass goes on, so this sorts the way `results.learning` does.
+    """
+    from .results import load
+    from .versions import settings_text
+
+    out = []
+    for doc in load(version):
+        for p in doc.get("passes", []):
+            runs = p.get("runs") or []
+            if len(runs) < 50:
+                continue
+            played = sorted(runs, key=lambda r: (r.get("order") is None, r.get("order"),
+                                                 r.get("seed")))
+            sett = settings_text(version, p.get("settings"))
+            out.append({
+                "model": doc.get("model") or "unknown",
+                "set_short": (sett.split(",")[-1] if "," in sett else sett),
+                "badges": [r.get("badges") or 0 for r in played],
+            })
+    return out
+
+
+def badge_chart(versions: list[str], path: Path) -> Path | None:
+    """Draws how far a run gets, as the share of runs ending on each badge count.
+
+    This is the picture that says what the benchmark can and cannot measure. Most
+    runs end on one badge, so the badge count carries little room to separate two
+    models, and a version whose bars sit on top of another version's bars is not
+    telling those two apart.
+
+    An earlier chart here plotted badges against play position and appeared to show
+    models improving over the first twenty runs and then declining. That chart was
+    withdrawn, because a pass plays the fifty seeds in a fixed order, which makes
+    play position and seed identity the same variable, so the curve measured the
+    difficulty of the seed sequence. A version carrying no memory between runs drew
+    the same curve.
+
+    A version with fewer than MIN_PASSES recorded passes is left out.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    drawn = []
+    for version in versions:
+        rows = _progress(version)
+        if len(rows) < MIN_PASSES:
+            continue
+        b = [x for r in rows for x in r["badges"]]
+        total = len(b) or 1
+        drawn.append((version, [100 * b.count(i) / total for i in range(BADGE_MAX + 1)],
+                      len(rows), total))
+    if not drawn:
+        return None
+
+    fig, ax = plt.subplots(figsize=(9.0, 5.0))
+    colours = ("#4c6ef5", "#e8590c", "#0ca678", "#ae3ec9", "#f59f00",
+               "#1098ad", "#e03131", "#495057")
+    width = 0.8 / len(drawn)
+    for i, ((version, shares, passes, total), colour) in enumerate(zip(drawn, colours)):
+        offset = (i - (len(drawn) - 1) / 2) * width
+        ax.bar([x + offset for x in range(BADGE_MAX + 1)], shares, width=width,
+               color=colour, label=version, zorder=3)
+    ax.legend(fontsize=8, frameon=False)
+    ax.set_title("how far a run gets", fontsize=11)
+    ax.set_xlabel("badges won in a run", fontsize=9)
+    ax.set_ylabel("share of runs (%)", fontsize=9)
+    ax.set_xticks(range(BADGE_MAX + 1))
+    ax.tick_params(labelsize=9)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", alpha=0.3, linewidth=0.6)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+    return path
+
+
 def write_charts(bench: Path, versions: list[str]) -> list[Path]:
     """Draws every version's cost frontier under <bench>/img/ and returns what was written."""
     out = []
@@ -189,4 +276,9 @@ def write_charts(bench: Path, versions: list[str]) -> list[Path]:
         p = cost_chart(v, bench / "img" / f"cost-{v}.png")
         if p is not None:
             out.append(p)
+    # One picture for every version together, because the question it answers is how
+    # much room the badge count leaves to tell two models apart.
+    p = badge_chart(versions, bench / "img" / "badges.png")
+    if p is not None:
+        out.append(p)
     return out
