@@ -38,10 +38,11 @@ _No models measured under harness `v9` yet._
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `stealth/ox-alpha` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.12** | 0.113 | 3 | 0 | -0.20 | 11 | 189966 | 2982 | 0.001 | 0.00 | 0.0000 |
-| 2 | `inclusionai/ling-3.0-flash` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.10 | 11 | 203962 | 28469 | 0.001 | 0.30 | 0.0061 |
-| 3 | `openai/gpt-oss-120b` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **0.98** | 0.116 | 3 | 0 | -0.10 | 40 | 196274 | 15983 | 0.004 | 0.50 | 0.0100 |
-| 4 | `openai/gpt-5-nano` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **0.7** | 0.077 | 2 | 0 | +0.00 | 13 | 111716 | 29793 | 0.0 | 0.88 | 0.0175 |
+| 1 | `qwen/qwen3.7-flash` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.36** | 0.133 | 5 | 0 | +0.40 | 40 | 240087 | 175074 | 0.036 | 1.50 | 0.0300 |
+| 2 | `stealth/ox-alpha` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.12** | 0.113 | 3 | 0 | -0.20 | 11 | 189966 | 2982 | 0.001 | n/a | n/a |
+| 3 | `inclusionai/ling-3.0-flash` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **1.02** | 0.078 | 4 | 0 | -0.10 | 11 | 203962 | 28469 | 0.001 | 0.30 | 0.0061 |
+| 4 | `openai/gpt-oss-120b` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **0.98** | 0.116 | 3 | 0 | -0.10 | 40 | 196274 | 15983 | 0.004 | 0.50 | 0.0100 |
+| 5 | `openai/gpt-5-nano` | `notes=40,note_chars=4000,plan_chars=1200,reasoning=medium` | 1 | 50 | **0.7** | 0.077 | 2 | 0 | +0.00 | 13 | 111716 | 29793 | 0.0 | 0.88 | 0.0175 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -56,22 +57,22 @@ _No models measured under harness `v9` yet._
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `google/gemini-3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **2.56** | 0.322 | 8 | 1 | -0.10 | 20 | 427806 | 9322 | 0.0 | 8.90 | 0.1779 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 2.15 | 0.0430 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=high` | 1 | 50 | **1.66** | 0.213 | 8 | 0 | +0.40 | 29 | 418119 | 33334 | 0.0 | 1.93 | 0.0386 |
 | 3 | `google/gemma-4-31b-it` | `notes=40,reasoning=medium` | 1 | 50 | **1.56** | 0.268 | 8 | 1 | -1.80 | 40 | 195539 | 30904 | 0.006 | 1.41 | 0.0281 |
 | 4 | `qwen/qwen3.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.56** | 0.244 | 8 | 0 | -0.80 | 27 | 214175 | 72801 | 0.03 | 0.79 | 0.0159 |
 | 5 | `anthropic/claude-sonnet-4.6` | `notes=40,reasoning=medium` | 1 | 50 | **1.5** | 0.22 | 8 | 0 | -0.50 | 40 | 550353 | 27563 | 0.0 | 103.23 | 2.0645 |
-| 6 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.75 | 0.0349 |
+| 6 | `deepseek/deepseek-v4-flash` | `notes=40,reasoning=low` | 1 | 50 | **1.46** | 0.132 | 5 | 0 | -0.20 | 21 | 339263 | 27554 | 0.0 | 1.57 | 0.0314 |
 | 7 | `anthropic/claude-sonnet-4.5` | `notes=40,reasoning=medium` | 1 | 50 | **1.38** | 0.178 | 8 | 0 | -0.90 | 24 | 496907 | 32096 | 0.0 | 98.61 | 1.9722 |
 | 8 | `openai/gpt-oss-120b` | `notes=40,reasoning=medium` | 1 | 50 | **1.26** | 0.151 | 5 | 0 | +0.70 | 40 | 214536 | 22364 | 0.005 | 0.59 | 0.0117 |
-| 9 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | 0.00 | 0.0000 |
+| 9 | `stealth/ox-alpha` | `notes=40,reasoning=low` | 1 | 50 | **1.22** | 0.19 | 8 | 0 | +0.10 | 20 | 156823 | 2837 | 0.002 | n/a | n/a |
 | 10 | `inclusionai/ling-3.0-flash` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.109 | 4 | 0 | +0.00 | 27 | 215610 | 29994 | 0.002 | 0.32 | 0.0064 |
 | 11 | `openai/gpt-5-nano` | `notes=40,reasoning=medium` | 1 | 50 | **1.12** | 0.117 | 5 | 0 | -0.30 | 13 | 108387 | 33720 | 0.001 | 0.95 | 0.0189 |
 | 12 | `google/gemini-2.5-flash-lite` | `notes=40,reasoning=medium` | 1 | 50 | **0.94** | 0.097 | 3 | 0 | -0.20 | 26 | 101576 | 45060 | 0.05 | 1.41 | 0.0282 |
-| 13 | `stealth/ox-alpha` | `notes=40,reasoning=high` | 1 | 50 | **0.94** | 0.053 | 2 | 0 | +0.10 | 40 | 188204 | 9610 | 0.001 | 0.00 | 0.0000 |
+| 13 | `stealth/ox-alpha` | `notes=40,reasoning=high` | 1 | 50 | **0.94** | 0.053 | 2 | 0 | +0.10 | 40 | 188204 | 9610 | 0.001 | n/a | n/a |
 | 14 | `z-ai/glm-4.7-flash` | `notes=40,reasoning=medium` | 1 | 50 | **0.84** | 0.072 | 2 | 0 | +0.40 | 40 | 207929 | 28952 | 0.04 | 1.20 | 0.0241 |
 | 15 | `anthropic/claude-haiku-4.5` | `notes=40,reasoning=medium` | 1 | 50 | **0.8** | 0.107 | 5 | 0 | +0.10 | 12 | 232720 | 29155 | 0.0 | 18.92 | 0.3785 |
-| 16 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | 0.00 | 0.0000 |
-| 17 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | 0.00 | 0.0000 |
+| 16 | `stealth/ox-alpha` | `notes=40,reasoning=minimal` | 1 | 50 | **0.78** | 0.112 | 5 | 0 | -0.60 | 20 | 130626 | 2508 | 0.004 | n/a | n/a |
+| 17 | `stealth/ox-alpha` | `notes=40,reasoning=medium` | 1 | 50 | **0.78** | 0.1 | 3 | 0 | +0.10 | 28 | 146559 | 2660 | 0.003 | n/a | n/a |
 | 18 | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | `notes=40,reasoning=medium` | 1 | 50 | **0.72** | 0.086 | 3 | 0 | +0.00 | 40 | 114757 | 40958 | 0.114 | 0.00 | 0.0000 |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
@@ -84,7 +85,8 @@ _No models measured under harness `v9` yet._
 
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 2.52 | 0.0504 |
+| 1 | `deepseek/deepseek-v4-flash` | `notes=40` | 1 | 50 | **1.88** | 0.238 | 8 | 0 | -0.80 | 40 | 487267 | 40866 | 0.002 | 2.26 | 0.0452 |
+| 2 | `stealth/ox-alpha` | `notes=40` | 1 | 50 | **1.02** | 0.141 | 6 | 0 | -0.40 | 40 | 203524 | 43651 | 0.429 | n/a | n/a |
 
 `Elite4` is how many of this row's runs beat an Elite Four, summed. A single-region run is 1 if it ended on the win screen, 0 otherwise; a multi-region campaign run counts every region it cleared, even one it later died in.
 
@@ -109,7 +111,7 @@ _No models measured under harness `v9` yet._
 | # | model | set | passes | runs | badges~ | ±sem | best | Elite4 | learn | notes | tok in/run | tok out/run | fallback | $ | $/run |
 |--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | `moonshotai/kimi-k2.6` | `notes=12` | 1 | 50 | **1.76** | 0.256 | 8 | 1 | -0.20 | 12 | 226220 | 72712 | 0.07 | 25.29 | 0.5058 |
-| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.37 | 0.0273 |
+| 2 | `deepseek/deepseek-v4-flash` | `notes=12` | 1 | 50 | **1.54** | 0.188 | 8 | 0 | +0.00 | 8 | 250164 | 29208 | 0.001 | 1.23 | 0.0245 |
 | 3 | `google/gemini-3.7-flash` | `notes=12` | 1 | 50 | **1.54** | 0.206 | 8 | 0 | -0.20 | 12 | 201050 | 5772 | 0.002 | 4.31 | 0.0862 |
 | 4 | `qwen/qwen3.7-flash` | `notes=12` | 1 | 50 | **1.34** | 0.178 | 8 | 0 | +0.50 | 12 | 146165 | 101157 | 0.033 | 0.88 | 0.0175 |
 | 5 | `Qwen/Qwen3.8-27B-FP8` | `notes=12` | 1 | 50 | **1.14** | 0.081 | 3 | 0 | -0.10 | 12 | 215905 | 53835 | 0.121 | n/a | n/a |
