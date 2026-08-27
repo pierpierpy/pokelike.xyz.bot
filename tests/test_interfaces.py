@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -13,11 +14,19 @@ import pytest
 from pokelike.interfaces.cli.main import main
 
 
-def _cli(*argv) -> tuple[int, str]:
-    """Runs the CLI in a subprocess and returns (exit code, output)."""
+def _cli(*argv, bench: str | None = None) -> tuple[int, str]:
+    """Runs the CLI in a subprocess and returns (exit code, output).
+
+    A `bench` path points the subprocess at another benchmark directory, which the
+    board test needs: `model board` draws its charts into that directory, and the real
+    one holds tracked images that a test has no business rewriting.
+    """
+    env = dict(os.environ)
+    if bench is not None:
+        env["POKELIKE_BENCH"] = bench
     r = subprocess.run(
         [sys.executable, "-m", "pokelike.interfaces.cli.main", *argv],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=120, env=env,
     )
     return r.returncode, r.stdout + r.stderr
 
@@ -71,14 +80,28 @@ def test_a_family_needs_a_verb(family):
     assert code != 0, f"{family} still runs without a verb"
 
 
-def test_model_board_prints_a_table():
+def test_model_board_prints_a_table(tmp_path):
     """The `board` verb shares a function with `bench`, and shared functions read
     shared flags. The `board` command reached `args.notes`, which only `bench` defines,
     and died with an AttributeError while doing nothing but printing a table.
+
+    The command runs against a copy of one version, because it rewrites the standings,
+    the notebook pages and the charts of whatever directory it is pointed at, and the
+    real one holds tracked files. The copy is 344 kB, which is cheaper than a test that
+    dirties the repository every time it runs.
     """
-    code, text = _cli("model", "board", "--harness", "v0")
+    import shutil
+
+    from pokelike.shared.paths import ROOT
+
+    bench = tmp_path / "llm-bench"
+    shutil.copytree(ROOT / "llm-bench" / "v0", bench / "v0",
+                    ignore=shutil.ignore_patterns("logs", "__pycache__"))
+    code, text = _cli("model", "board", "--harness", "v0", bench=str(bench))
     assert code == 0, text
     assert "Traceback" not in text
+    # The charts land in the copy, which is how we know the real ones were left alone.
+    assert (bench / "img").is_dir()
 
 
 def test_model_watch_says_so_when_there_is_nothing_to_watch():
